@@ -6,13 +6,17 @@ can read them without opening the SQLite index.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from typing import Any
 
+from .indexer import IGNORE_DIRS
+
 ACTIVE_NAME = "active.json"
 CONFIG_NAME = "config.json"
 STOP_HISTORY_NAME = "stop-history.json"
+SESSION_NAME = "session.json"
 VALID_ENFORCE = {"block", "warn", "off"}
 
 
@@ -105,3 +109,59 @@ def record_stop_block(root: str, score: float) -> None:
     scores = stop_history(root)
     scores.append(float(score))
     _write_json(path, {"scores": scores[-8:]})
+
+
+def hash_py_files(root: str) -> dict[str, str]:
+    """sha1 of every .py file under root, skipping IGNORE_DIRS (incl. .dc-engine)."""
+    out: dict[str, str] = {}
+    base = os.path.abspath(root)
+    for dirpath, dirnames, filenames in os.walk(base):
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS and not d.endswith(".egg-info")]
+        for fn in filenames:
+            if not fn.endswith(".py"):
+                continue
+            path = os.path.join(dirpath, fn)
+            rel = os.path.relpath(path, base).replace(os.sep, "/")
+            try:
+                with open(path, "rb") as fh:
+                    out[rel] = hashlib.sha1(fh.read()).hexdigest()
+            except OSError:
+                continue
+    return out
+
+
+def load_session(root: str) -> dict[str, Any]:
+    return _read_json(os.path.join(state_dir(root), SESSION_NAME))
+
+
+def save_session(root: str, data: dict[str, Any]) -> None:
+    _write_json(os.path.join(state_dir(root), SESSION_NAME), data)
+
+
+def ensure_session_snapshot(root: str) -> dict[str, Any]:
+    """Freeze .py hashes (and a git stash ref when possible) on the first hook call."""
+    data = load_session(root)
+    if data.get("hashes"):
+        return data
+    data["hashes"] = hash_py_files(root)
+    data.setdefault("py_bypass_blocked", False)
+    data.setdefault("closed_warned", [])
+    try:
+        from . import baseline
+        if baseline.is_git_root(root):
+            created = baseline._git(root, "stash", "create")
+            sha = (created.stdout or "").strip() if created.returncode == 0 else ""
+            if sha:
+                data["git_ref"] = sha
+    except Exception:
+        pass
+    save_session(root, data)
+    return data
+
+
+def py_files_changed(root: str) -> list[str]:
+    data = ensure_session_snapshot(root)
+    old = data.get("hashes") or {}
+    new = hash_py_files(root)
+    changed = sorted(set(old) | set(new))
+    return [rel for rel in changed if old.get(rel) != new.get(rel)]

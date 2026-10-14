@@ -103,7 +103,7 @@ never shows up in `git status`). Any other MCP client works the same way: run
 | `dc_index_status()` | Index size, resolution coverage, available checkers |
 | `dc_create_contract(task, targets, must_change, must_preserve)` | Freeze a baseline and declare which behaviours must change or stay the same |
 | `dc_check_contract(id)` | Run probes on baseline vs working tree; compact ✓/✗ report and a score |
-| `dc_get_contract` / `dc_list_contracts` / `dc_close_contract` | Inspect or drop a contract |
+| `dc_get_contract` / `dc_list_contracts` / `dc_close_contract(id, reason?)` | Inspect or close a contract (`reason` required if score is below 1.0; JSON is kept) |
 | `dc_amend_contract(id, add_targets, add_must_change, add_must_preserve)` | Grow a contract when the change is bigger than planned; new probes are checked against the baseline |
 | `dc_list_checkpoints` / `dc_restore_checkpoint` | Score-gated snapshots of the working tree; restore only overwrites files that differ |
 
@@ -243,8 +243,11 @@ and the MCP server into `.mcp.json`. `install --uninstall` removes only those
 entries. Mode is `.dc-engine/config.json` → `"enforce": "block"` (default),
 `"warn"`, or `"off"`.
 
-Creating a contract makes it **active**. Python edits through Edit/Write/MultiEdit
-or `dc_replace_symbol` are denied until then. After each symbol edit the engine
+Creating a contract makes it **active**. Python edits through Edit/Write/MultiEdit,
+Bash commands that clearly write `.py` files, or `dc_replace_symbol` are denied
+until then. The Stop hook also blocks once if `.py` files changed with no
+contract, however they were written. Closing an unsatisfied contract requires a
+`reason`; the Stop hook then warns instead of going silent. After each symbol edit the engine
 appends a one-line contract status. Every check that *beats* the best score
 saves a checkpoint (`refs/dc/<id>/cp-<n>` in git; a file copy otherwise). A
 drop prints `dc_restore_checkpoint`. The Stop hook blocks while the score is
@@ -282,3 +285,15 @@ A later bad edit that drops the score prints:
 ```
 ⚠ score dropped 1/1 → 0/1 since checkpoint 2 (best). dc_restore_checkpoint to roll back.
 ```
+
+`dc-engine clean --days 7` removes closed contracts' leftover baseline
+worktrees and `refs/dc/*` refs older than N days.
+
+## Security
+
+Probes are **arbitrary Python** the agent supplies (`setup` + `call`).
+`dc_create_contract` and `dc_amend_contract` echo that exact code in their
+result so a human can read it before anything runs. Run the layer only on
+repos and machines where executing agent-written snippets is acceptable, and
+keep `dc_create_contract` / `dc_amend_contract` on **manual approval** in
+Claude Code permissions (do not auto-allow those two tools).

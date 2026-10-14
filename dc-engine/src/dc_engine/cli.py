@@ -15,6 +15,7 @@
     dc-engine hook pre-edit|post-edit|stop     (Claude Code; JSON on stdin)
     dc-engine install --claude-code
     dc-engine install --uninstall
+    dc-engine clean [--days 7]
 """
 
 from __future__ import annotations
@@ -89,6 +90,8 @@ def main(argv: list[str] | None = None) -> None:
     ins = sub.add_parser("install")
     ins.add_argument("--claude-code", action="store_true")
     ins.add_argument("--uninstall", action="store_true")
+    cln = sub.add_parser("clean")
+    cln.add_argument("--days", type=int, default=7)
     a = p.parse_args(argv)
 
     if a.cmd == "hook":
@@ -100,6 +103,10 @@ def main(argv: list[str] | None = None) -> None:
             print(inst.uninstall(a.root))
         else:
             print(inst.install(a.root, claude_code=True))
+        return
+    if a.cmd == "clean":
+        from .checkpoints import clean_stale
+        print(clean_stale(a.root, a.days))
         return
 
     e = Engine(a.root)

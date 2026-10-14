@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Any
 from . import active, baseline, checkpoints, probes
 from .contracts import (
     CheckReport, CreateResult, DeltaContract, Probe, allocate_id, cache_path,
-    load_cache, load_contract, list_saved, now_iso, parse_probe_list,
-    save_cache, save_contract,
+    executed_probe_text, load_cache, load_contract, list_saved, now_iso,
+    parse_probe_list, save_cache, save_contract,
 )
 
 if TYPE_CHECKING:
@@ -121,6 +121,9 @@ def create_contract(engine: Engine, task: str, targets: list[str],
     ]
     if flaky:
         lines.append(f"  ⚠ flaky (excluded from scoring): {', '.join(flaky)}")
+    probe_txt = executed_probe_text(change + preserve)
+    if probe_txt:
+        lines.append(probe_txt)
     return CreateResult(True, cid, "\n".join(lines), contract)
 
 
@@ -238,10 +241,22 @@ def list_contracts(engine: Engine) -> str:
     )
 
 
-def close_contract(engine: Engine, cid: str) -> str:
+def close_contract(engine: Engine, cid: str, reason: str | None = None) -> str:
     contract = load_contract(engine.root, cid)
     if contract is None:
         return f"✗ no contract '{cid}'"
+    if contract.status == "closed":
+        return f"✓ {cid} already closed (contract file kept)"
+    report = check_contract(engine, cid)
+    if isinstance(report, CheckReport):
+        score = report.score
+    else:
+        score = 0.0
+    why = (reason or "").strip()
+    if score < 1.0 - 1e-12 and not why:
+        return (f"✗ close refused: score {_fmt_score(score)} < 1.0; "
+                f"pass reason= explaining why you are abandoning the contract")
+    # Never delete the contract JSON; only drop the frozen baseline tree.
     baseline.close(engine.root, cid)
     cache = cache_path(engine.root, cid)
     if os.path.isfile(cache):
@@ -250,9 +265,13 @@ def close_contract(engine: Engine, cid: str) -> str:
         except OSError:
             pass
     contract.status = "closed"
+    contract.close_reason = why
+    contract.close_score = score
+    contract.closed_at = now_iso()
     save_contract(engine.root, contract)
     active.clear_active(engine.root, cid)
-    return f"✓ closed {cid} (baseline removed)"
+    extra = f": {why}" if why else ""
+    return f"✓ closed {cid} (score {_fmt_score(score)}{extra}; contract file kept)"
 
 
 def amend_contract(engine: Engine, cid: str, add_targets: Any = None,
@@ -361,6 +380,9 @@ def amend_contract(engine: Engine, cid: str, add_targets: Any = None,
     if py_ids:
         bits.append(f"pytest +{len(py_ids)}")
     report = f"✓ amended {cid}: {', '.join(bits) or 'no-op'}"
+    added = executed_probe_text(change + preserve)
+    if added:
+        report += "\n" + added
     if flaky:
         report += f"\n  ⚠ flaky: {', '.join(flaky)}"
     return CreateResult(True, cid, report, contract)
@@ -409,6 +431,9 @@ def _render(c: DeltaContract) -> str:
         f"targets: {', '.join(c.targets) or '(none)'}",
         f"baseline: {c.baseline_ref}  created: {c.created_at}",
     ]
+    if c.status == "closed":
+        sc = f"{c.close_score:.1f}" if isinstance(c.close_score, float) else "?"
+        lines.append(f"closed: score {sc}" + (f"  reason: {c.close_reason}" if c.close_reason else ""))
     if c.must_change:
         lines.append("must_change:")
         for p in c.must_change:

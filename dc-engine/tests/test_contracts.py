@@ -198,7 +198,7 @@ class GitContractTests(unittest.TestCase):
         self.assertIn(r.contract_id, listed)
         shown = self.e.get_contract(r.contract_id)
         self.assertIn("must_change", shown)
-        closed = self.e.close_contract(r.contract_id)
+        closed = self.e.close_contract(r.contract_id, reason="test done")
         self.assertTrue(closed.startswith("✓ closed"), closed)
         self.assertFalse(os.path.isdir(
             os.path.join(self.root, ".dc-engine", "baseline", r.contract_id)))

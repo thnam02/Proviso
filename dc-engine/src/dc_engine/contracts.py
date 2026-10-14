@@ -105,6 +105,9 @@ class DeltaContract:
     created_at: str = ""
     status: str = "open"  # open | closed
     flaky: list[str] = field(default_factory=list)
+    close_reason: str = ""
+    close_score: float | None = None
+    closed_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -118,10 +121,18 @@ class DeltaContract:
             "created_at": self.created_at,
             "status": self.status,
             "flaky": list(self.flaky),
+            "close_reason": self.close_reason,
+            "close_score": self.close_score,
+            "closed_at": self.closed_at,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeltaContract:
+        score = data.get("close_score")
+        try:
+            close_score = float(score) if score is not None and score != "" else None
+        except (TypeError, ValueError):
+            close_score = None
         return cls(
             id=data["id"],
             task=data.get("task") or "",
@@ -133,6 +144,9 @@ class DeltaContract:
             created_at=data.get("created_at") or "",
             status=data.get("status") or "open",
             flaky=list(data.get("flaky") or []),
+            close_reason=str(data.get("close_reason") or ""),
+            close_score=close_score,
+            closed_at=str(data.get("closed_at") or ""),
         )
 
 
@@ -270,3 +284,18 @@ def parse_probe_list(raw: Any) -> tuple[list[Probe], list[str]]:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def executed_probe_text(probes: list[Probe]) -> str:
+    """Exact setup/call strings the runner will exec/eval — for agent visibility."""
+    if not probes:
+        return ""
+    chunks = ["  probes that will run (exact code):"]
+    for p in probes:
+        chunks.append(f"  --- {p.id} ---")
+        if p.setup:
+            chunks.append("  setup:")
+            chunks.append(p.setup if p.setup.endswith("\n") else p.setup + "\n")
+        chunks.append("  call:")
+        chunks.append(p.call)
+    return "\n".join(chunks)

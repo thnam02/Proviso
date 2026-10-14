@@ -14,9 +14,11 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import time
 from typing import Any
 
 from . import baseline
+from .contracts import list_saved
 from .indexer import IGNORE_DIRS
 
 META_NAME = "meta.json"
@@ -183,5 +185,33 @@ def _restore_copy(root: str, src: str) -> int:
             except OSError:
                 continue
     return written
+
+
+def clean_stale(root: str, days: int = 7) -> str:
+    """Drop closed-contract baselines and `refs/dc/*` older than `days`."""
+    notes: list[str] = []
+    for c in list_saved(root):
+        if c.status != "closed":
+            continue
+        dest = baseline.baseline_path(root, c.id)
+        if os.path.exists(dest):
+            baseline.close(root, c.id)
+            notes.append(f"removed baseline {c.id}")
+    if baseline.is_git_root(root):
+        listed = baseline._git(
+            root, "for-each-ref", "--format=%(refname)%09%(committerdate:unix)", "refs/dc")
+        cutoff = time.time() - max(days, 0) * 86400
+        for line in (listed.stdout or "").splitlines():
+            if "\t" not in line:
+                continue
+            ref, ts = line.split("\t", 1)
+            try:
+                when = float(ts)
+            except ValueError:
+                continue
+            if when <= cutoff:
+                baseline._git(root, "update-ref", "-d", ref)
+                notes.append(f"deleted {ref}")
+    return "\n".join(notes) or f"nothing to clean (days={days})"
 
 

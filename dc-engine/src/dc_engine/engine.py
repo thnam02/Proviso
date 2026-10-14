@@ -162,9 +162,9 @@ class Engine:
         from .delta import list_contracts
         return list_contracts(self)
 
-    def close_contract(self, contract_id: str) -> str:
+    def close_contract(self, contract_id: str, reason: str | None = None) -> str:
         from .delta import close_contract
-        return close_contract(self, contract_id)
+        return close_contract(self, contract_id, reason)
 
     def amend_contract(self, contract_id: str, add_targets=None,
                        add_must_change=None, add_must_preserve=None,

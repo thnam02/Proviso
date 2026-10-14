@@ -38,7 +38,8 @@ reading whole files:
    change may break. Fix what it reports before moving on.
 6. After editing, dc_check_contract. Fix any ✗ before finishing. If the score
    drops, dc_restore_checkpoint. When the change is bigger than planned,
-   dc_amend_contract. Then dc_close_contract.
+   dc_amend_contract. Then dc_close_contract (pass reason= if the score is
+   still below 1.0).
 Claude Code hooks will deny Python edits without an active contract. Do not
 stop while the contract score is below 1.0.
 Use your normal edit tool only for code outside functions/classes (imports,
@@ -117,8 +118,9 @@ def build_server(root: str) -> _Server:
         """Declare a delta contract before editing. `must_change` / `must_preserve`
         are JSON objects: {id, setup?, call, expect_old?, expect_new?} where
         expect is {"returns": "<repr>"} or {"raises": "ValueError"}. must_change
-        probes need expect_new. Returns the contract id, or ✗ if a target
-        does not resolve or expect_old does not match the baseline."""
+        probes need expect_new. Returns the contract id and the exact probe
+        code that will be executed, or ✗ if a target does not resolve or
+        expect_old does not match the baseline."""
         return str(engine.create_contract(task, targets, must_change,
                                           must_preserve, pytest_ids))
 
@@ -139,9 +141,10 @@ def build_server(root: str) -> _Server:
         return engine.list_contracts()
 
     @server.tool()
-    def dc_close_contract(contract_id: str) -> str:
-        """Drop the frozen baseline for a contract and mark it closed."""
-        return engine.close_contract(contract_id)
+    def dc_close_contract(contract_id: str, reason: str = "") -> str:
+        """Mark a contract closed. If the score is below 1.0, `reason` is
+        required. The contract JSON is kept; only the baseline tree is removed."""
+        return engine.close_contract(contract_id, reason or None)
 
     @server.tool()
     def dc_amend_contract(contract_id: str, add_targets: list[str] | None = None,

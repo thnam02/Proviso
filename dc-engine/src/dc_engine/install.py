@@ -15,7 +15,7 @@ HOOK_POST = "dc-engine hook post-edit"
 HOOK_STOP = "dc-engine hook stop"
 MCP_KEY = "dc-engine"
 PRE_MATCHER = (
-    "Edit|Write|MultiEdit|"
+    "Bash|Edit|Write|MultiEdit|"
     "mcp__dc-engine__dc_replace_symbol|mcp__dc-engine__dc_insert_symbol"
 )
 POST_MATCHER = "Edit|Write|MultiEdit"
@@ -99,7 +99,19 @@ def _merge_settings(root: str) -> list[str]:
             groups = []
             hooks[event] = groups
         if _has_command(groups, command):
-            notes.append(f"keep {event} → {command}")
+            if matcher:
+                for g in groups:
+                    if not isinstance(g, dict):
+                        continue
+                    cmds = [h.get("command") for h in (g.get("hooks") or []) if isinstance(h, dict)]
+                    if command in cmds and g.get("matcher") != matcher:
+                        g["matcher"] = matcher
+                        notes.append(f"update {event} matcher → {command}")
+                        break
+                else:
+                    notes.append(f"keep {event} → {command}")
+            else:
+                notes.append(f"keep {event} → {command}")
             continue
         groups.append(_group(matcher, command))
         notes.append(f"add {event} → {command}")
