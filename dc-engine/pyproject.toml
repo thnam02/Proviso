@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dc-engine"
+version = "0.1.0"
+description = "Delta Contracts engine, phase 1: symbol-level context and edits for coding agents over MCP"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["mcp>=1.2"]
+
+[project.optional-dependencies]
+checks = ["ruff", "pyright"]
+
+[project.scripts]
+dc-engine = "dc_engine.cli:main"
+dc-engine-mcp = "dc_engine.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

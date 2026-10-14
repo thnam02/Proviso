@@ -1,0 +1,117 @@
+"""MCP server exposing the engine to coding agents over stdio.
+
+Run:  dc-engine-mcp --root /path/to/repo
+      (or: python -m dc_engine.server --root /path/to/repo)
+
+Works with both the 1.x (FastMCP) and 2.x (MCPServer) Python MCP SDKs.
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import os
+import sys
+
+try:  # mcp >= 2
+    from mcp.server.mcpserver import MCPServer as _Server
+except ImportError:  # mcp 1.x
+    from mcp.server.fastmcp import FastMCP as _Server  # type: ignore[no-redef]
+
+from .engine import Engine
+
+INSTRUCTIONS = """\
+dc-engine gives you the codebase as symbols instead of files. Prefer it over
+reading whole files:
+1. dc_repo_map once to see the layout (signatures only).
+2. dc_find_symbol to locate code by name; dc_get_slice on the symbols you will
+   change to get their bodies plus the signatures of everything they call and
+   everything that calls them, in one compact response.
+3. dc_get_symbol(include_body=true) only for the extra bodies you actually need.
+4. Edit with dc_replace_symbol (full new definition of one function/class) or
+   dc_insert_symbol. Each edit is syntax-checked before it is written and
+   returns only the lint/type errors it introduced, plus callers a signature
+   change may break. Fix what it reports before moving on.
+Use your normal edit tool only for code outside functions/classes (imports,
+module constants). Symbol names can be full ("pkg.mod.Class.method") or a
+unique suffix ("Class.method"); add "@L<line>" to pick between duplicates.
+"""
+
+
+def build_server(root: str) -> _Server:
+    engine = Engine(root)
+    engine.ensure_fresh(force=False)
+    server = _Server(name="dc-engine", instructions=INSTRUCTIONS)
+
+    @server.tool()
+    def dc_repo_map(path_prefix: str = "", max_tokens: int = 2000) -> str:
+        """Outline of the repo: files with class/function signatures and line
+        numbers, compressed to fit max_tokens. Use path_prefix to zoom in."""
+        return engine.repo_map(path_prefix, max_tokens)
+
+    @server.tool()
+    def dc_find_symbol(query: str, limit: int = 15) -> str:
+        """Find functions, methods and classes by (partial) name. Returns
+        qualified names, locations, signatures and one-line docs."""
+        return engine.find_symbol(query, limit)
+
+    @server.tool()
+    def dc_get_symbol(name: str, include_body: bool = False) -> str:
+        """One symbol's signature, docstring, what it calls, who calls it, and
+        (with include_body=true) its exact source."""
+        return engine.get_symbol(name, include_body)
+
+    @server.tool()
+    def dc_get_slice(targets: list[str], depth: int = 1, max_tokens: int = 4000,
+                     include_bodies: bool = True) -> str:
+        """Context for changing `targets`: their source, plus signatures of
+        their callees and callers up to `depth` hops, class context, and calls
+        whose target could not be resolved statically. Fits max_tokens."""
+        return engine.get_slice(targets, depth, max_tokens, include_bodies)
+
+    @server.tool()
+    def dc_find_references(name: str, limit: int = 40) -> str:
+        """Every resolved call site of a symbol, plus possible call sites
+        where the receiver's type is unknown (matched by name)."""
+        return engine.find_references(name, limit)
+
+    @server.tool()
+    def dc_file_outline(path: str) -> str:
+        """Signatures and line ranges of everything defined in one file."""
+        return engine.file_outline(path)
+
+    @server.tool()
+    def dc_replace_symbol(name: str, new_code: str, check: bool = True) -> str:
+        """Replace one function/method/class with `new_code` (its complete new
+        definition, decorators included; indentation is fixed automatically).
+        Rejected without changes if the file would not parse. Reports only
+        lint/type errors the edit introduced and callers a signature change
+        may break."""
+        return engine.replace_symbol(name, new_code, check)
+
+    @server.tool()
+    def dc_insert_symbol(code: str, after: str = "", path: str = "", check: bool = True) -> str:
+        """Add new definitions: after=<symbol> inserts right after it at the
+        same indentation (e.g. a new method after an existing one);
+        path=<file> appends at the end of a file (created if missing)."""
+        return engine.insert_symbol(code, after or None, path or None, check)
+
+    @server.tool()
+    def dc_index_status() -> str:
+        """Index size, call-graph coverage and which checkers are available."""
+        return engine.status()
+
+    return server
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="dc-engine-mcp", description=__doc__)
+    parser.add_argument("--root", default=os.environ.get("DC_ROOT", os.getcwd()),
+                        help="repository root (default: $DC_ROOT or the current directory)")
+    args = parser.parse_args(argv)
+    logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
+    build_server(args.root).run()
+
+
+if __name__ == "__main__":
+    main()
