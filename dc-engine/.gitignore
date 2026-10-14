@@ -3,3 +3,7 @@ __pycache__/
 .dc-engine/
 build/
 dist/
+eval/runs/
+eval/cache/
+eval/report.md
+eval/results.jsonl

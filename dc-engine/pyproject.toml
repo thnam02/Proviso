@@ -16,6 +16,7 @@ checks = ["ruff", "pyright"]
 [project.scripts]
 dc-engine = "dc_engine.cli:main"
 dc-engine-mcp = "dc_engine.server:main"
+dc-eval = "dc_eval.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
