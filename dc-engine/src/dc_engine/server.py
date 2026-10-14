@@ -28,10 +28,19 @@ reading whole files:
    change to get their bodies plus the signatures of everything they call and
    everything that calls them, in one compact response.
 3. dc_get_symbol(include_body=true) only for the extra bodies you actually need.
-4. Edit with dc_replace_symbol (full new definition of one function/class) or
+4. Before editing, dc_create_contract: name the symbols you will change, probes
+   for behaviours that must change (expect_new, and expect_old if you think you
+   know the current result), and probes for behaviours that must stay the same.
+   The engine freezes a baseline and rejects a wrong picture of current behaviour.
+5. Edit with dc_replace_symbol (full new definition of one function/class) or
    dc_insert_symbol. Each edit is syntax-checked before it is written and
    returns only the lint/type errors it introduced, plus callers a signature
    change may break. Fix what it reports before moving on.
+6. After editing, dc_check_contract. Fix any ✗ before finishing. If the score
+   drops, dc_restore_checkpoint. When the change is bigger than planned,
+   dc_amend_contract. Then dc_close_contract.
+Claude Code hooks will deny Python edits without an active contract. Do not
+stop while the contract score is below 1.0.
 Use your normal edit tool only for code outside functions/classes (imports,
 module constants). Symbol names can be full ("pkg.mod.Class.method") or a
 unique suffix ("Class.method"); add "@L<line>" to pick between duplicates.
@@ -100,6 +109,60 @@ def build_server(root: str) -> _Server:
     def dc_index_status() -> str:
         """Index size, call-graph coverage and which checkers are available."""
         return engine.status()
+
+    @server.tool()
+    def dc_create_contract(task: str, targets: list[str], must_change: list[dict],
+                           must_preserve: list[dict] | None = None,
+                           pytest_ids: list[str] | None = None) -> str:
+        """Declare a delta contract before editing. `must_change` / `must_preserve`
+        are JSON objects: {id, setup?, call, expect_old?, expect_new?} where
+        expect is {"returns": "<repr>"} or {"raises": "ValueError"}. must_change
+        probes need expect_new. Returns the contract id, or ✗ if a target
+        does not resolve or expect_old does not match the baseline."""
+        return str(engine.create_contract(task, targets, must_change,
+                                          must_preserve, pytest_ids))
+
+    @server.tool()
+    def dc_check_contract(contract_id: str) -> str:
+        """Compare baseline vs the working tree for one contract. Compact
+        ✓/✗ report and a score (satisfied / scorable). Fix every ✗."""
+        return str(engine.check_contract(contract_id))
+
+    @server.tool()
+    def dc_get_contract(contract_id: str) -> str:
+        """Show a saved contract: task, targets, probes, status."""
+        return engine.get_contract(contract_id)
+
+    @server.tool()
+    def dc_list_contracts() -> str:
+        """List saved contracts (id, status, task)."""
+        return engine.list_contracts()
+
+    @server.tool()
+    def dc_close_contract(contract_id: str) -> str:
+        """Drop the frozen baseline for a contract and mark it closed."""
+        return engine.close_contract(contract_id)
+
+    @server.tool()
+    def dc_amend_contract(contract_id: str, add_targets: list[str] | None = None,
+                          add_must_change: list[dict] | None = None,
+                          add_must_preserve: list[dict] | None = None) -> str:
+        """Add targets or probes to an open contract. New probes are validated
+        against the frozen baseline, same as at creation."""
+        return str(engine.amend_contract(contract_id, add_targets,
+                                         add_must_change, add_must_preserve))
+
+    @server.tool()
+    def dc_list_checkpoints(contract_id: str) -> str:
+        """List score checkpoints for a contract (n, score, ref)."""
+        return engine.list_checkpoints(contract_id)
+
+    @server.tool()
+    def dc_restore_checkpoint(contract_id: str, n: int) -> str:
+        """Roll the working tree back to checkpoint n. Only files that differ
+        are overwritten; untracked files the checkpoint doesn't know about
+        are left alone."""
+        return engine.restore_checkpoint(contract_id, n)
 
     return server
 

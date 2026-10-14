@@ -31,11 +31,33 @@ async def run(root: str) -> int:
             print("tools:", ", ".join(tools))
             expected = {"dc_repo_map", "dc_find_symbol", "dc_get_symbol", "dc_get_slice",
                         "dc_find_references", "dc_file_outline", "dc_replace_symbol",
-                        "dc_insert_symbol", "dc_index_status"}
+                        "dc_insert_symbol", "dc_index_status", "dc_create_contract",
+                        "dc_check_contract", "dc_get_contract", "dc_list_contracts",
+                        "dc_close_contract"}
             missing = expected - set(tools)
             if missing:
                 print("MISSING:", missing)
                 return 1
+            created = _text(await session.call_tool("dc_create_contract", {
+                "task": "charge zero should raise ValueError",
+                "targets": ["billing.validate_amount"],
+                "must_change": [{
+                    "id": "zero",
+                    "setup": ("from decimal import Decimal\n"
+                              "from shop.models import User\n"
+                              "from shop.billing import charge\n"
+                              "user = User('a', 'AU')\n"),
+                    "call": "charge(user, Decimal(0))",
+                    "expect_new": {"raises": "ValueError"},
+                }],
+                "must_preserve": [],
+            }))
+            print(created)
+            assert created.startswith("✓ contract created:"), created
+            cid = created.split(":", 1)[1].strip().split()[0]
+            checked = _text(await session.call_tool("dc_check_contract", {"contract_id": cid}))
+            print(checked)
+            assert "not changed" in checked, checked
             out = _text(await session.call_tool("dc_get_slice", {"targets": ["billing.charge"]}))
             print(out)
             assert "== TARGET shop.billing.charge" in out, "slice missing target"

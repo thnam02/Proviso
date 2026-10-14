@@ -9,11 +9,18 @@
     dc-engine outline shop/billing.py
     dc-engine replace billing.charge new_code.py      (or '-' for stdin)
     dc-engine bench billing.charge [more targets]
+    dc-engine contract-create spec.json
+    dc-engine contract-check <id>
+    dc-engine contract-list
+    dc-engine hook pre-edit|post-edit|stop     (Claude Code; JSON on stdin)
+    dc-engine install --claude-code
+    dc-engine install --uninstall
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -72,7 +79,28 @@ def main(argv: list[str] | None = None) -> None:
     rp.add_argument("--no-check", action="store_true")
     b = sub.add_parser("bench"); b.add_argument("targets", nargs="+")
     b.add_argument("--depth", type=int, default=1); b.add_argument("--max-tokens", type=int, default=4000)
+    cc = sub.add_parser("contract-create"); cc.add_argument("json_file")
+    ck = sub.add_parser("contract-check"); ck.add_argument("id")
+    sub.add_parser("contract-list")
+    am = sub.add_parser("contract-amend"); am.add_argument("id"); am.add_argument("json_file")
+    cp = sub.add_parser("checkpoints"); cp.add_argument("id")
+    rs = sub.add_parser("restore"); rs.add_argument("id"); rs.add_argument("n", type=int)
+    hk = sub.add_parser("hook"); hk.add_argument("event", choices=["pre-edit", "post-edit", "stop"])
+    ins = sub.add_parser("install")
+    ins.add_argument("--claude-code", action="store_true")
+    ins.add_argument("--uninstall", action="store_true")
     a = p.parse_args(argv)
+
+    if a.cmd == "hook":
+        from .hooks import run_cli
+        return run_cli(a.event, a.root)
+    if a.cmd == "install":
+        from . import install as inst
+        if a.uninstall:
+            print(inst.uninstall(a.root))
+        else:
+            print(inst.install(a.root, claude_code=True))
+        return
 
     e = Engine(a.root)
     if a.cmd == "status":
@@ -92,6 +120,26 @@ def main(argv: list[str] | None = None) -> None:
     elif a.cmd == "replace":
         code = sys.stdin.read() if a.code_file == "-" else open(a.code_file, encoding="utf-8").read()
         out = e.replace_symbol(a.name, code, check=not a.no_check)
+    elif a.cmd == "contract-create":
+        spec = json.load(sys.stdin) if a.json_file == "-" else json.load(open(a.json_file, encoding="utf-8"))
+        out = str(e.create_contract(
+            spec["task"], spec.get("targets") or [],
+            spec.get("must_change") or [], spec.get("must_preserve") or [],
+            spec.get("pytest_ids")))
+    elif a.cmd == "contract-check":
+        out = str(e.check_contract(a.id))
+    elif a.cmd == "contract-list":
+        out = e.list_contracts()
+    elif a.cmd == "contract-amend":
+        spec = json.load(sys.stdin) if a.json_file == "-" else json.load(open(a.json_file, encoding="utf-8"))
+        out = str(e.amend_contract(
+            a.id, spec.get("add_targets") or spec.get("targets"),
+            spec.get("add_must_change") or spec.get("must_change"),
+            spec.get("add_must_preserve") or spec.get("must_preserve")))
+    elif a.cmd == "checkpoints":
+        out = e.list_checkpoints(a.id)
+    elif a.cmd == "restore":
+        out = e.restore_checkpoint(a.id, a.n)
     else:
         out = _bench(e, a.targets, a.depth, a.max_tokens)
     print(out)

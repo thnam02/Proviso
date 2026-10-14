@@ -20,7 +20,7 @@ class Engine:
     """Index + views + edit gate for one repository root."""
 
     def __init__(self, root: str, db_path: str | None = None, typecheck: str | None = None,
-                 refresh_interval: float = 1.0):
+                 refresh_interval: float = 1.0, probe_timeout: float | None = None):
         self.root = os.path.abspath(root)
         if not os.path.isdir(self.root):
             raise FileNotFoundError(f"repository root not found: {self.root}")
@@ -38,6 +38,9 @@ class Engine:
         self.refresh_interval = refresh_interval
         self._last_refresh = 0.0
         self.last_refresh_stats: dict[str, int] = {}
+        if probe_timeout is None:
+            probe_timeout = float(os.environ.get("DC_PROBE_TIMEOUT", "10"))
+        self.probe_timeout = probe_timeout
 
     # --- housekeeping ---------------------------------------------------
     def ensure_fresh(self, force: bool = False) -> dict[str, int]:
@@ -126,12 +129,57 @@ class Engine:
 
     def replace_symbol(self, ref: str, new_code: str, check: bool = True) -> str:
         self.ensure_fresh(force=False)
-        return self.gate.replace_symbol(ref, new_code, check)
+        out = self.gate.replace_symbol(ref, new_code, check)
+        return self._with_auto_check(out)
 
     def insert_symbol(self, code: str, after: str | None = None, path: str | None = None,
                       check: bool = True) -> str:
         self.ensure_fresh()
-        return self.gate.insert_symbol(code, after, path, check)
+        out = self.gate.insert_symbol(code, after, path, check)
+        return self._with_auto_check(out)
+
+    def _with_auto_check(self, out: str) -> str:
+        if not out.startswith("✓"):
+            return out
+        from .delta import auto_check_line
+        line = auto_check_line(self)
+        return f"{out}\n{line}" if line else out
+
+    def create_contract(self, task: str, targets: list[str], must_change,
+                        must_preserve=None, pytest_ids=None):
+        from .delta import create_contract
+        return create_contract(self, task, targets, must_change, must_preserve, pytest_ids)
+
+    def check_contract(self, contract_id: str):
+        from .delta import check_contract
+        return check_contract(self, contract_id)
+
+    def get_contract(self, contract_id: str) -> str:
+        from .delta import get_contract
+        return get_contract(self, contract_id)
+
+    def list_contracts(self) -> str:
+        from .delta import list_contracts
+        return list_contracts(self)
+
+    def close_contract(self, contract_id: str) -> str:
+        from .delta import close_contract
+        return close_contract(self, contract_id)
+
+    def amend_contract(self, contract_id: str, add_targets=None,
+                       add_must_change=None, add_must_preserve=None,
+                       add_pytest_ids=None):
+        from .delta import amend_contract
+        return amend_contract(self, contract_id, add_targets, add_must_change,
+                              add_must_preserve, add_pytest_ids)
+
+    def list_checkpoints(self, contract_id: str) -> str:
+        from .delta import list_checkpoints
+        return list_checkpoints(self, contract_id)
+
+    def restore_checkpoint(self, contract_id: str, n: int) -> str:
+        from .delta import restore_checkpoint
+        return restore_checkpoint(self, contract_id, n)
 
     def status(self) -> str:
         r = self.ensure_fresh()

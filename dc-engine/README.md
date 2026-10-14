@@ -1,4 +1,4 @@
-# dc-engine — Phase 1
+# dc-engine — Phase 1–3
 
 Symbol-level context and edits for coding agents, served over MCP.
 This is Phase 1 of the **Delta Contracts** layer: it sits between a coding
@@ -101,6 +101,11 @@ never shows up in `git status`). Any other MCP client works the same way: run
 | `dc_replace_symbol(name, new_code)` | Replace one def/class; re-indents, rejects unparseable results, reports only new diagnostics and broken callers |
 | `dc_insert_symbol(code, after \| path)` | Add definitions after a symbol or at the end of a file |
 | `dc_index_status()` | Index size, resolution coverage, available checkers |
+| `dc_create_contract(task, targets, must_change, must_preserve)` | Freeze a baseline and declare which behaviours must change or stay the same |
+| `dc_check_contract(id)` | Run probes on baseline vs working tree; compact ✓/✗ report and a score |
+| `dc_get_contract` / `dc_list_contracts` / `dc_close_contract` | Inspect or drop a contract |
+| `dc_amend_contract(id, add_targets, add_must_change, add_must_preserve)` | Grow a contract when the change is bigger than planned; new probes are checked against the baseline |
+| `dc_list_checkpoints` / `dc_restore_checkpoint` | Score-gated snapshots of the working tree; restore only overwrites files that differ |
 
 Names can be full (`pkg.mod.Class.method`) or a unique suffix
 (`Class.method`); `name@L42` picks between duplicate definitions such as
@@ -126,12 +131,17 @@ dc-engine --root <repo> status
 dc-engine --root <repo> map --max-tokens 2000
 dc-engine --root <repo> slice Session.request --depth 1
 dc-engine --root <repo> bench Session.request      # slice vs naive file reads
+dc-engine --root <repo> contract-create spec.json
+dc-engine --root <repo> contract-check <id>
+dc-engine --root <repo> contract-list
+dc-engine --root <repo> install --claude-code
+dc-engine hook pre-edit|post-edit|stop     # Claude Code; JSON on stdin
 ```
 
 ## Tests
 
 ```bash
-python -m unittest discover -s tests        # 31 tests; pyright tests skip if it's not installed
+python -m unittest discover -s tests        # phases 1–3; pyright tests skip if it's not installed
 python tests/mcp_smoke.py tests/fixtures/shop   # starts the MCP server over stdio and calls it
 ```
 (`mcp_smoke.py` edits the repo you point it at; run it on a copy.)
@@ -164,12 +174,111 @@ src/dc_engine/
   engine.py     facade used by server, CLI and tests
   server.py     MCP server (works with mcp 1.x and 2.x)
   cli.py        command line
+  contracts.py  delta-contract schema and JSON persistence
+  baseline.py   git worktree / copy snapshot of the repo
+  probes.py     isolated probe runner, normalisation, pytest compare
+  delta.py      create / validate / check / close / amend
+  checkpoints.py score-gated hidden git refs (or copied files)
+  active.py     one active contract per repo + enforce mode
+  hooks.py      Claude Code pre-edit / post-edit / stop
+  install.py    merge hooks into .claude/settings.json and .mcp.json
 tests/
-  test_engine.py, mcp_smoke.py, fixtures/shop/
+  test_engine.py, test_contracts.py, test_phase3.py, mcp_smoke.py, fixtures/shop/
 ```
 
-## Next (Phase 2)
+## Delta contracts
 
-Delta contracts on top of this index: a contract schema (targets,
-must_change probes, must_preserve), validation of probes against the
-unmodified code, and the old-vs-new behaviour-diff runner.
+Before an agent edits, it declares a contract: symbols it will change,
+probes whose behaviour must change (with the expected new result), and
+probes that must stay the same. The engine freezes a baseline (git
+worktree of `stash create`, or a copy if the tree is not a git repo),
+checks that `expect_old` actually matches current behaviour, and later
+diffs baseline vs working tree by running each probe in a subprocess.
+
+Example — `charge(user, 0)` currently returns a `Receipt`; we want it
+to raise `ValueError` without changing tax preview:
+
+```bash
+cat > /tmp/zero.json << 'EOF'
+{
+  "task": "charge(user, Decimal(0)) should raise ValueError",
+  "targets": ["billing.validate_amount"],
+  "must_change": [{
+    "id": "zero",
+    "setup": "from decimal import Decimal\nfrom shop.models import User\nfrom shop.billing import charge\nuser = User('a', 'AU')\n",
+    "call": "charge(user, Decimal(0))",
+    "expect_new": {"raises": "ValueError"}
+  }],
+  "must_preserve": [{
+    "id": "preview",
+    "setup": "from decimal import Decimal\nfrom shop.api import preview\n",
+    "call": "preview(Decimal('10'), 'AU')"
+  }]
+}
+EOF
+dc-engine --root tests/fixtures/shop contract-create /tmp/zero.json
+# edit validate_amount to reject amount <= 0, then:
+dc-engine --root tests/fixtures/shop contract-check charge-user-decimal-0-should-raise-valueerror
+```
+
+```
+contract charge-user-decimal-0-should-raise-valueerror: 2/2 satisfied  score 1.0
+✓ zero raises ValueError (was: Receipt)
+✓ preserved: preview
+```
+
+A wrong `expect_old` is rejected at creation ("your understanding of the
+current behaviour is wrong: got …"). Probes that already match
+`expect_new` are rejected too — nothing to change. Flaky probes (two
+baseline runs disagree) are reported and dropped from the score.
+
+## Hooks and checkpoints
+
+```bash
+dc-engine --root <repo> install --claude-code
+```
+
+That merges (never overwrites) three hook entries into `.claude/settings.json`
+and the MCP server into `.mcp.json`. `install --uninstall` removes only those
+entries. Mode is `.dc-engine/config.json` → `"enforce": "block"` (default),
+`"warn"`, or `"off"`.
+
+Creating a contract makes it **active**. Python edits through Edit/Write/MultiEdit
+or `dc_replace_symbol` are denied until then. After each symbol edit the engine
+appends a one-line contract status. Every check that *beats* the best score
+saves a checkpoint (`refs/dc/<id>/cp-<n>` in git; a file copy otherwise). A
+drop prints `dc_restore_checkpoint`. The Stop hook blocks while the score is
+below 1.0, with a loop guard so a stuck agent can still exit.
+
+Blocked-then-fixed session:
+
+```
+Agent: Edit shop/billing.py
+Hook:  deny — No active delta contract. Call dc_create_contract first.
+
+Agent: dc_create_contract(task="charge(user, 0) should raise",
+                          targets=["billing.validate_amount"],
+                          must_change=[{id: "zero", call: "charge(user, Decimal(0))",
+                                        expect_new: {raises: "ValueError"}}])
+       ✓ contract created: charge-zero-should-raise   (now active)
+
+Agent: dc_replace_symbol(validate_amount, … still allows 0)
+       contract charge-zero-should-raise: 0/1 ✗ not changed: zero still Receipt(…)
+
+Agent: (tries to stop)
+Hook:  decision=block
+       contract charge-zero-should-raise: 0/1 satisfied  score 0.0
+       ✗ not changed: zero  still Receipt(…)
+
+Agent: dc_replace_symbol(validate_amount, reject amount <= 0)
+       ✓ replaced shop.billing.validate_amount
+       contract charge-zero-should-raise: 1/1 ✓ zero raises ValueError (was: Receipt)
+
+Agent: (stop)  allowed — score 1.0
+```
+
+A later bad edit that drops the score prints:
+
+```
+⚠ score dropped 1/1 → 0/1 since checkpoint 2 (best). dc_restore_checkpoint to roll back.
+```
