@@ -1,0 +1,706 @@
+{
+ "08f2405cfd": [
+  {
+   "file": "sqlglot/tokenizer_core.py",
+   "line": 959,
+   "op": "==",
+   "full_files_kill": true,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 5357,
+   "op": "or",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 1900,
+   "op": "\\bTrue\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 8354,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 3490,
+   "op": "\\bFalse\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/tokens.py",
+   "line": 124,
+   "op": "or",
+   "full_files_kill": true,
+   "regression_kill": true
+  }
+ ],
+ "15a77f1d89": [
+  {
+   "file": "sqlglot/tokenizer_core.py",
+   "line": 1252,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generators/singlestore.py",
+   "line": 1525,
+   "op": "==",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/tokens.py",
+   "line": 18,
+   "op": "\\bnot",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/tokenizer_core.py",
+   "line": 958,
+   "op": "or",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/tokenizer_core.py",
+   "line": 1266,
+   "op": "and",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/tokenizer_core.py",
+   "line": 801,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  }
+ ],
+ "1f8d15bbd6": [
+  {
+   "file": "sqlglot/generators/presto.py",
+   "line": 280,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/dialects/dialect.py",
+   "line": 471,
+   "op": "\\bFalse\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/generators/presto.py",
+   "line": 275,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generators/presto.py",
+   "line": 273,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generators/presto.py",
+   "line": 53,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/dialects/dialect.py",
+   "line": 481,
+   "op": "\\bFalse\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  }
+ ],
+ "268ad021b8": [
+  {
+   "file": "sqlglot/parser.py",
+   "line": 2425,
+   "op": "!=",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 2549,
+   "op": "and",
+   "full_files_kill": true,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 4266,
+   "op": "and",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 2431,
+   "op": "and",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/dialects/dialect.py",
+   "line": 263,
+   "op": "\\bnot",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/dialects/dialect.py",
+   "line": 740,
+   "op": "\\bFalse\\b",
+   "full_files_kill": true,
+   "regression_kill": false
+  }
+ ],
+ "361b23b87b": [
+  {
+   "file": "sqlglot/expressions/query.py",
+   "line": 1097,
+   "op": "\\bFalse\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 1651,
+   "op": "\\bnot",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 5950,
+   "op": "==",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7312,
+   "op": "\\bFalse\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 9189,
+   "op": "==",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 8789,
+   "op": "\\bFalse\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  }
+ ],
+ "59a96d868a": [
+  {
+   "file": "sqlglot/generator.py",
+   "line": 2179,
+   "op": "\\bnot",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 3301,
+   "op": "==",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 1747,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/expressions/core.py",
+   "line": 1549,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 4438,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 2429,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  }
+ ],
+ "7d9a6cd599": [
+  {
+   "file": "sqlglot/parser.py",
+   "line": 9585,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 2628,
+   "op": "==",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7015,
+   "op": "\\bnot",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 8863,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 5059,
+   "op": "or",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7111,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  }
+ ],
+ "818483464b": [
+  {
+   "file": "sqlglot/generators/duckdb.py",
+   "line": 2674,
+   "op": "\\bnot",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/expressions/array.py",
+   "line": 100,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generators/duckdb.py",
+   "line": 821,
+   "op": "or",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generators/duckdb.py",
+   "line": 4549,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generators/duckdb.py",
+   "line": 4573,
+   "op": "and",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/generators/duckdb.py",
+   "line": 3624,
+   "op": "\\bnot",
+   "full_files_kill": false,
+   "regression_kill": false
+  }
+ ],
+ "862fd55467": [
+  {
+   "file": "sqlglot/generators/presto.py",
+   "line": 682,
+   "op": "\\bTrue\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/generators/presto.py",
+   "line": 72,
+   "op": "\\bFalse\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parsers/trino.py",
+   "line": 88,
+   "op": "and",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/generators/presto.py",
+   "line": 199,
+   "op": "or",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parsers/trino.py",
+   "line": 76,
+   "op": "\\bTrue\\b",
+   "full_files_kill": true,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parsers/trino.py",
+   "line": 111,
+   "op": "\\bnot",
+   "full_files_kill": true,
+   "regression_kill": true
+  }
+ ],
+ "af9915fa4c": [
+  {
+   "file": "sqlglot/generator.py",
+   "line": 3302,
+   "op": "\\bnot",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 5817,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 5393,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7481,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 2047,
+   "op": "==",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 6277,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  }
+ ],
+ "c7778cf56d": [
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7625,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7065,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 4089,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 6347,
+   "op": "and",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 2079,
+   "op": "\\bnot",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 448,
+   "op": "!=",
+   "full_files_kill": false,
+   "regression_kill": false
+  }
+ ],
+ "d84f7f3ee1": [
+  {
+   "file": "sqlglot/tokenizer_core.py",
+   "line": 804,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/tokenizer_core.py",
+   "line": 1275,
+   "op": "and",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/tokenizer_core.py",
+   "line": 858,
+   "op": "or",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parsers/hive.py",
+   "line": 234,
+   "op": "\\bnot",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/tokenizer_core.py",
+   "line": 1285,
+   "op": "\\+ 1\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parsers/hive.py",
+   "line": 191,
+   "op": "\\bTrue\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  }
+ ],
+ "e3ed74860f": [
+  {
+   "file": "sqlglot/parser.py",
+   "line": 4141,
+   "op": "\\bFalse\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7285,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 2882,
+   "op": "\\bnot",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 2849,
+   "op": "\\bFalse\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 2595,
+   "op": "\\bFalse\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 1245,
+   "op": "\\bTrue\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  }
+ ],
+ "f337c70ee4": [
+  {
+   "file": "sqlglot/generator.py",
+   "line": 2531,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parsers/snowflake.py",
+   "line": 619,
+   "op": "\\bTrue\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 490,
+   "op": "\\bFalse\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 472,
+   "op": "\\bTrue\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 3792,
+   "op": "==",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/expressions/query.py",
+   "line": 401,
+   "op": "and",
+   "full_files_kill": false,
+   "regression_kill": false
+  }
+ ],
+ "f3a6eb95e4": [
+  {
+   "file": "sqlglot/expressions/core.py",
+   "line": 2805,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 3938,
+   "op": "\\bnot",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 2416,
+   "op": "\\bTrue\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 3253,
+   "op": "==",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generator.py",
+   "line": 1943,
+   "op": "\\bFalse\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/expressions/core.py",
+   "line": 634,
+   "op": "or",
+   "full_files_kill": false,
+   "regression_kill": false
+  }
+ ],
+ "fc4964bbe8": [
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7427,
+   "op": "\\bFalse\\b",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7866,
+   "op": "\\bnot",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 9486,
+   "op": "or",
+   "full_files_kill": false,
+   "regression_kill": false
+  },
+  {
+   "file": "sqlglot/generators/tsql.py",
+   "line": 508,
+   "op": "==",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 7537,
+   "op": "or",
+   "full_files_kill": true,
+   "regression_kill": true
+  },
+  {
+   "file": "sqlglot/parser.py",
+   "line": 3095,
+   "op": "\\bFalse\\b",
+   "full_files_kill": true,
+   "regression_kill": true
+  }
+ ]
+}

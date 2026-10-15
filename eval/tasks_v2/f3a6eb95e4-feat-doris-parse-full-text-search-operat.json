@@ -1,0 +1,28 @@
+{
+  "id": "f3a6eb95e4-feat-doris-parse-full-text-search-operat",
+  "repo": "https://github.com/tobymao/sqlglot.git",
+  "commit": "ffb9721df98984c62817701ec8cd895cb3b1ee82",
+  "prompt": "Doris full-text search operators do not parse: MATCH, MATCH_ANY, MATCH_ALL, MATCH_PHRASE, MATCH_PHRASE_PREFIX, MATCH_PHRASE_EDGE and MATCH_REGEXP (any case), optionally followed by USING ANALYZER <name>. Each should parse into exp.Match with `kind` None for plain MATCH and 'ANY', 'ALL', 'PHRASE', 'PHRASE_PREFIX', 'PHRASE_EDGE' or 'REGEXP' otherwise, round-trip in Doris (operator upper-cased), and combine correctly with NOT, AND and OR.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT * FROM t WHERE c MATCH_ANY 'word1 word2'\", read=\"doris\").sql(\"doris\")\n# currently: ParseError: Invalid expression / Unexpected token. Line 1, Col: 33.\n# expected:  SELECT * FROM t WHERE c MATCH_ANY 'word1 word2'\n\nparse_one(\"SELECT * FROM t WHERE c MATCH 'hello world' USING ANALYZER std_analyzer\", read=\"doris\").sql(\"doris\")\n# currently: ParseError: Invalid expression / Unexpected token. Line 1, Col: 29.\n# expected:  SELECT * FROM t WHERE c MATCH 'hello world' USING ANALYZER std_analyzer\n\nparse_one(\"SELECT * FROM t WHERE c match_regexp '^key_word.*'\", read=\"doris\").sql(\"doris\")\n# currently: ParseError: Invalid expression / Unexpected token. Line 1, Col: 36.\n# expected:  SELECT * FROM t WHERE c MATCH_REGEXP '^key_word.*'\n```\n\nOther forms of the same constructs described above should work as well.",
+  "hidden_tests": [
+    "tests/dialects/test_doris.py::TestDoris::test_match"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_doris.py b/tests/dialects/test_doris.py\nindex d1cbf33e5..cab657098 100644\n--- a/tests/dialects/test_doris.py\n+++ b/tests/dialects/test_doris.py\n@@ -1,4 +1,4 @@\n-from sqlglot import exp\n+from sqlglot import ParseError, UnsupportedError, exp\n from tests.dialects.test_dialect import Validator\n \n \n@@ -158,6 +158,60 @@ class TestDoris(Validator):\n             },\n         )\n \n+    def test_match(self):\n+        for operator, kind in (\n+            (\"MATCH\", None),\n+            (\"MATCH_ANY\", \"ANY\"),\n+            (\"MATCH_ALL\", \"ALL\"),\n+            (\"MATCH_PHRASE\", \"PHRASE\"),\n+            (\"MATCH_PHRASE_PREFIX\", \"PHRASE_PREFIX\"),\n+            (\"MATCH_PHRASE_EDGE\", \"PHRASE_EDGE\"),\n+            (\"MATCH_REGEXP\", \"REGEXP\"),\n+        ):\n+            with self.subTest(operator):\n+                match = self.validate_identity(\n+                    f\"SELECT * FROM t WHERE c {operator} 'word1 word2'\"\n+                ).find(exp.Match)\n+                self.assertEqual(match.args.get(\"kind\"), kind)\n+\n+        self.validate_identity(\"SELECT * FROM t WHERE c MATCH_PHRASE 'word1 word2 ~3'\")\n+        self.validate_identity(\"SELECT * FROM t WHERE c MATCH_PHRASE 'word1 word2 ~3+'\")\n+        self.validate_identity(\n+            \"SELECT * FROM t WHERE c MATCH 'hello world' USING ANALYZER std_analyzer\"\n+        )\n+        self.validate_identity(\"SELECT * FROM t WHERE c MATCH_ANY 'x' USING ANALYZER `kw_analyzer`\")\n+        self.validate_identity(\n+            \"SELECT * FROM t WHERE c match_regexp '^key_word.*'\",\n+            \"SELECT * FROM t WHERE c MATCH_REGEXP '^key_word.*'\",\n+        )\n+        self.validate_identity(\n+            \"SELECT * FROM t WHERE NOT c MATCH_ANY 'x' AND d MATCH_ALL 'y' OR e = 1\"\n+        )\n+        self.validate_identity(\n+            \"SELECT * FROM t WHERE c NOT MATCH_ALL 'word1 word2'\",\n+            \"SELECT * FROM t WHERE NOT c MATCH_ALL 'word1 word2'\",\n+        )\n+        self.validate_identity(\"SELECT * FROM t WHERE c NOT LIKE 'x%'\")\n+        self.validate_identity(\"SELECT c AS match_any FROM t\", \"SELECT c AS `match_any` FROM t\")\n+\n+        self.validate_all(\n+            \"SELECT * FROM t WHERE c MATCH 'x'\",\n+            write={\n+                \"doris\": \"SELECT * FROM t WHERE c MATCH 'x'\",\n+                \"sqlite\": \"SELECT * FROM t WHERE c MATCH 'x'\",\n+            },\n+        )\n+        self.validate_all(\n+            \"SELECT * FROM t WHERE c MATCH_ALL 'x'\",\n+            write={\n+                \"doris\": \"SELECT * FROM t WHERE c MATCH_ALL 'x'\",\n+                \"sqlite\": UnsupportedError,\n+            },\n+        )\n+\n+        with self.assertRaises(ParseError):\n+            self.parse_one(\"SELECT * FROM t WHERE c MATCH_ANY 'x' USING ANALYZER\")\n+\n     def test_analyze(self):\n         self.validate_identity(\"ANALYZE TABLE tbl\")\n         self.validate_identity(\"ANALYZE DATABASE db\")\n",
+  "regression_tests": [
+    "tests/dialects/test_doris.py::TestDoris::test_analyze",
+    "tests/dialects/test_doris.py::TestDoris::test_date_add_sub",
+    "tests/dialects/test_doris.py::TestDoris::test_distributed",
+    "tests/dialects/test_doris.py::TestDoris::test_doris",
+    "tests/dialects/test_doris.py::TestDoris::test_identity",
+    "tests/dialects/test_doris.py::TestDoris::test_key",
+    "tests/dialects/test_doris.py::TestDoris::test_materialized_view_properties",
+    "tests/dialects/test_doris.py::TestDoris::test_partition",
+    "tests/dialects/test_doris.py::TestDoris::test_regex",
+    "tests/dialects/test_doris.py::TestDoris::test_rename_table",
+    "tests/dialects/test_doris.py::TestDoris::test_table_alias_conversion",
+    "tests/dialects/test_doris.py::TestDoris::test_time"
+  ],
+  "setup": "python -m pip install -e . -q",
+  "prompt_original": "feat(doris): parse full-text search operators [CLAUDE] (#8585)",
+  "fix_commit": "f3a6eb95e424ef03bf20fca05a0431a666946e90",
+  "verified": true
+}
