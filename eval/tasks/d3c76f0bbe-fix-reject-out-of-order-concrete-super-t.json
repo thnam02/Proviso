@@ -2,7 +2,7 @@
   "id": "d3c76f0bbe-fix-reject-out-of-order-concrete-super-t",
   "repo": "/Users/hainamtran/dc-eval-sources/tomlkit",
   "commit": "f40ae46323992b1cda523424bdfb30de899eb4f6",
-  "prompt": "fix: reject out-of-order concrete+super table redefinitions at parse time (#530)\n\nOut-of-order value-vs-table and dotted-key-vs-table redefinitions\nwere silently accepted (or only raised on access) because the inner\nif-elif chain in Container.append had no else clause for the case\nwhere an existing concrete table is extended by a super-table after\nan unrelated table header.\n\n- Add else clause that validates the super-table against the concrete\n  table, catching type mismatches and double table definitions at parse\n  time instead of lazily during access/unwrap.\n- Enhance _validate_table_candidate to detect when a non-dotted\n  candidate key is a prefix of an existing dotted key.\n- Call _validate_out_of_order_table after _raw_append in the fallthrough\n  path so out-of-order fragments are validated before the document is\n  materialized.\n\nFixes #523\n\nCo-authored-by: Frost Ming <me@frostming.com>",
+  "prompt": "tomlkit.parse accepts documents that define the same table twice when an unrelated table sits in between:\n\nfrom tomlkit import parse\ndoc = parse(\"[a]\\nb.c = 1\\n[zz]\\nq = 9\\n[a.b]\\nd = 2\\n\")\nprint(doc.unwrap())\n\nThis prints {'a': {'b': {'c': 1, 'd': 2}}, 'zz': {'q': 9}} with no error. stdlib tomllib.loads rejects the same text with TOMLDecodeError: Cannot declare ('a', 'b') twice (at line 5, column 5), because b.c = 1 already defines table a.b.\n\nA similar document where b is a plain value also parses without error and only fails later:\n\ndoc = parse(\"[a]\\nb = true\\n[zz]\\nq = 9\\n[a.b]\\narr = [1, 2]\\n\")  # no error\ndoc.unwrap()  # KeyAlreadyPresent: Key \"b\" already exists.\n\ntomllib rejects that one too (Cannot overwrite a value). Without the [zz] table in between, tomlkit already raises for both. I expected parse() to raise ParseError for both documents, while valid out-of-order tables such as \"[a]\\nx=1\\n[zz]\\n[a.b]\\nc=1\\n\" keep parsing and round-tripping.",
   "hidden_tests": [
     "tests/test_toml_document.py::test_unwrap_preserves_raise_on_invalid_out_of_order_fragment",
     "tests/test_toml_document.py::test_reject_out_of_order_dotted_key_redefinition_at_parse"
@@ -39,5 +39,7 @@
     "tests/test_api.py::test_key_with_single_element_list_is_a_single_key",
     "tests/test_api.py::test_parse_many_dotted_keys_with_shared_prefix"
   ],
-  "setup": "python -m pip install -e . -q"
+  "setup": "python -m pip install -e . -q",
+  "prompt_original": "fix: reject out-of-order concrete+super table redefinitions at parse time (#530)\n\nOut-of-order value-vs-table and dotted-key-vs-table redefinitions\nwere silently accepted (or only raised on access) because the inner\nif-elif chain in Container.append had no else clause for the case\nwhere an existing concrete table is extended by a super-table after\nan unrelated table header.\n\n- Add else clause that validates the super-table against the concrete\n  table, catching type mismatches and double table definitions at parse\n  time instead of lazily during access/unwrap.\n- Enhance _validate_table_candidate to detect when a non-dotted\n  candidate key is a prefix of an existing dotted key.\n- Call _validate_out_of_order_table after _raw_append in the fallthrough\n  path so out-of-order fragments are validated before the document is\n  materialized.\n\nFixes #523\n\nCo-authored-by: Frost Ming <me@frostming.com>",
+  "verified": true
 }

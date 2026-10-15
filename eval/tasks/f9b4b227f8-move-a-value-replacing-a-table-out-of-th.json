@@ -2,7 +2,7 @@
   "id": "f9b4b227f8-move-a-value-replacing-a-table-out-of-th",
   "repo": "/Users/hainamtran/dc-eval-sources/tomlkit",
   "commit": "fdfbc8a18c5fd5cfdcaaf11bfd59c4151da1f2ca",
-  "prompt": "Move a value replacing a table out of the table region (#506)\n\nReplacing a table with a plain value reused the forward scan meant for\nthe value-to-table direction, so the value was inserted just before the\nnext table header, inside the preceding table's body region. On\nround-trip the key became a child of that table. Route the\ntable-to-value direction through append(), which already places values\nbefore the first table.\n\nFixes #504",
+  "prompt": "I replaced a table in the middle of a document with a plain value:\n\nfrom tomlkit import parse\ndoc = parse(\"[a]\\naa = 1\\n\\n[b]\\nbb = 2\\n\\n[c]\\ncc = 3\\n\")\ndoc[\"b\"] = 2\nprint(doc.as_string())\n\nI got:\n\n[a]\naa = 1\n\nb = 2\n[c]\ncc = 3\n\nb = 2 ends up inside the [a] section, so parsing that output gives {'a': {'aa': 1, 'b': 2}, 'c': {'cc': 3}}: b silently moved under a. I expected b to stay a top-level key, written before the first table:\n\nb = 2\n\n[a]\naa = 1\n\n[c]\ncc = 3",
   "hidden_tests": [
     "tests/test_toml_document.py::test_replace_middle_table_with_value"
   ],
@@ -37,5 +37,7 @@
     "tests/test_api.py::test_parse_empty_quoted_table_name",
     "tests/test_build.py::test_build_example"
   ],
-  "setup": "python -m pip install -e . -q"
+  "setup": "python -m pip install -e . -q",
+  "prompt_original": "Move a value replacing a table out of the table region (#506)\n\nReplacing a table with a plain value reused the forward scan meant for\nthe value-to-table direction, so the value was inserted just before the\nnext table header, inside the preceding table's body region. On\nround-trip the key became a child of that table. Route the\ntable-to-value direction through append(), which already places values\nbefore the first table.\n\nFixes #504",
+  "verified": true
 }
