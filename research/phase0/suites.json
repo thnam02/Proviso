@@ -1,0 +1,41 @@
+{
+ "base_time": 45.92165732383728,
+ "runs": {
+  "baseline/1": {
+   "tests": 1119,
+   "regressions": [],
+   "newly_passing": [],
+   "seconds": 46
+  },
+  "baseline/2": {
+   "tests": 1119,
+   "regressions": [],
+   "newly_passing": [],
+   "seconds": 46
+  },
+  "baseline/3": {
+   "tests": 1119,
+   "regressions": [],
+   "newly_passing": [],
+   "seconds": 46
+  },
+  "layer/1": {
+   "tests": 1119,
+   "regressions": [],
+   "newly_passing": [],
+   "seconds": 45
+  },
+  "layer/2": {
+   "tests": 1119,
+   "regressions": [],
+   "newly_passing": [],
+   "seconds": 47
+  },
+  "layer/3": {
+   "tests": 1119,
+   "regressions": [],
+   "newly_passing": [],
+   "seconds": 48
+  }
+ }
+}
