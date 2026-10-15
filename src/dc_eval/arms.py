@@ -276,13 +276,18 @@ def claude_argv(
     mcp_config: str | None = None,
     settings: str | None = None,
     claude_bin: str = "claude",
+    bare: bool = True,
 ) -> list[str]:
-    """Exact documented flags. Prompt is the `-p` argument."""
+    """Exact documented flags. Prompt is the `-p` argument.
+
+    bare=False is for host-authenticated runs (no ANTHROPIC_API_KEY); the caller
+    must then give the agent a clean environment (offline.claude_agent_env).
+    """
     cfg = arm_config(arm)
     tools = LAYER_TOOLS if cfg["mcp"] else BASELINE_TOOLS
     argv = [
         claude_bin,
-        "--bare",
+        *(["--bare"] if bare else []),
         "-p",
         prompt,
         "--output-format",

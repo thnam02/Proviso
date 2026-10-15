@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import shutil
 import subprocess
 import sys
@@ -327,6 +328,28 @@ class HookTests(unittest.TestCase):
         self.assertIn("no active contract", first.get("reason", ""))
         second = handle("stop", payload, self.root)
         self.assertNotEqual(second.get("decision"), "block")
+
+    def test_stop_allows_after_satisfied_close(self):
+        self._pre()  # snapshot
+        r = self.e.create_contract("z", ["billing.validate_amount"], [ZERO_PROBE], [])
+        self.e.replace_symbol("billing.validate_amount", REJECT_ZERO)
+        self.e.close_contract(r.contract_id)
+        payload = {"cwd": self.root, "hook_event_name": "Stop", "stop_hook_active": False}
+        out = handle("stop", payload, self.root)
+        self.assertNotEqual(out.get("decision"), "block", out)
+
+    def test_stop_blocks_edit_made_after_satisfied_close(self):
+        self._pre()
+        r = self.e.create_contract("z", ["billing.validate_amount"], [ZERO_PROBE], [])
+        self.e.replace_symbol("billing.validate_amount", REJECT_ZERO)
+        self.e.close_contract(r.contract_id)
+        later = time.time() + 5
+        with open(self.py, "a", encoding="utf-8") as fh:
+            fh.write("\n# edited after close\n")
+        os.utime(self.py, (later, later))
+        payload = {"cwd": self.root, "hook_event_name": "Stop", "stop_hook_active": False}
+        out = handle("stop", payload, self.root)
+        self.assertEqual(out.get("decision"), "block", out)
 
     def test_stop_warns_after_unsatisfied_close(self):
         r = self.e.create_contract("z", ["billing.validate_amount"], [ZERO_PROBE], [])

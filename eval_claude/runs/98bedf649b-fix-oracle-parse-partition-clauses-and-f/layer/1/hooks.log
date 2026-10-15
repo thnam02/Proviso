@@ -1,0 +1,32 @@
+{"timestamp": "2026-10-15T14:27:34.736Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 11, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:27:38.730Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:27:43.632Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:27:45.235Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:27:52.791Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:28:49.617Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:29:15.906Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 8, "tool": "Edit", "file": "/home/claude/eval-claude/runs/98bedf649b-fix-oracle-parse-partition-clauses-and-f/layer/1/repo/sqlglot/dialects/dialect.py"}
+{"timestamp": "2026-10-15T14:29:18.093Z", "format": "claude", "event": "post-edit", "decision": "none", "duration_ms": 2044, "tool": "Edit", "file": "/home/claude/eval-claude/runs/98bedf649b-fix-oracle-parse-partition-clauses-and-f/layer/1/repo/sqlglot/dialects/dialect.py"}
+{"timestamp": "2026-10-15T14:29:18.512Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 308, "tool": "Edit", "file": "/home/claude/eval-claude/runs/98bedf649b-fix-oracle-parse-partition-clauses-and-f/layer/1/repo/sqlglot/dialects/oracle.py"}
+{"timestamp": "2026-10-15T14:29:20.977Z", "format": "claude", "event": "post-edit", "decision": "none", "duration_ms": 2334, "tool": "Edit", "file": "/home/claude/eval-claude/runs/98bedf649b-fix-oracle-parse-partition-clauses-and-f/layer/1/repo/sqlglot/dialects/oracle.py"}
+{"timestamp": "2026-10-15T14:29:21.300Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 205, "tool": "Edit", "file": "/home/claude/eval-claude/runs/98bedf649b-fix-oracle-parse-partition-clauses-and-f/layer/1/repo/sqlglot/parser.py"}
+{"timestamp": "2026-10-15T14:29:23.728Z", "format": "claude", "event": "post-edit", "decision": "none", "duration_ms": 2306, "tool": "Edit", "file": "/home/claude/eval-claude/runs/98bedf649b-fix-oracle-parse-partition-clauses-and-f/layer/1/repo/sqlglot/parser.py"}
+{"timestamp": "2026-10-15T14:29:24.276Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 427, "tool": "Edit", "file": "/home/claude/eval-claude/runs/98bedf649b-fix-oracle-parse-partition-clauses-and-f/layer/1/repo/sqlglot/generator.py"}
+{"timestamp": "2026-10-15T14:29:26.915Z", "format": "claude", "event": "post-edit", "decision": "none", "duration_ms": 2521, "tool": "Edit", "file": "/home/claude/eval-claude/runs/98bedf649b-fix-oracle-parse-partition-clauses-and-f/layer/1/repo/sqlglot/generator.py"}
+{"timestamp": "2026-10-15T14:29:37.239Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:29:44.935Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:29:59.721Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:30:04.976Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:30:16.513Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:30:21.376Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:31:14.247Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:32:04.827Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:32:59.110Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:34:01.099Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:34:07.275Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:34:13.203Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:34:27.847Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:34:34.210Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:34:39.704Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:34:47.955Z", "format": "claude", "event": "pre-edit", "decision": "none", "duration_ms": 0, "tool": "Bash"}
+{"timestamp": "2026-10-15T14:35:01.318Z", "format": "claude", "event": "stop", "decision": "followup", "duration_ms": 19}
+{"timestamp": "2026-10-15T14:35:55.515Z", "format": "claude", "event": "stop", "decision": "none", "duration_ms": 17}

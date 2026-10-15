@@ -1,0 +1,40 @@
+WARNING: each run gives the agent Bash (full shell) plus file edits. A buggy or prompt-injected agent can delete files, leak secrets, or run anything the OS user can. Run this harness inside a container or VM, not on a machine with credentials or irreplaceable data.
+tasks: 98bedf649b-fix-oracle-parse-partition-clauses-and-f
+eval dir: /home/claude/eval-claude
+runner: claude
+arms: baseline, layer
+arm order seed: 0  (shuffled within each task/rep)
+runs: 6  (interleaved arms, 1800s wall-clock timeout each)
+model: claude-opus-5-5
+budget cap: $15.00 / run  (hard cap $90.00 via --max-budget-usd)
+rough cost estimate: $2.40–$90.00  (highly variable; not a quote)
+isolated venv per run (setup, grading, and the agent's PATH; never the harness pip)
+
+order:
+    1. 98bedf649b-fix-oracle-parse-partition-clauses-and-f  baseline  rep 1  base=e237d5980e
+    2. 98bedf649b-fix-oracle-parse-partition-clauses-and-f  layer     rep 1  base=e237d5980e
+    3. 98bedf649b-fix-oracle-parse-partition-clauses-and-f  baseline  rep 2  base=e237d5980e
+    4. 98bedf649b-fix-oracle-parse-partition-clauses-and-f  layer     rep 2  base=e237d5980e
+    5. 98bedf649b-fix-oracle-parse-partition-clauses-and-f  layer     rep 3  base=e237d5980e
+    6. 98bedf649b-fix-oracle-parse-partition-clauses-and-f  baseline  rep 3  base=e237d5980e
+dc-engine: commit=c074f3e0bf948415929582f25d4859ed688653c0 dirty=c85fbbc08da5 path=/home/claude/proviso-gh/src/dc_engine
+
+→ 98bedf649b-fix-oracle-parse-partition-clauses-and-f baseline rep 1
+  RESOLVED  cost=$0.8795  time=244s
+
+→ 98bedf649b-fix-oracle-parse-partition-clauses-and-f layer rep 1
+  RESOLVED  cost=$1.6673  time=520s
+
+→ 98bedf649b-fix-oracle-parse-partition-clauses-and-f baseline rep 2
+  RESOLVED  cost=$1.3681  time=408s
+
+→ 98bedf649b-fix-oracle-parse-partition-clauses-and-f layer rep 2
+  RESOLVED  cost=$1.7018  time=433s
+
+→ 98bedf649b-fix-oracle-parse-partition-clauses-and-f layer rep 3
+  RESOLVED  cost=$1.5720  time=319s
+
+→ 98bedf649b-fix-oracle-parse-partition-clauses-and-f baseline rep 3
+  RESOLVED  cost=$1.1961  time=352s
+
+wrote 6 rows to /home/claude/eval-claude/results.jsonl

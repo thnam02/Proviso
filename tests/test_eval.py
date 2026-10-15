@@ -542,6 +542,41 @@ class GradeTests(unittest.TestCase):
             shutil.rmtree(slot, ignore_errors=True)
 
 
+class HiddenScoreTests(unittest.TestCase):
+    """Partial credit: subtests count as checks (sqlglot 98be baseline rep 1: 37/38)."""
+
+    XML = (
+        '<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests">'
+        '<testsuite name="pytest" errors="0" failures="1" skipped="0" tests="38">'
+        '<testcase classname="tests.dialects.test_oracle.TestOracle" name="test_partition_selection" />'
+        '<testcase classname="tests.dialects.test_oracle.TestOracle" name="test_insert_partition" />'
+        '<testcase classname="tests.dialects.test_oracle.TestOracle" name="test_flashback">'
+        '<failure message="ParseError">E</failure></testcase></testsuite></testsuites>'
+    )
+
+    def _write(self, body: str) -> str:
+        d = tempfile.mkdtemp(prefix="dc-junit-")
+        self.addCleanup(shutil.rmtree, d, True)
+        path = os.path.join(d, "h.xml")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        return path
+
+    def test_subtests_counted_from_suite_totals(self):
+        from dc_eval.grade import junit_counts
+        self.assertEqual(junit_counts(self._write(self.XML)), (37, 38))
+
+    def test_missing_or_broken_file(self):
+        from dc_eval.grade import junit_counts
+        self.assertEqual(junit_counts("/nonexistent/x.xml"), (0, 0))
+        self.assertEqual(junit_counts(self._write("<not xml")), (0, 0))
+
+    def test_report_score_falls_back_to_resolved(self):
+        from dc_eval.report import _mean_score
+        rows = [{"resolved": True}, {"resolved": False}, {"resolved": False, "hidden_score": 0.5}]
+        self.assertAlmostEqual(_mean_score(rows), 0.5)
+
+
 class GradeBatchTests(unittest.TestCase):
     def test_grading_error_does_not_stop_batch(self):
         eval_dir = tempfile.mkdtemp(prefix="dc-eval-gerr-")

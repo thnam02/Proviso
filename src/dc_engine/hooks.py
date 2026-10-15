@@ -212,7 +212,7 @@ def _stop(payload: dict[str, Any], root: str, mode: str) -> dict[str, Any]:
 def _stop_no_active(root: str, mode: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Backstop: .py changed with no contract (block once); warn if closed unsatisfied."""
     sess = active.ensure_session_snapshot(root)
-    changed = active.py_files_changed(root)
+    changed = _uncovered_by_satisfied_close(root, active.py_files_changed(root))
     already = bool(sess.get("py_bypass_blocked"))
     stop_active = bool(payload.get("stop_hook_active"))
     if changed and not already and not stop_active:
@@ -234,6 +234,47 @@ def _stop_no_active(root: str, mode: str, payload: dict[str, Any]) -> dict[str, 
             },
         }
     return {}
+
+
+def _iso_epoch(text: str) -> float | None:
+    try:
+        dt = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
+def _uncovered_by_satisfied_close(root: str, changed: list[str]) -> list[str]:
+    """Drop files last modified before the newest contract that closed fully satisfied.
+
+    Without this, an agent that created, satisfied and closed a contract was told
+    "Python files changed with no active contract" at Stop and wasted several
+    turns trying to create a new one (seen in every Claude Code layer run).
+    Files edited after that close still count as uncovered.
+    """
+    if not changed:
+        return changed
+    newest: float | None = None
+    for c in list_saved(root):
+        if c.status != "closed" or c.close_score is None or c.close_score < 1.0 - 1e-12:
+            continue
+        t = _iso_epoch(c.closed_at) if c.closed_at else None
+        if t is not None and (newest is None or t > newest):
+            newest = t
+    if newest is None:
+        return changed
+    out = []
+    for rel in changed:
+        path = os.path.join(root, rel.replace("/", os.sep))
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            mtime = time.time()  # deleted after the close: treat as uncovered
+        if mtime > newest + 1.0:
+            out.append(rel)
+    return out
 
 
 def _closed_unsatisfied_warning(root: str, sess: dict[str, Any]) -> str:
@@ -664,7 +705,7 @@ def _cursor_stop_no_active(
     root: str, mode: str, payload: dict[str, Any], loops: int,
 ) -> dict[str, Any]:
     sess = active.ensure_session_snapshot(root)
-    changed = active.py_files_changed(root)
+    changed = _uncovered_by_satisfied_close(root, active.py_files_changed(root))
     already = bool(sess.get("py_bypass_blocked"))
     if changed and not already and loops < 3:
         sess["py_bypass_blocked"] = True

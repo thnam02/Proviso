@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 from .gitutil import git, is_git_repo
+from . import offline as _offline
 from .tasks import Task, pytest_selection
 
 TEST_BASENAMES = ("conftest.py",)
@@ -205,8 +206,28 @@ def restore_hidden_tests(
     if sha and files:
         checkout_fix_files(repo, files, sha, src_repo=src or None)
         return modified
+    _reset_to_head(repo, files)
     apply_patch(repo, task.test_patch)
     return modified
+
+
+def _reset_to_head(repo: str, files: list[str]) -> None:
+    """Undo agent edits to test_patch files so the patch applies to the base version.
+
+    Used when the source clone has no fix commit (e.g. a clone cut off at the
+    task's base commit so the agent cannot read the upstream fix from history).
+    The agent's copies were already saved by snapshot_agent_test_files.
+    """
+    if not files or not is_git_repo(repo):
+        return
+    for rel in files:
+        in_head = git(["cat-file", "-e", f"HEAD:{rel}"], cwd=repo, check=False).returncode == 0
+        if in_head:
+            git(["checkout", "HEAD", "--", rel], cwd=repo, check=False)
+        else:
+            path = os.path.join(repo, rel.replace("/", os.sep))
+            if os.path.isfile(path):
+                os.remove(path)
 
 
 def apply_patch(repo: str, patch: str) -> None:
@@ -296,6 +317,36 @@ def _junit_results(xml_path: str) -> dict[str, bool]:
             if k:
                 out[k] = passed
     return out
+
+
+def junit_counts(xml_path: str) -> tuple[int, int]:
+    """(passed, total) checks in a JUnit file, counting subtests as their own checks.
+
+    pytest reports each subtest as a test in the suite totals, so a task whose
+    hidden test has 35 subtests contributes 35+ checks instead of a single 0/1.
+    """
+    if not os.path.isfile(xml_path):
+        return 0, 0
+    try:
+        tree = ET.parse(xml_path)
+    except ET.ParseError:
+        return 0, 0
+    total = bad = 0
+    for suite in tree.iter("testsuite"):
+        try:
+            total += int(suite.get("tests") or 0)
+            bad += int(suite.get("failures") or 0) + int(suite.get("errors") or 0)
+            bad += int(suite.get("skipped") or 0)
+        except ValueError:
+            continue
+    if total <= 0:
+        cases = list(tree.iter("testcase"))
+        total = len(cases)
+        bad = sum(
+            1 for c in cases
+            if any(ch.tag in ("failure", "error", "skipped") for ch in list(c))
+        )
+    return max(total - bad, 0), total
 
 
 def _toml_section_body(text: str, header: str) -> str:
@@ -431,7 +482,20 @@ def install_test_env(
     timeout: int = 300,
 ) -> None:
     """Install pytest and the repo's test dependencies into `python`'s env."""
+    offline = _offline.is_offline(env) or _offline.is_offline()
     for cmd in install_command_argv(python, repo):
+        if offline:
+            if _offline.is_pytest_install(cmd):
+                if _offline.pytest_importable(python, env):
+                    continue
+                raise RuntimeError(
+                    "DC_EVAL_OFFLINE=1 but pytest is not importable from "
+                    f"{python} (install it into the harness interpreter first)"
+                )
+            if _offline.is_editable_install(cmd):
+                _offline.link_editable(python, repo, env)
+                continue
+            continue  # dependency groups / requirement files need an index
         r = subprocess.run(
             cmd, cwd=repo, capture_output=True, text=True, timeout=timeout, env=env,
         )
@@ -639,9 +703,19 @@ def grade_repo(
     hidden_fail = [k for k, ok in hidden.items() if not ok]
     regr_fail = [k for k, ok in regression.items() if not ok]
     resolved = bool(task.hidden_tests) and bool(hidden) and not hidden_fail
+    checks_passed, checks_total = junit_counts(hidden_xml) if hidden else (0, 0)
+    if resolved and checks_total and checks_passed < checks_total:
+        checks_passed = checks_total  # e.g. skips inside an otherwise passing selection
+    if checks_total:
+        hidden_score = checks_passed / checks_total
+    else:
+        hidden_score = 1.0 if resolved else 0.0
     layer = layer_disk_stats(repo)
     return {
         "hidden": hidden,
+        "hidden_checks_passed": checks_passed,
+        "hidden_checks_total": checks_total,
+        "hidden_score": hidden_score,
         "regression": regression,
         "resolved": resolved,
         "regressions": len(regr_fail),

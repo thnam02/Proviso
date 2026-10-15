@@ -41,6 +41,7 @@ from .gitutil import (
     realpath,
 )
 from .grade import grade_repo, install_test_env
+from . import offline as _offline
 from .prices import ensure_prices_file, estimate_cost_usd
 from .stream import metrics_from_stream, stream_has_result
 from .tasks import Task, load_tasks, select_tasks
@@ -187,26 +188,43 @@ def clone_url(url: str, eval_dir: str) -> str:
 
 
 def _fresh_copy(src_repo: str, commit: str, dest: str) -> None:
-    """Fresh checkout of `commit` at `dest`. Never the caller's working copy."""
+    """Isolated checkout of `commit` whose history stops at `commit`.
+
+    The run copy must not contain later commits. A `git worktree` shares the
+    source's object store, and Cursor agents did read the upstream fix with
+    `git show <fix-sha>` (the run folder name starts with the fix commit's id).
+    Here the copy is a new repository that fetches only what is reachable from
+    `commit`, has no remote, and has a detached HEAD at `commit`.
+    """
     if os.path.exists(dest):
         if is_git_repo(dest):
             git(["worktree", "remove", "--force", dest], cwd=src_repo, check=False, timeout=60)
         shutil.rmtree(dest, ignore_errors=True)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     if is_git_repo(src_repo):
-        r = git(
-            ["worktree", "add", "--detach", "--force", dest, commit],
-            cwd=src_repo, check=False, timeout=120,
-        )
-        if r.returncode == 0:
-            return
-        r2 = git(
-            ["clone", "--shared", "--no-checkout", src_repo, dest],
-            cwd=os.path.dirname(dest), check=False, timeout=120,
-        )
-        if r2.returncode == 0:
-            git(["checkout", "--force", commit], cwd=dest, timeout=60)
-            return
+        full = git(
+            ["rev-parse", "--verify", f"{commit}^{{commit}}"], cwd=src_repo, check=False,
+        ).stdout.strip()
+        if full:
+            ref = f"refs/dc-eval/base-{full[:12]}"
+            git(["update-ref", ref, full], cwd=src_repo, check=False)
+            try:
+                os.makedirs(dest, exist_ok=True)
+                ok = git(["init", "-q"], cwd=dest, check=False).returncode == 0
+                ok = ok and git(
+                    ["fetch", "-q", "--no-tags", os.path.abspath(src_repo), f"{ref}:{ref}"],
+                    cwd=dest, check=False, timeout=900,
+                ).returncode == 0
+                ok = ok and git(
+                    ["checkout", "-q", "--detach", full], cwd=dest, check=False, timeout=300,
+                ).returncode == 0
+                if ok:
+                    git(["update-ref", "-d", ref], cwd=dest, check=False)
+                    return
+            finally:
+                git(["update-ref", "-d", ref], cwd=src_repo, check=False)
+            shutil.rmtree(dest, ignore_errors=True)
+            os.makedirs(dest, exist_ok=True)
         proc = subprocess.run(
             ["git", "archive", "--format=tar", commit],
             cwd=src_repo, stdout=subprocess.PIPE, check=True,
@@ -225,6 +243,9 @@ def run_setup(
 ) -> None:
     if not setup or not setup.strip():
         return
+    if _offline.is_offline() and env and env.get("VIRTUAL_ENV"):
+        if _offline.offline_setup(setup, repo, venv_python(env["VIRTUAL_ENV"]), env):
+            return
     r = subprocess.run(
         setup, cwd=repo, shell=True, capture_output=True, text=True,
         timeout=timeout, env=env,
@@ -418,8 +439,11 @@ def create_run_venv(slot: str) -> str:
     if os.path.exists(dest):
         shutil.rmtree(dest)
     os.makedirs(slot, exist_ok=True)
+    venv_argv = [sys.executable, "-m", "venv", dest]
+    if _offline.is_offline():
+        venv_argv.insert(3, "--system-site-packages")
     r = subprocess.run(
-        [sys.executable, "-m", "venv", dest],
+        venv_argv,
         capture_output=True, text=True, timeout=120,
     )
     if r.returncode != 0:
@@ -1027,6 +1051,9 @@ def _apply_grade(row: dict[str, Any], grade: dict[str, Any], arm: str) -> dict[s
     row["resolved"] = grade.get("resolved")
     row["regressions"] = grade.get("regressions")
     row["hidden"] = grade.get("hidden")
+    row["hidden_checks_passed"] = grade.get("hidden_checks_passed")
+    row["hidden_checks_total"] = grade.get("hidden_checks_total")
+    row["hidden_score"] = grade.get("hidden_score")
     row["regression"] = grade.get("regression")
     row["modified_tests"] = grade.get("modified_tests")
     row["diff_size"] = grade.get("diff_size")
@@ -1135,6 +1162,7 @@ def execute_run(
     run_env: dict[str, str] | None = None
     agent_ver = None
     mcp_path = settings_path = None
+    agent_env: dict[str, str] | None = None
     cfg = arm_config(arm)
     try:
         if repo_is_working_copy(repo_dir):
@@ -1189,12 +1217,15 @@ def execute_run(
                 )
                 if cfg["hooks"]:
                     write_layer_repo_config(repo_dir)
+            host_auth = _offline.claude_host_auth()
             argv = claude_argv(
                 task.prompt, arm,
                 model=model, budget_usd=budget_usd,
                 mcp_config=mcp_path, settings=settings_path,
-                claude_bin=claude_bin,
+                claude_bin=claude_bin, bare=not host_auth,
             )
+            if host_auth:
+                agent_env = _offline.claude_agent_env(slot, run_env)
     except SafetyError:
         raise
     except Exception as exc:
@@ -1219,6 +1250,8 @@ def execute_run(
             "dc_engine_git_commit": pin.git_commit,
             "dc_engine_git_dirty": pin.git_dirty,
             "venv": venv,
+            "offline": _offline.is_offline(),
+            "claude_host_auth": runner == "claude" and _offline.claude_host_auth(),
         }, fh, indent=2)
         fh.write("\n")
     stream_path = os.path.join(slot, "stream.jsonl")
@@ -1233,7 +1266,7 @@ def execute_run(
         ) as err:
             proc = subprocess.run(
                 argv, cwd=repo_dir, stdout=out, stderr=err,
-                timeout=timeout_s, env=run_env,
+                timeout=timeout_s, env=agent_env if agent_env is not None else run_env,
             )
             returncode = proc.returncode
     except subprocess.TimeoutExpired:
@@ -1286,6 +1319,14 @@ def execute_run(
         metrics = metrics_from_stream(stream_text, wall_time_s=wall)
         metrics["hooks_active"] = None
         metrics["cost_estimated"] = False
+        if cfg["hooks"]:
+            hook_sum = summarize_hooks_log(_hooks_log_text(repo_dir))
+            metrics["hooks_active"] = bool(hook_sum.get("hooks_active"))
+            metrics["hook_calls"] = hook_sum.get("hook_calls") or 0
+            metrics["hook_calls_by_event"] = hook_sum.get("hook_calls_by_event") or {}
+            metrics["hook_denials"] = hook_sum.get("hook_denials") or 0
+            metrics["hook_stop_followups"] = hook_sum.get("hook_stop_followups") or 0
+            metrics["hook_errors"] = hook_sum.get("hook_errors") or 0
     row: dict[str, Any] = {
         "task": task.id,
         "arm": arm,
@@ -1422,7 +1463,8 @@ def run_eval(
     if runner == "cursor":
         agent_path = _require_cursor(agent_bin)
     else:
-        _require_api_key()
+        if not _offline.claude_host_auth():
+            _require_api_key()
         claude_path = _require_claude(claude_bin)
     results_path = os.path.join(eval_dir, "results.jsonl")
     n_ok = 0

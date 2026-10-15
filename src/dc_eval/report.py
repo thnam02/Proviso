@@ -29,8 +29,9 @@ MIN_N_NOTE = 5
 
 PAIRED_METRICS = (
     ("resolved_rate", "resolved rate"),
+    ("hidden_score", "hidden checks passed"),
     ("regressions", "regressions"),
-    ("tokens", "tokens (in+out)"),
+    ("tokens", "tokens (all-in, incl. cache)"),
     ("model_requests", "requests"),
     ("tokens_per_request", "tokens/request"),
     ("cost_usd", "cost (USD)"),
@@ -264,6 +265,10 @@ def _tokens(row: dict[str, Any]) -> float | None:
                 return _f(row.get("tokens"))
             return None
         return sum(_f(row.get(k)) for k in keys)
+    if row.get("cache_read_tokens") is not None and row.get("tokens") is not None:
+        # Claude Code stream: `tokens` already includes cache reads and cache
+        # creation, the same all-in definition as the Cursor rows above.
+        return _f(row.get("tokens"))
     if row.get("input_tokens") is None and row.get("output_tokens") is None:
         return None
     return _f(row.get("input_tokens")) + _f(row.get("output_tokens"))
@@ -292,6 +297,7 @@ def per_task_arm_summary(rows: list[dict[str, Any]]) -> dict[tuple[str, str], di
             "n": len(items),
             "resolved_rate": (sum(resolved) / len(resolved)) if resolved else 0.0,
             "regressions": _median([_f(r.get("regressions")) for r in items]),
+            "hidden_score": _mean_score(items),
             "tokens": _median(tok),
             "cost_usd": _median_key(items, "cost_usd"),
             "wall_time_s": _median_key(items, "wall_time_s"),
@@ -313,6 +319,18 @@ def per_task_arm_summary(rows: list[dict[str, Any]]) -> dict[tuple[str, str], di
     return out
 
 
+def _row_score(r: dict[str, Any]) -> float:
+    """Fraction of hidden checks (tests + subtests) passed; older rows fall back to 0/1."""
+    s = r.get("hidden_score")
+    if s is None:
+        return 1.0 if r.get("resolved") else 0.0
+    return _f(s)
+
+
+def _mean_score(items: list[dict[str, Any]]) -> float:
+    return (sum(_row_score(r) for r in items) / len(items)) if items else 0.0
+
+
 def _arm_totals(rows: list[dict[str, Any]], arm: str) -> dict[str, Any]:
     items = [r for r in _included(rows) if r.get("arm") == arm]
     n = len(items)
@@ -329,6 +347,7 @@ def _arm_totals(rows: list[dict[str, Any]], arm: str) -> dict[str, Any]:
         "n_runs": n,
         "resolved": resolved,
         "resolved_rate": (resolved / n) if n else 0.0,
+        "hidden_score_mean": _mean_score(items),
         "regressions_sum": sum(int(_f(r.get("regressions"))) for r in items),
         "cost_sum": sum(cost_vals) if cost_vals else 0.0,
         "cost_estimated": estimated,
@@ -585,14 +604,14 @@ def render_report(
     lines.append("## Per-arm summary")
     lines.append("")
     lines.append(
-        "| arm | runs | resolved | requests | tokens | tokens/request | "
+        "| arm | runs | resolved | hidden checks | requests | tokens | tokens/request | "
         "time | read calls | dc-engine calls | contracts created | contract retries |"
     )
-    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for arm in arms:
         t = _arm_totals(rows_m, arm)
         lines.append(
-            f"| {arm} | {t['n_runs']} | {t['resolved']} | "
+            f"| {arm} | {t['n_runs']} | {t['resolved']} | {t['hidden_score_mean']:.0%} | "
             f"{_fmt(t['requests_mean'])} | {int(t['tokens_sum'])} | "
             f"{_fmt(t['tokens_per_request_mean'])} | {t['wall_time_sum']:.1f} | "
             f"{_fmt(t['read_calls_sum'])} | {_fmt(t['dc_engine_calls_sum'])} | "
