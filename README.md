@@ -53,7 +53,6 @@ sites across library and test code).
 ## Install
 
 ```bash
-cd dc-engine
 pip install -e .                 # needs Python 3.10+ and the `mcp` package
 pip install ruff pyright         # optional but recommended: edit checks
 ```
@@ -327,15 +326,15 @@ Use a **fixed model** (never `auto`) so baseline and layer are comparable. Turn
 
 ```bash
 # from outside the repo (live runs refuse the working copy)
-dc-eval run --runner cursor --model composer-1 --eval-dir /abs/path/dc-engine/eval --reps 1
+dc-eval run --runner cursor --model composer-1 --eval-dir /abs/path/eval --reps 1
 ```
 
 After the batch, export usage from [cursor.com/dashboard/usage](https://cursor.com/dashboard/usage)
 and:
 
 ```bash
-dc-eval import-usage usage.csv --eval-dir /abs/path/dc-engine/eval
-dc-eval report --eval-dir /abs/path/dc-engine/eval
+dc-eval import-usage usage.csv --eval-dir /abs/path/eval
+dc-eval report --eval-dir /abs/path/eval
 ```
 
 Check **hooks active: yes/no** per run in the report. Cursor's docs do not

@@ -25,6 +25,9 @@ htmlcov/
 # Engine local state (never commit a project's .dc-engine/)
 .dc-engine/
 
+# Local path shim (not the Python package in src/dc_engine)
+/dc-engine
+
 # Eval harness outputs. Keep tasks/, fixtures/, and prices.json.
 eval/runs/
 eval/runs_archive/
