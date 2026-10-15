@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 from typing import Sequence
@@ -52,6 +53,23 @@ def is_git_repo(path: str) -> bool:
         return False
     r = git(["rev-parse", "--is-inside-work-tree"], cwd=path, check=False)
     return r.returncode == 0 and r.stdout.strip() == "true"
+
+
+def git_head(cwd: str) -> str | None:
+    """HEAD commit SHA, or None if git fails."""
+    r = git(["rev-parse", "HEAD"], cwd=cwd, check=False)
+    if r.returncode != 0:
+        return None
+    sha = (r.stdout or "").strip()
+    return sha or None
+
+
+def git_diff_hash(cwd: str) -> str | None:
+    """SHA-256 of `git diff` stdout (dirty unstaged state). None if git fails."""
+    r = git(["diff"], cwd=cwd, check=False)
+    if r.returncode != 0:
+        return None
+    return hashlib.sha256((r.stdout or "").encode("utf-8")).hexdigest()
 
 
 def realpath(path: str) -> str:

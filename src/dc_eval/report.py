@@ -154,6 +154,72 @@ def _included(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r for r in rows if not _is_excluded(r)]
 
 
+def _engine_fp(row: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(row.get("dc_engine_git_commit") or ""),
+        str(row.get("dc_engine_git_dirty") or ""),
+        str(row.get("dc_engine_path") or ""),
+    )
+
+
+def engine_commit_groups(
+    rows: list[dict[str, Any]],
+) -> list[tuple[str, list[dict[str, Any]]]]:
+    """Preserve first-seen commit order."""
+    order: list[str] = []
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        commit = str(row.get("dc_engine_git_commit") or "")
+        if commit not in groups:
+            order.append(commit)
+            groups[commit] = []
+        groups[commit].append(row)
+    return [(c, groups[c]) for c in order]
+
+
+def _short_hash(value: str, n: int = 12) -> str:
+    if not value:
+        return "(none)"
+    return value if len(value) <= n else value[:n]
+
+
+def _engine_section(
+    rows: list[dict[str, Any]],
+    compared: list[dict[str, Any]],
+) -> list[str]:
+    if not any(_engine_fp(r) != ("", "", "") for r in rows):
+        return []
+    lines = ["## dc-engine versions", ""]
+    lines.append("Runs grouped by dc-engine commit:")
+    lines.append("")
+    lines.append("| commit | dirty | path | runs |")
+    lines.append("|---|---|---|---:|")
+    order: list[tuple[str, str, str]] = []
+    counts: dict[tuple[str, str, str], int] = {}
+    for row in rows:
+        fp = _engine_fp(row)
+        if fp not in counts:
+            order.append(fp)
+            counts[fp] = 0
+        counts[fp] += 1
+    for commit, dirty, path in order:
+        lines.append(
+            f"| {_short_hash(commit) if commit else '(unknown)'} | "
+            f"{_short_hash(dirty)} | {path or '(unknown)'} | {counts[(commit, dirty, path)]} |"
+        )
+    lines.append("")
+    fps = {_engine_fp(r) for r in compared} if compared else {_engine_fp(r) for r in rows}
+    if len(fps) > 1:
+        commits = sorted({fp[0] or "(unknown)" for fp in fps})
+        lines.append(
+            "**Warning:** this comparison mixes dc-engine versions "
+            f"(commits: {', '.join(commits)}). "
+            "Do not treat arm differences as an ablation of one engine."
+        )
+        lines.append("")
+    return lines
+
+
 def _present_arms(rows: Iterable[dict[str, Any]]) -> list[str]:
     seen = {str(r.get("arm") or "") for r in rows}
     seen.discard("")
@@ -515,6 +581,7 @@ def render_report(
     estimated = any(r.get("cost_estimated") for r in rows_m)
     arms = _present_arms(rows_m) or _present_arms(rows)
 
+    lines.extend(_engine_section(latest, rows_m))
     lines.append("## Per-arm summary")
     lines.append("")
     lines.append(

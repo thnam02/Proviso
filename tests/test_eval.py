@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -34,9 +35,11 @@ from dc_eval.report import (
 )
 from dc_eval.gitutil import git_root
 from dc_eval.run import (
+    ENGINE_CHANGED,
     SafetyError,
     append_result,
     apply_cursor_offline_policy,
+    capture_engine_pin,
     cursor_preflight_argv,
     execute_run,
     format_plan,
@@ -307,6 +310,68 @@ class BootstrapTests(unittest.TestCase):
         self.assertIn("After (slim)", md)
         self.assertIn("dc_start", md)
         self.assertIn("tokens/request", md)
+
+    def test_report_groups_by_engine_commit_and_warns_on_mix(self):
+        rows = [
+            {
+                "task": "t1", "arm": "baseline", "rep": 1, "status": "ok",
+                "resolved": True, "regressions": 0,
+                "dc_engine_git_commit": "aaa111",
+                "dc_engine_git_dirty": "d" * 64,
+                "dc_engine_path": "/engine-a",
+            },
+            {
+                "task": "t1", "arm": "layer", "rep": 1, "status": "ok",
+                "resolved": True, "regressions": 0,
+                "dc_engine_git_commit": "aaa111",
+                "dc_engine_git_dirty": "d" * 64,
+                "dc_engine_path": "/engine-a",
+            },
+            {
+                "task": "t2", "arm": "baseline", "rep": 1, "status": "ok",
+                "resolved": False, "regressions": 0,
+                "dc_engine_git_commit": "bbb222",
+                "dc_engine_git_dirty": "e" * 64,
+                "dc_engine_path": "/engine-b",
+            },
+            {
+                "task": "t2", "arm": "layer", "rep": 1, "status": "ok",
+                "resolved": True, "regressions": 0,
+                "dc_engine_git_commit": "bbb222",
+                "dc_engine_git_dirty": "e" * 64,
+                "dc_engine_path": "/engine-b",
+            },
+        ]
+        md = render_report(rows)
+        self.assertIn("## dc-engine versions", md)
+        self.assertIn("Runs grouped by dc-engine commit", md)
+        self.assertIn("aaa111", md)
+        self.assertIn("bbb222", md)
+        self.assertIn("this comparison mixes dc-engine versions", md)
+        self.assertIn("/engine-a", md)
+        self.assertIn("/engine-b", md)
+
+    def test_report_same_engine_commit_has_no_mix_warning(self):
+        rows = [
+            {
+                "task": "t1", "arm": "baseline", "rep": 1, "status": "ok",
+                "resolved": True,
+                "dc_engine_git_commit": "aaa111",
+                "dc_engine_git_dirty": "d1",
+                "dc_engine_path": "/engine",
+            },
+            {
+                "task": "t1", "arm": "layer", "rep": 1, "status": "ok",
+                "resolved": True,
+                "dc_engine_git_commit": "aaa111",
+                "dc_engine_git_dirty": "d1",
+                "dc_engine_path": "/engine",
+            },
+        ]
+        md = render_report(rows)
+        self.assertIn("## dc-engine versions", md)
+        self.assertIn("aaa111", md)
+        self.assertNotIn("mixes dc-engine versions", md)
 
 
 class GradeTests(unittest.TestCase):
@@ -1263,6 +1328,14 @@ class SafetyAndVenvTests(unittest.TestCase):
                 )
             self.assertEqual(row.get("dc_engine_version"), "0.1.0")
             self.assertIn("dc_engine", row.get("dc_engine_path") or "")
+            self.assertTrue(row.get("dc_engine_git_commit"))
+            self.assertIsNotNone(row.get("dc_engine_git_dirty"))
+            slot = os.path.join(eval_dir, "runs", "t", "baseline", "1")
+            with open(os.path.join(slot, "metrics.json"), encoding="utf-8") as fh:
+                saved = json.load(fh)
+            self.assertEqual(saved.get("dc_engine_git_commit"), row.get("dc_engine_git_commit"))
+            self.assertEqual(saved.get("dc_engine_git_dirty"), row.get("dc_engine_git_dirty"))
+            self.assertEqual(saved.get("dc_engine_path"), row.get("dc_engine_path"))
             kinds = [k for k, _, _ in calls]
             self.assertIn("venv", kinds)
             self.assertIn("pip", kinds)
@@ -2202,6 +2275,146 @@ class AblationTests(unittest.TestCase):
         finally:
             shutil.rmtree(src, ignore_errors=True)
             shutil.rmtree(eval_dir, ignore_errors=True)
+
+
+def _fake_engine_git(head="abc123", diff="", root=None):
+    """Mock `dc_eval.gitutil.git` for engine-pin tests. Never the live agent."""
+
+    def fake_git(args, cwd, check=True, timeout=120):
+        a = list(args)
+        h = head() if callable(head) else head
+        d = diff() if callable(diff) else diff
+        top = root or cwd
+        if a[:2] == ["rev-parse", "--is-inside-work-tree"]:
+            return subprocess.CompletedProcess(["git", *a], 0, "true\n", "")
+        if a[:2] == ["rev-parse", "--show-toplevel"]:
+            return subprocess.CompletedProcess(["git", *a], 0, str(top) + "\n", "")
+        if a[:2] == ["rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(["git", *a], 0, str(h) + "\n", "")
+        if a[:1] == ["diff"]:
+            return subprocess.CompletedProcess(["git", *a], 0, d, "")
+        raise AssertionError(f"unexpected git {a} cwd={cwd}")
+
+    return fake_git
+
+
+class EnginePinTests(unittest.TestCase):
+    def test_capture_records_commit_dirty_hash_and_path(self):
+        blob = "diff --git a/src/dc_engine/x.py b/src/dc_engine/x.py\n"
+        expected_dirty = hashlib.sha256(blob.encode("utf-8")).hexdigest()
+        with patch("dc_eval.gitutil.git", _fake_engine_git(head="deadbeef", diff=blob)):
+            pin = capture_engine_pin()
+        self.assertEqual(pin.git_commit, "deadbeef")
+        self.assertEqual(pin.git_dirty, expected_dirty)
+        self.assertIn("dc_engine", pin.package_path)
+        self.assertEqual(pin.version, "0.1.0")
+
+    def _two_task_eval(self):
+        eval_dir = tempfile.mkdtemp(prefix="dc-eval-pin-")
+        repo = tempfile.mkdtemp(prefix="dc-eval-pinrepo-")
+        _init_git(repo)
+        _write(os.path.join(repo, "app.py"), "x = 1\n")
+        _git(["add", "."], repo)
+        _git(["commit", "-m", "init"], repo)
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo, text=True,
+        ).strip()
+        save_task(eval_dir, Task(id="aa-one", repo=repo, commit=sha, prompt="p"))
+        save_task(eval_dir, Task(id="bb-two", repo=repo, commit=sha, prompt="p"))
+        return eval_dir, repo
+
+    def test_run_eval_stops_if_git_commit_changes(self):
+        eval_dir, repo = self._two_task_eval()
+        state = {"head": "aaa111"}
+        executed: list[str] = []
+
+        def fake_execute(task, arm, rep, **kwargs):
+            executed.append(task.id)
+            self.assertEqual(kwargs.get("engine_pin").git_commit, "aaa111")
+            state["head"] = "bbb222"
+            return {
+                "task": task.id, "arm": arm, "rep": rep,
+                "status": "ok", "resolved": True,
+                **kwargs["engine_pin"].as_metrics(),
+            }
+
+        try:
+            with patch("dc_eval.gitutil.git", _fake_engine_git(head=lambda: state["head"])), \
+                 patch("dc_eval.run.execute_run", fake_execute), \
+                 patch("dc_eval.run._require_api_key"), \
+                 patch("dc_eval.run._require_claude", return_value="claude"):
+                with self.assertRaises(SafetyError) as cm:
+                    run_eval(
+                        eval_dir, dry_run=False, reps=1, arms=("baseline",),
+                        timeout_s=5,
+                    )
+            self.assertIn(ENGINE_CHANGED, str(cm.exception))
+            self.assertEqual(executed, ["aa-one"])
+        finally:
+            shutil.rmtree(eval_dir, ignore_errors=True)
+            shutil.rmtree(repo, ignore_errors=True)
+
+    def test_run_eval_stops_if_dirty_diff_changes(self):
+        eval_dir, repo = self._two_task_eval()
+        state = {"diff": ""}
+        executed: list[str] = []
+
+        def fake_execute(task, arm, rep, **kwargs):
+            executed.append(task.id)
+            state["diff"] = "diff --git a/x b/x\n"
+            return {
+                "task": task.id, "arm": arm, "rep": rep,
+                "status": "ok", "resolved": True,
+            }
+
+        try:
+            with patch("dc_eval.gitutil.git", _fake_engine_git(diff=lambda: state["diff"])), \
+                 patch("dc_eval.run.execute_run", fake_execute), \
+                 patch("dc_eval.run._require_api_key"), \
+                 patch("dc_eval.run._require_claude", return_value="claude"):
+                with self.assertRaises(SafetyError) as cm:
+                    run_eval(
+                        eval_dir, dry_run=False, reps=1, arms=("baseline",),
+                        timeout_s=5,
+                    )
+            self.assertIn("dc-engine changed since batch start", str(cm.exception))
+            self.assertEqual(executed, ["aa-one"])
+        finally:
+            shutil.rmtree(eval_dir, ignore_errors=True)
+            shutil.rmtree(repo, ignore_errors=True)
+
+    def test_run_eval_stops_if_package_path_changes(self):
+        eval_dir, repo = self._two_task_eval()
+        state = {"path": "/engine-a"}
+        executed: list[str] = []
+
+        def fake_pkg():
+            return state["path"]
+
+        def fake_execute(task, arm, rep, **kwargs):
+            executed.append(task.id)
+            state["path"] = "/engine-b"
+            return {
+                "task": task.id, "arm": arm, "rep": rep,
+                "status": "ok", "resolved": True,
+            }
+
+        try:
+            with patch("dc_eval.gitutil.git", _fake_engine_git(head="aaa111", diff="")), \
+                 patch("dc_eval.run.dc_engine_package_dir", fake_pkg), \
+                 patch("dc_eval.run.execute_run", fake_execute), \
+                 patch("dc_eval.run._require_api_key"), \
+                 patch("dc_eval.run._require_claude", return_value="claude"):
+                with self.assertRaises(SafetyError) as cm:
+                    run_eval(
+                        eval_dir, dry_run=False, reps=1, arms=("baseline",),
+                        timeout_s=5,
+                    )
+            self.assertIn("dc-engine changed since batch start", str(cm.exception))
+            self.assertEqual(executed, ["aa-one"])
+        finally:
+            shutil.rmtree(eval_dir, ignore_errors=True)
+            shutil.rmtree(repo, ignore_errors=True)
 
 
 class OverheadProbeTests(unittest.TestCase):

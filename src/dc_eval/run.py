@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
-from typing import Any
+from typing import Any, NamedTuple
 
 from . import (
     ARMS,
@@ -30,7 +30,16 @@ from .arms import (
     hook_command, server_mcp_args, write_layer_files, write_layer_repo_config,
 )
 from .cursor_stream import is_limit_error, metrics_from_cursor_stream, summarize_hooks_log
-from .gitutil import git, git_root, is_git_repo, is_git_url, realpath
+from .gitutil import (
+    GitError,
+    git,
+    git_diff_hash,
+    git_head,
+    git_root,
+    is_git_repo,
+    is_git_url,
+    realpath,
+)
 from .grade import grade_repo, install_test_env
 from .prices import ensure_prices_file, estimate_cost_usd
 from .stream import metrics_from_stream, stream_has_result
@@ -39,6 +48,37 @@ from .tasks import Task, load_tasks, select_tasks
 
 class SafetyError(RuntimeError):
     pass
+
+
+ENGINE_CHANGED = "dc-engine changed since batch start"
+
+
+class EnginePin(NamedTuple):
+    """dc-engine identity frozen at batch start."""
+
+    git_commit: str | None
+    git_dirty: str | None
+    package_path: str
+    version: str
+
+    def as_metrics(self) -> dict[str, Any]:
+        return {
+            "dc_engine_version": self.version,
+            "dc_engine_path": self.package_path,
+            "dc_engine_git_commit": self.git_commit,
+            "dc_engine_git_dirty": self.git_dirty,
+        }
+
+    def fingerprint(self) -> tuple[str | None, str | None, str]:
+        return (self.git_commit, self.git_dirty, self.package_path)
+
+
+def format_engine_pin(pin: EnginePin) -> str:
+    commit = pin.git_commit or "unknown"
+    dirty = pin.git_dirty or "unknown"
+    if pin.git_dirty and len(pin.git_dirty) > 12:
+        dirty = pin.git_dirty[:12]
+    return f"dc-engine: commit={commit} dirty={dirty} path={pin.package_path}"
 
 
 class SetupError(RuntimeError):
@@ -241,6 +281,53 @@ def dc_engine_meta() -> tuple[str, str]:
     if m:
         ver = m.group(1)
     return ver, pkg
+
+
+def engine_git_cwd() -> str | None:
+    """Checkout to ask git about, or None when dc-engine is not a git tree."""
+    root = dc_engine_source_root()
+    if root and is_git_repo(root):
+        return root
+    try:
+        pkg = dc_engine_package_dir()
+    except SafetyError:
+        return None
+    if is_git_repo(pkg):
+        try:
+            return git_root(pkg)
+        except GitError:
+            return pkg
+    return None
+
+
+def capture_engine_pin() -> EnginePin:
+    """Record installed dc-engine path plus git commit and `git diff` hash."""
+    ver, path = dc_engine_meta()
+    commit = None
+    dirty = None
+    cwd = engine_git_cwd()
+    if cwd:
+        commit = git_head(cwd)
+        dirty = git_diff_hash(cwd)
+    return EnginePin(
+        git_commit=commit,
+        git_dirty=dirty,
+        package_path=path,
+        version=ver,
+    )
+
+
+def ensure_engine_pin(expected: EnginePin) -> None:
+    """Abort if dc-engine commit, dirty hash, or package path changed."""
+    now = capture_engine_pin()
+    if now.fingerprint() != expected.fingerprint():
+        raise SafetyError(
+            f"{ENGINE_CHANGED}: "
+            f"was commit={expected.git_commit} dirty={expected.git_dirty} "
+            f"path={expected.package_path}; "
+            f"now commit={now.git_commit} dirty={now.git_dirty} "
+            f"path={now.package_path}"
+        )
 
 
 def looks_like_dc_engine_tree(path: str) -> bool:
@@ -1031,6 +1118,7 @@ def execute_run(
     agent_bin: str = "agent",
     reuse: bool = False,
     do_grade: bool = True,
+    engine_pin: EnginePin | None = None,
 ) -> dict[str, Any]:
     slot = _run_dir(eval_dir, task.id, arm, rep)
     if slot_in_use(slot) and not reuse:
@@ -1039,7 +1127,8 @@ def execute_run(
             "Pass --fresh to archive it, or --resume to skip finished runs."
         )
     repo_dir = os.path.join(slot, "repo")
-    engine_ver, engine_path = dc_engine_meta()
+    pin = engine_pin or capture_engine_pin()
+    engine_ver, engine_path = pin.version, pin.package_path
     py = None
     venv = None
     argv: list[str] = []
@@ -1115,6 +1204,7 @@ def execute_run(
             "task": task.id, "arm": arm, "rep": rep, "runner": runner,
             "model": model, "run_dir": slot, "repo": src_repo,
             "commit": task.commit, "resolved": False,
+            **pin.as_metrics(),
         }
         row = _setup_error_row(row, exc, arm, log)
         _write_metrics(slot, row)
@@ -1126,6 +1216,8 @@ def execute_run(
             "agent_version": agent_ver,
             "dc_engine_version": engine_ver,
             "dc_engine_path": engine_path,
+            "dc_engine_git_commit": pin.git_commit,
+            "dc_engine_git_dirty": pin.git_dirty,
             "venv": venv,
         }, fh, indent=2)
         fh.write("\n")
@@ -1201,8 +1293,7 @@ def execute_run(
         "runner": runner,
         "model": model,
         "agent_version": agent_ver,
-        "dc_engine_version": engine_ver,
-        "dc_engine_path": engine_path,
+        **pin.as_metrics(),
         "commit": task.commit,
         "repo": src_repo,
         "run_dir": slot,
@@ -1303,6 +1394,8 @@ def run_eval(
         plan, model=model, budget_usd=budget_usd, timeout_s=timeout_s,
         eval_dir=eval_dir, runner=runner, seed=seed, arms=arms,
     ))
+    pin = capture_engine_pin()
+    print(format_engine_pin(pin), flush=True)
     existing = existing_run_slots(eval_dir, plan)
     if existing and not resume and not fresh:
         shown = "\n".join("  " + s for s in existing[:12])
@@ -1370,18 +1463,23 @@ def run_eval(
                 skipped += 1
             continue
         print(f"\n→ {task.id} {arm} rep {rep}", flush=True)
+        ensure_engine_pin(pin)
         try:
             row = execute_run(
                 task, arm, rep,
                 eval_dir=eval_dir, model=model, budget_usd=budget_usd,
                 timeout_s=timeout_s, claude_bin=claude_path, src_repo=src,
                 runner=runner, agent_bin=agent_path, reuse=resume,
+                engine_pin=pin,
             )
         except SafetyError:
             raise
         except Exception as exc:
             row = _grade_error_row(
-                {"task": task.id, "arm": arm, "rep": rep, "run_dir": slot, "repo": src},
+                {
+                    "task": task.id, "arm": arm, "rep": rep, "run_dir": slot,
+                    "repo": src, **pin.as_metrics(),
+                },
                 exc, arm,
             )
             _write_metrics(slot, row)
