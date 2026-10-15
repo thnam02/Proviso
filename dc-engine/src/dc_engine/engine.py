@@ -11,7 +11,10 @@ from .edit_gate import EditGate
 from .indexer import Indexer
 from .parser import Symbol, module_name
 from .store import Store
-from .views import Views, est_tokens
+from .views import (
+    DEFAULT_REPO_MAP_TOKENS, DEFAULT_SLICE_TOKENS, DEFAULT_START_TOKENS,
+    Views, est_tokens,
+)
 
 _LINE_SUFFIX = re.compile(r"^(?P<name>.+?)@L?(?P<line>\d+)$")
 
@@ -102,7 +105,7 @@ class Engine:
                       + ", ".join(sorted(quals)[:10]))
 
     # --- public API (each call sees an up-to-date index) -----------------
-    def repo_map(self, path_prefix: str = "", max_tokens: int = 2000) -> str:
+    def repo_map(self, path_prefix: str = "", max_tokens: int = DEFAULT_REPO_MAP_TOKENS) -> str:
         self.ensure_fresh()
         return self.views.repo_map(path_prefix, max_tokens)
 
@@ -122,10 +125,20 @@ class Engine:
         self.ensure_fresh()
         return self.views.file_outline(path)
 
-    def get_slice(self, refs: list[str], depth: int = 1, max_tokens: int = 4000,
-                  include_bodies: bool = True) -> str:
+    def get_slice(self, refs: list[str], depth: int = 1,
+                  max_tokens: int = DEFAULT_SLICE_TOKENS,
+                  include_bodies: bool = True, include_tests: bool = False,
+                  include_test_bodies: bool = False) -> str:
         self.ensure_fresh()
-        return self.views.get_slice(refs, depth, max_tokens, include_bodies)
+        return self.views.get_slice(
+            refs, depth, max_tokens, include_bodies, include_tests,
+            include_test_bodies,
+        )
+
+    def start(self, task: str, hint_symbols: list[str] | None = None,
+              max_tokens: int = DEFAULT_START_TOKENS) -> str:
+        self.ensure_fresh()
+        return self.views.start(task, hint_symbols, max_tokens)
 
     def replace_symbol(self, ref: str, new_code: str, check: bool = True) -> str:
         self.ensure_fresh(force=False)

@@ -1,0 +1,12 @@
+{
+  "id": "61c3ca4479-fix-oracle-parse-create-table-tablespace",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "1f8d15bbd68586704666533b21a5b35d710d68f0",
+  "prompt": "fix(oracle): parse CREATE TABLE TABLESPACE (#8605)",
+  "hidden_tests": [
+    "tests/dialects/test_oracle.py::TestOracle::test_create_table_tablespace"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_oracle.py b/tests/dialects/test_oracle.py\nindex da9009fbf..39eef15fd 100644\n--- a/tests/dialects/test_oracle.py\n+++ b/tests/dialects/test_oracle.py\n@@ -6,6 +6,16 @@ from sqlglot.optimizer.qualify import qualify\n class TestOracle(Validator):\n     dialect = \"oracle\"\n \n+    def test_create_table_tablespace(self):\n+        sql = \"CREATE TABLE t (id NUMBER) TABLESPACE ts\"\n+        create = self.validate_identity(sql).assert_is(exp.Create)\n+        self.assertEqual(create.kind, \"TABLE\")\n+        self.assertIsInstance(create.this, exp.Schema)\n+        self.assertIsInstance(create.this.expressions[0], exp.ColumnDef)\n+        self.validate_identity('CREATE TABLE t (id NUMBER) TABLESPACE \"Mixed Ts\"')\n+        with self.assertRaises(UnsupportedError):\n+            create.sql(\"postgres\", unsupported_level=ErrorLevel.RAISE)\n+\n     def test_partition_selection(self):\n         for keyword in (\"PARTITION\", \"SUBPARTITION\"):\n             for name in (\"p1\", '\"P1\"'):\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

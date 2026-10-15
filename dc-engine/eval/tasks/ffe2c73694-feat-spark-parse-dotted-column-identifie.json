@@ -1,0 +1,12 @@
+{
+  "id": "ffe2c73694-feat-spark-parse-dotted-column-identifie",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "1a0fc4299add581c61a21c92d0c41d13698b20c5",
+  "prompt": "feat(spark): parse dotted column identifiers in column definitions [CLAUDE] (#8570)\n\n* feat(spark): parse dotted column identifiers in column definitions [CLAUDE]\n\nSpark and Databricks column definitions can now name a column with a dotted\npath, e.g. ADD COLUMNS (a.element.b INT), which adds a field to an existing\nstruct. The path parses into an exp.Dot as the ColumnDef name.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* Update sqlglot/parsers/spark.py\n\n---------\n\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>\nCo-authored-by: Jo <46752250+georgesittas@users.noreply.github.com>",
+  "hidden_tests": [
+    "tests/dialects/test_spark.py::TestSpark::test_ddl"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_spark.py b/tests/dialects/test_spark.py\nindex 5aa7f202b..1922f8ca4 100644\n--- a/tests/dialects/test_spark.py\n+++ b/tests/dialects/test_spark.py\n@@ -157,6 +157,9 @@ TBLPROPERTIES (\n                 \"spark\": \"ALTER TABLE StudentInfo ADD COLUMNS (LastName STRING, DOB TIMESTAMP)\",\n             },\n         )\n+        self.validate_identity(\n+            \"ALTER TABLE t ADD COLUMNS (a.b INT COMMENT 'x' AFTER c, d.e.f STRING)\"\n+        )\n         self.validate_all(\n             \"ALTER TABLE db.example ALTER COLUMN col_a TYPE BIGINT\",\n             write={\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

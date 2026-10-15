@@ -1,0 +1,12 @@
+{
+  "id": "676ba36549-feat-mysql-support-named-foreign-key-ind",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "59a96d868a6b8ed114ac3e216201106fea8bc351",
+  "prompt": "feat(mysql): Support named `FOREIGN KEY` indexes. (#8615)\n\nA MySQL `FOREIGN KEY` consists of an index and a constraint, both of\nwhich may have different or similar names. MySQL's syntax accepts one or\nno names for the `index_name` component, and either reuses an existing\nindex or generates a new one with a generated name:\n\n```\nADD [CONSTRAINT [symbol]] FOREIGN KEY\n      [index_name] (col_name,...)\n      reference_definition\n```\n\nThis commit adds support for parsing such an epression.",
+  "hidden_tests": [
+    "tests/dialects/test_mysql.py::TestMySQL::test_ddl"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_mysql.py b/tests/dialects/test_mysql.py\nindex c7d649e0b..3ed1a43be 100644\n--- a/tests/dialects/test_mysql.py\n+++ b/tests/dialects/test_mysql.py\n@@ -56,6 +56,11 @@ class TestMySQL(Validator):\n         self.validate_identity(\"ALTER TABLE t1 ADD COLUMN x INT, ALGORITHM=INPLACE, LOCK=EXCLUSIVE\")\n         self.validate_identity(\"ALTER TABLE t ADD INDEX `i` (`c`)\")\n         self.validate_identity(\"ALTER TABLE t ADD UNIQUE `i` (`c`)\")\n+        self.validate_identity(\"ALTER TABLE t ADD FOREIGN KEY fk (a) REFERENCES p (a)\")\n+        self.validate_identity(\n+            \"ALTER TABLE t ADD CONSTRAINT FOREIGN KEY fk (a) REFERENCES p (a)\",\n+            \"ALTER TABLE t ADD FOREIGN KEY fk (a) REFERENCES p (a)\",\n+        )\n         alter = self.validate_identity(\"ALTER TABLE t DROP PRIMARY KEY\")\n         alter.args[\"actions\"][0].assert_is(exp.DropPrimaryKey)\n         self.validate_identity(\"ALTER TABLE t DROP COLUMN c, DROP PRIMARY KEY, DROP INDEX `i`\")\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "6b5191d9e3-fixups",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "8abe7f8382c80f95cb1e5a8a985969f6c11fd03a",
+  "prompt": "Fixups",
+  "hidden_tests": [
+    "tests/dialects/test_starrocks.py::TestStarrocks::test_time_slice"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_starrocks.py b/tests/dialects/test_starrocks.py\nindex c06ae83b1..eab1c8fbc 100644\n--- a/tests/dialects/test_starrocks.py\n+++ b/tests/dialects/test_starrocks.py\n@@ -487,6 +487,14 @@ class TestStarrocks(Validator):\n \n     def test_time_slice(self):\n         # https://docs.starrocks.io/docs/sql-reference/sql-functions/date-time-functions/time_slice/\n+        self.validate_identity(\n+            \"SELECT TIME_SLICE(dt, 5, 'minute', 'floor')\",\n+            \"SELECT TIME_SLICE(dt, INTERVAL 5 MINUTE, FLOOR)\",\n+        )\n+        self.validate_identity(\n+            \"SELECT TIME_SLICE(dt, 5, 'minute', 'ceil')\",\n+            \"SELECT TIME_SLICE(dt, INTERVAL 5 MINUTE, CEIL)\",\n+        )\n         self.validate_identity(\"SELECT TIME_SLICE(dt, INTERVAL 5 MINUTE)\")\n         self.validate_identity(\n             \"SELECT TIME_SLICE(dt, INTERVAL 5 MINUTE, floor)\",\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

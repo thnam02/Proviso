@@ -1,0 +1,12 @@
+{
+  "id": "13463de608-fix-clickhouse-parse-isinfinite-8487",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "954503e4c6fa5988e81450f6e390244f69fcc97d",
+  "prompt": "fix(clickhouse): parse isInfinite (#8487)\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+  "hidden_tests": [
+    "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py\nindex 9b486e0f5..5971952ff 100644\n--- a/tests/dialects/test_clickhouse.py\n+++ b/tests/dialects/test_clickhouse.py\n@@ -673,6 +673,13 @@ class TestClickhouse(Validator):\n             write={\"clickhouse\": \"SELECT isNaN(x), isNaN(x)\"},\n         )\n \n+        self.validate_identity(\"SELECT isInfinite(x)\")\n+        self.validate_all(\n+            \"SELECT isInfinite(x)\",\n+            read={\"bigquery\": \"SELECT IS_INF(x)\", \"duckdb\": \"SELECT ISINF(x)\"},\n+            write={\"duckdb\": \"SELECT ISINF(x)\"},\n+        )\n+\n         self.validate_identity(\"SELECT startsWith('a', 'b')\")\n         self.validate_all(\n             \"SELECT STARTS_WITH('a', 'b'), STARTSWITH('a', 'b')\",\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

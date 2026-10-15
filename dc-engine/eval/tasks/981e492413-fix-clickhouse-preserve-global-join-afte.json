@@ -1,0 +1,12 @@
+{
+  "id": "981e492413-fix-clickhouse-preserve-global-join-afte",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "a313c8bee143b4b92c9a068fef72a5fd512bba61",
+  "prompt": "fix(clickhouse): preserve GLOBAL JOIN after ON conditions fixes #8426\n\nRewind when `GLOBAL` is not followed by `IN` in `_parse_global_in`\nand allow `None` returns, preventing lost `GLOBAL` modifiers and\ncompiled parser errors.",
+  "hidden_tests": [
+    "tests/dialects/test_clickhouse.py::TestClickhouse::test_global_join"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py\nindex c5c03bd12..0e0b462a4 100644\n--- a/tests/dialects/test_clickhouse.py\n+++ b/tests/dialects/test_clickhouse.py\n@@ -847,6 +847,28 @@ class TestClickhouse(Validator):\n \n         self.validate_identity(\"SELECT []\")\n \n+    def test_global_join(self):\n+        for kind in (\"\", \"LEFT \", \"INNER \", \"LEFT ANY \", \"FULL OUTER \"):\n+            for condition in (\n+                \"a.id = b.id\",\n+                \"a.id = b.id AND b.id > 0\",\n+                \"a.id = b.id AND b.id GLOBAL IN (SELECT 1)\",\n+                \"a.id = b.id AND b.id GLOBAL NOT IN (SELECT 2)\",\n+            ):\n+                sql = (\n+                    f\"SELECT * FROM t AS a JOIN s AS b ON {condition} \"\n+                    f\"GLOBAL {kind}JOIN u AS c ON a.id = c.id\"\n+                )\n+                with self.subTest(sql=sql):\n+                    self.validate_identity(sql)\n+\n+        self.validate_identity(\n+            \"SELECT * FROM t AS a JOIN s AS b ON a.id = b.id \"\n+            \"GLOBAL ANY LEFT JOIN u AS c ON a.id = c.id\",\n+            \"SELECT * FROM t AS a JOIN s AS b ON a.id = b.id \"\n+            \"GLOBAL LEFT ANY JOIN u AS c ON a.id = c.id\",\n+        )\n+\n     def test_safe_div(self):\n         # ClickHouse never returns NULL on division by zero: `/` follows IEEE 754\n         # (`a / 0` yields inf/nan) and DECIMAL division raises, so the divisor must\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

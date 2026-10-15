@@ -7,11 +7,11 @@ can read them without opening the SQLite index.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 from typing import Any
 
 from .indexer import IGNORE_DIRS
+from .jsonio import exclusive_lock, read_json, write_json_atomic
 
 ACTIVE_NAME = "active.json"
 CONFIG_NAME = "config.json"
@@ -25,23 +25,12 @@ def state_dir(root: str) -> str:
 
 
 def _read_json(path: str) -> dict[str, Any]:
-    if not os.path.isfile(path):
-        return {}
-    try:
-        with open(path, encoding="utf-8") as fh:
-            data = json.load(fh)
-        return data if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError):
-        return {}
+    return read_json(path)
 
 
 def _write_json(path: str, data: dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2)
-        fh.write("\n")
-    os.replace(tmp, path)
+    with exclusive_lock(path):
+        write_json_atomic(path, data)
 
 
 def get_active_id(root: str) -> str | None:
@@ -62,20 +51,22 @@ def set_active(root: str, cid: str) -> None:
 
 def clear_active(root: str, cid: str | None = None) -> None:
     path = os.path.join(state_dir(root), ACTIVE_NAME)
-    current = get_active_id(root)
-    if cid is not None and current != cid:
-        return
-    if os.path.isfile(path):
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+    with exclusive_lock(path):
+        current = str(_read_json(path).get("id") or "") or None
+        if cid is not None and current != cid:
+            return
+        if os.path.isfile(path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
     hist = os.path.join(state_dir(root), STOP_HISTORY_NAME)
-    if os.path.isfile(hist):
-        try:
-            os.remove(hist)
-        except OSError:
-            pass
+    with exclusive_lock(hist):
+        if os.path.isfile(hist):
+            try:
+                os.remove(hist)
+            except OSError:
+                pass
 
 
 def enforce_mode(root: str) -> str:
@@ -87,9 +78,10 @@ def set_enforce(root: str, mode: str) -> None:
     if mode not in VALID_ENFORCE:
         raise ValueError(f"enforce must be one of {sorted(VALID_ENFORCE)}")
     path = os.path.join(state_dir(root), CONFIG_NAME)
-    data = _read_json(path)
-    data["enforce"] = mode
-    _write_json(path, data)
+    with exclusive_lock(path):
+        data = _read_json(path)
+        data["enforce"] = mode
+        write_json_atomic(path, data)
 
 
 def stop_history(root: str) -> list[float]:
@@ -106,9 +98,17 @@ def stop_history(root: str) -> list[float]:
 
 def record_stop_block(root: str, score: float) -> None:
     path = os.path.join(state_dir(root), STOP_HISTORY_NAME)
-    scores = stop_history(root)
-    scores.append(float(score))
-    _write_json(path, {"scores": scores[-8:]})
+    with exclusive_lock(path):
+        data = _read_json(path)
+        scores = data.get("scores") or []
+        out = []
+        for s in scores:
+            try:
+                out.append(float(s))
+            except (TypeError, ValueError):
+                continue
+        out.append(float(score))
+        write_json_atomic(path, {"scores": out[-8:]})
 
 
 def hash_py_files(root: str) -> dict[str, str]:
@@ -135,12 +135,12 @@ def load_session(root: str) -> dict[str, Any]:
 
 
 def save_session(root: str, data: dict[str, Any]) -> None:
-    _write_json(os.path.join(state_dir(root), SESSION_NAME), data)
+    path = os.path.join(state_dir(root), SESSION_NAME)
+    with exclusive_lock(path):
+        write_json_atomic(path, data)
 
 
-def ensure_session_snapshot(root: str) -> dict[str, Any]:
-    """Freeze .py hashes (and a git stash ref when possible) on the first hook call."""
-    data = load_session(root)
+def _fill_session_snapshot(root: str, data: dict[str, Any]) -> dict[str, Any]:
     if data.get("hashes"):
         return data
     data["hashes"] = hash_py_files(root)
@@ -155,8 +155,19 @@ def ensure_session_snapshot(root: str) -> dict[str, Any]:
                 data["git_ref"] = sha
     except Exception:
         pass
-    save_session(root, data)
     return data
+
+
+def ensure_session_snapshot(root: str) -> dict[str, Any]:
+    """Freeze .py hashes (and a git stash ref when possible) on the first hook call."""
+    path = os.path.join(state_dir(root), SESSION_NAME)
+    with exclusive_lock(path):
+        data = _read_json(path)
+        if data.get("hashes"):
+            return data
+        data = _fill_session_snapshot(root, data)
+        write_json_atomic(path, data)
+        return data
 
 
 def py_files_changed(root: str) -> list[str]:
@@ -164,4 +175,31 @@ def py_files_changed(root: str) -> list[str]:
     old = data.get("hashes") or {}
     new = hash_py_files(root)
     changed = sorted(set(old) | set(new))
-    return [rel for rel in changed if old.get(rel) != new.get(rel)]
+    hashed = [rel for rel in changed if old.get(rel) != new.get(rel)]
+    extra = []
+    for p in data.get("edited_paths") or []:
+        s = str(p).replace("\\", "/")
+        if s.endswith(".py") and s not in hashed:
+            extra.append(s)
+    return hashed + extra
+
+
+def record_edited_path(root: str, path: str) -> None:
+    """afterFileEdit: remember the path so stop can see .py edits."""
+    sess_path = os.path.join(state_dir(root), SESSION_NAME)
+    with exclusive_lock(sess_path):
+        data = _fill_session_snapshot(root, _read_json(sess_path))
+        paths = [str(x) for x in (data.get("edited_paths") or [])]
+        rel = path.replace("\\", "/")
+        base = os.path.realpath(root)
+        abs_p = path if os.path.isabs(path) else os.path.abspath(os.path.join(root, path))
+        try:
+            real = os.path.realpath(abs_p)
+            if real == base or real.startswith(base + os.sep):
+                rel = os.path.relpath(real, base).replace(os.sep, "/")
+        except OSError:
+            pass
+        if rel and rel not in paths:
+            paths.append(rel)
+            data["edited_paths"] = paths
+        write_json_atomic(sess_path, data)

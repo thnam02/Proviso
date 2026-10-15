@@ -1,0 +1,12 @@
+{
+  "id": "18520e2b5b-fix-clickhouse-generate-varpop-for-varia",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "11220460d0e78a3c83f14b006239f636e4ddde71",
+  "prompt": "fix(clickhouse): generate varPop for VariancePop [CLAUDE] (#8469)\n\n* fix(clickhouse): generate varPop for VariancePop\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n* Update tests/dialects/test_clickhouse.py\n\n---------\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>\nCo-authored-by: Jo <46752250+georgesittas@users.noreply.github.com>",
+  "hidden_tests": [
+    "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py\nindex 0e0b462a4..9075ae714 100644\n--- a/tests/dialects/test_clickhouse.py\n+++ b/tests/dialects/test_clickhouse.py\n@@ -123,6 +123,15 @@ class TestClickhouse(Validator):\n         self.validate_identity(\"SELECT exponentialTimeDecayedAvg(60)(a, b)\")\n         self.validate_identity(\"levenshteinDistance(col1, col2)\", \"editDistance(col1, col2)\")\n         self.validate_identity(\"jaroWinklerSimilarity('hello', 'world')\")\n+        self.validate_all(\n+            \"varPop(x)\",\n+            read={\n+                \"\": \"VAR_POP(x)\",\n+                \"clickhouse\": \"varPop(x)\",\n+                \"duckdb\": \"VAR_POP(x)\",\n+                \"postgres\": \"VAR_POP(x)\",\n+            },\n+        )\n         self.validate_identity(\"SELECT * FROM foo WHERE x GLOBAL IN (SELECT * FROM bar)\")\n         self.validate_identity(\"SELECT * FROM foo WHERE x GLOBAL NOT IN (SELECT * FROM bar)\")\n         self.validate_identity(\"POSITION(haystack, needle)\")\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

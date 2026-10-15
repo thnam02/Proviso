@@ -1,14 +1,15 @@
 {
   "id": "shop-reject-zero",
-  "repo": ".",
-  "commit": "be2bd4395014045b291264f312e7de9797a02c3c",
+  "repo": "~/dc-eval-fixtures/shop",
+  "commit": "01a6ef89074f33d81b5f068416e5c0f6101fa129",
   "prompt": "Reject zero-dollar charges in shop billing\n\nCharging a user with amount 0 currently succeeds and sends a receipt.\nZero should be rejected the same way negative amounts already are.\n",
   "hidden_tests": [
-    "dc-engine/tests/test_shop_charge.py::test_zero_amount_rejected"
+    "tests/test_zero.py::test_zero_amount_rejected"
   ],
-  "test_patch": "diff --git a/dc-engine/tests/test_shop_charge.py b/dc-engine/tests/test_shop_charge.py\nnew file mode 100644\nindex 0000000..e85c8b1\n--- /dev/null\n+++ b/dc-engine/tests/test_shop_charge.py\n@@ -0,0 +1,19 @@\n+\"\"\"Charge(amount=0) must be rejected like a negative amount.\"\"\"\n+from decimal import Decimal\n+import os\n+import sys\n+\n+HERE = os.path.dirname(os.path.abspath(__file__))\n+sys.path.insert(0, os.path.join(HERE, \"fixtures\", \"shop\"))\n+\n+from shop.billing import charge\n+from shop.models import User\n+\n+\n+def test_zero_amount_rejected():\n+    user = User(\"a\", \"US\")\n+    try:\n+        charge(user, Decimal(\"0\"))\n+    except ValueError:\n+        return\n+    raise AssertionError(\"charge(user, 0) must raise ValueError\")\n",
+  "test_patch": "diff --git a/tests/test_zero.py b/tests/test_zero.py\nnew file mode 100644\nindex 0000000..dc18fe1\n--- /dev/null\n+++ b/tests/test_zero.py\n@@ -0,0 +1,14 @@\n+\"\"\"Charge(amount=0) must be rejected like a negative amount.\"\"\"\n+from decimal import Decimal\n+\n+from shop.billing import charge\n+from shop.models import User\n+\n+\n+def test_zero_amount_rejected():\n+    user = User(\"a\", \"US\")\n+    try:\n+        charge(user, Decimal(\"0\"))\n+    except ValueError:\n+        return\n+    raise AssertionError(\"charge(user, 0) must raise ValueError\")\n",
   "regression_tests": [
-    "dc-engine/tests/test_engine.py"
+    "tests/test_billing.py::test_negative_amount_rejected",
+    "tests/test_billing.py::test_positive_charge_ok"
   ],
-  "setup": "python -m pip install -e dc-engine -q"
+  "setup": "python -m pip install -e . pytest -q"
 }

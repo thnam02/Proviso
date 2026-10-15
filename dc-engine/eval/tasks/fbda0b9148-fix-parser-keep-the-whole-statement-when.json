@@ -1,0 +1,13 @@
+{
+  "id": "fbda0b9148-fix-parser-keep-the-whole-statement-when",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "e92c22287ff73a66e9dece115acedb81133f0dbf",
+  "prompt": "fix(parser): keep the whole statement when REFRESH falls back to a cmd (#8621)\n\n* fix(parser): keep the whole statement when REFRESH falls back to a command [CLAUDE]\n\nThe fallback started the command at the last parsed token rather than at\nREFRESH, so e.g. REFRESH DICTIONARY dict_obj was generated as dict_obj and\nREFRESH FUNCTION db.func1 as db .func1. It also no longer parses a table\nfirst, which failed on statements like REFRESH CONNECTIONS FORCE.\n\n* Update sqlglot/parser.py\n\n* Update tests/dialects/test_starrocks.py\n\n* Update tests/dialects/test_starrocks.py\n\n---------\n\nCo-authored-by: Trey Spiller <1831878+treysp@users.noreply.github.com>",
+  "hidden_tests": [
+    "tests/dialects/test_spark.py::TestSpark::test_spark",
+    "tests/dialects/test_starrocks.py::TestStarrocks::test_ddl"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_spark.py b/tests/dialects/test_spark.py\nindex a76727dac..d2a84f4a6 100644\n--- a/tests/dialects/test_spark.py\n+++ b/tests/dialects/test_spark.py\n@@ -369,6 +369,7 @@ TBLPROPERTIES (\n         self.validate_identity(\"SELECT TRANSFORM(ARRAY(1, 2, 3), x -> x + 1)\")\n         self.validate_identity(\"SELECT TRANSFORM(ARRAY(1, 2, 3), (x, i) -> x + i)\")\n         self.validate_identity(\"REFRESH TABLE a.b.c\")\n+        self.validate_identity(\"REFRESH FUNCTION db.func1\", check_command_warning=True)\n         self.validate_identity(\"INTERVAL '-86' DAYS\")\n         self.validate_identity(\"TRIM('    SparkSQL   ')\")\n         self.validate_identity(\"TRIM(BOTH 'SL' FROM 'SSparkSQLS')\")\ndiff --git a/tests/dialects/test_starrocks.py b/tests/dialects/test_starrocks.py\nindex 7e7101167..eb7221b2b 100644\n--- a/tests/dialects/test_starrocks.py\n+++ b/tests/dialects/test_starrocks.py\n@@ -205,6 +205,10 @@ class TestStarrocks(Validator):\n             \"REFRESH MATERIALIZED VIEW db.lo_mv1 PARTITION START ('2020-02-01') END ('2020-03-01') FORCE WITH SYNC MODE\"\n         ).assert_is(exp.Refresh)\n \n+        self.validate_identity(\"REFRESH DICTIONARY dict_obj\", check_command_warning=True)\n+        self.validate_identity(\"REFRESH CONNECTIONS\", check_command_warning=True)\n+        self.validate_identity(\"REFRESH CONNECTIONS FORCE\", check_command_warning=True)\n+\n         ddl_sqls = [\n             \"PARTITION BY (col1, col2)\",\n             \"PARTITION BY DATE_TRUNC('DAY', col2), col1\",\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

@@ -155,15 +155,31 @@ class Phase3Tests(unittest.TestCase):
         self.assertTrue(out.startswith("✓ closed"), out)
         self.assertIn("score 1.0", out)
 
-    def test_create_and_amend_return_exact_probe_code(self):
+    def test_create_and_amend_return_one_line_per_probe(self):
         r = self._create()
-        self.assertIn("probes that will run (exact code):", r.report)
-        self.assertIn(ZERO_PROBE["setup"].strip(), r.report)
+        self.assertIn("probes:", r.report)
         self.assertIn(ZERO_PROBE["call"], r.report)
+        self.assertNotIn("probes that will run (exact code):", r.report)
+        self.assertNotIn(ZERO_PROBE["setup"].strip(), r.report)
         am = self.e.amend_contract(r.contract_id, add_must_preserve=[PREVIEW_PROBE])
         self.assertTrue(am.ok, am.report)
         self.assertIn(PREVIEW_PROBE["call"], am.report)
-        self.assertIn(PREVIEW_PROBE["setup"].strip(), am.report)
+        self.assertNotIn(PREVIEW_PROBE["setup"].strip(), am.report)
+
+    def test_failed_validation_echoes_probe_code(self):
+        r = self.e.create_contract(
+            "Reject zero charges",
+            ["billing.validate_amount"],
+            [{
+                **ZERO_PROBE,
+                "expect_old": {"raises": "TypeError"},
+            }],
+            [],
+        )
+        self.assertFalse(r.ok)
+        self.assertIn("probes that will run (exact code):", r.report)
+        self.assertIn(ZERO_PROBE["setup"].strip(), r.report)
+        self.assertIn(ZERO_PROBE["call"], r.report)
 
     def test_clean_removes_closed_baseline_and_old_refs(self):
         r = self._create()

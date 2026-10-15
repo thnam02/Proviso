@@ -1,9 +1,36 @@
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
 *.egg-info/
-.dc-engine/
 build/
 dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets / local env
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+
+# Engine local state (never commit a project's .dc-engine/)
+.dc-engine/
+
+# Eval harness outputs. Keep tasks/, fixtures/, and prices.json.
 eval/runs/
+eval/runs_archive/
 eval/cache/
 eval/report.md
 eval/results.jsonl
+eval/overhead.md
+eval/overhead.json
+eval/tool_catalog.json

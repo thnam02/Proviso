@@ -1,0 +1,12 @@
+{
+  "id": "ba643d3328-fix-clickhouse-transpile-regexpcount-to-",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "b679d0cf8cad5bab7bb5004d9b8f8ce51d542b42",
+  "prompt": "fix(clickhouse): transpile RegexpCount to countMatches [CLAUDE] (#8616)\n\n* fix(clickhouse): transpile RegexpCount to countMatches\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n* fix(clickhouse): count the RegexpCount position in characters\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+  "hidden_tests": [
+    "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py\nindex b30f1dac1..e41694ca2 100644\n--- a/tests/dialects/test_clickhouse.py\n+++ b/tests/dialects/test_clickhouse.py\n@@ -551,6 +551,28 @@ class TestClickhouse(Validator):\n                 \"postgres\": \"SELECT 'ThOmAs' ~* x FROM t\",\n             },\n         )\n+        self.validate_all(\n+            \"SELECT countMatches(s, 'a')\",\n+            read={\n+                \"clickhouse\": \"SELECT countMatches(s, 'a')\",\n+                \"snowflake\": \"SELECT REGEXP_COUNT(s, 'a')\",\n+            },\n+            write={\n+                \"snowflake\": \"SELECT REGEXP_COUNT(s, 'a')\",\n+            },\n+        )\n+        self.validate_all(\n+            \"SELECT countMatches(substringUTF8(s, 3), CONCAT('(?is)', 'a.b'))\",\n+            read={\n+                \"snowflake\": \"SELECT REGEXP_COUNT(s, 'a.b', 3, 'cis')\",\n+            },\n+        )\n+        self.validate_all(\n+            \"SELECT countMatches(substringUTF8(s, 1), 'a')\",\n+            read={\n+                \"snowflake\": \"SELECT REGEXP_COUNT(s, 'a', 1, 'ic')\",\n+            },\n+        )\n         self.validate_all(\n             \"SELECT '\\\\0'\",\n             read={\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

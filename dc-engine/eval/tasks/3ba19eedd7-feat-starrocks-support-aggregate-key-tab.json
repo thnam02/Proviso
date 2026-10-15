@@ -1,0 +1,12 @@
+{
+  "id": "3ba19eedd7-feat-starrocks-support-aggregate-key-tab",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "98bedf649b244d321782a213944320d54f7cc868",
+  "prompt": "feat(starrocks): support AGGREGATE KEY tables [CLAUDE] (#8591)\n\nAdds exp.AggregateKeyProperty, mirroring DuplicateKeyProperty, and parses\nthe value column aggregation types SUM, MAX, MIN, REPLACE and\nREPLACE_IF_NOT_NULL, e.g. `pv BIGINT SUM DEFAULT '0'`. These statements\npreviously fell back to exp.Command.",
+  "hidden_tests": [
+    "tests/dialects/test_starrocks.py::TestStarrocks::test_aggregate_key"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_starrocks.py b/tests/dialects/test_starrocks.py\nindex eab1c8fbc..edd9165ed 100644\n--- a/tests/dialects/test_starrocks.py\n+++ b/tests/dialects/test_starrocks.py\n@@ -526,3 +526,15 @@ class TestStarrocks(Validator):\n                 \"duckdb\": \"SELECT TIME_BUCKET(INTERVAL 1 DAY, dt)\",\n             },\n         )\n+\n+    def test_aggregate_key(self):\n+        # https://docs.starrocks.io/docs/table_design/table_types/aggregate_table/\n+        self.validate_identity(\n+            \"CREATE TABLE aggregate_tbl (site_id LARGEINT NOT NULL COMMENT 'id of site', date DATE NOT NULL COMMENT 'time of event', city_code VARCHAR(20) COMMENT 'city_code of user', pv BIGINT SUM DEFAULT '0' COMMENT 'total page views') AGGREGATE KEY (site_id, date, city_code) DISTRIBUTED BY HASH (site_id)\"\n+        ).find(exp.AggregateKeyProperty).assert_is(exp.AggregateKeyProperty)\n+\n+        for agg in (\"SUM\", \"MAX\", \"MIN\", \"REPLACE\", \"REPLACE_IF_NOT_NULL\"):\n+            with self.subTest(agg):\n+                self.validate_identity(\n+                    f\"CREATE TABLE t (k1 INT, v1 INT {agg} NULL) AGGREGATE KEY (k1) DISTRIBUTED BY HASH (k1)\"\n+                ).assert_is(exp.Create)\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

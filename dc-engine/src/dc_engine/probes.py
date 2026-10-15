@@ -5,6 +5,10 @@ PYTHONPATH is that tree (plus `<tree>/src` when it exists), hashes are
 stable (`PYTHONHASHSEED=0`), and `random` is seeded to 0 so a probe that
 forgets to seed still comes out the same twice. Values are normalised so
 object identity and dict/set order don't look like behaviour changes.
+
+The interpreter is the task's environment, not the MCP server's:
+`$DC_PROBE_PYTHON`, then `$VIRTUAL_ENV`, then `<root>/.venv` or
+`<root>/venv`, then `sys.executable`.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -156,15 +161,69 @@ def pythonpath_for(tree: str) -> str:
     return os.pathsep.join(parts)
 
 
-def run_probe(tree: str, probe: Probe, timeout: float = DEFAULT_TIMEOUT) -> ProbeResult:
+def venv_python(venv: str) -> str | None:
+    """`bin/python` (or `Scripts/python.exe`) inside a virtualenv directory."""
+    if not venv:
+        return None
+    if os.name == "nt":
+        names = ("python.exe", "python")
+        bindirs = (os.path.join(venv, "Scripts"), venv)
+    else:
+        names = ("python", "python3")
+        bindirs = (os.path.join(venv, "bin"), venv)
+    for bindir in bindirs:
+        for name in names:
+            path = os.path.join(bindir, name)
+            if os.path.isfile(path):
+                return path
+    return None
+
+
+def probe_python(
+    root: str | None = None,
+    env: Mapping[str, str] | None = None,
+) -> str:
+    """Task interpreter: DC_PROBE_PYTHON, VIRTUAL_ENV, repo .venv/venv, else sys.executable."""
+    environ = os.environ if env is None else env
+    explicit = (environ.get("DC_PROBE_PYTHON") or "").strip()
+    if explicit:
+        if os.path.isfile(explicit):
+            return explicit
+        found = venv_python(explicit)
+        if found:
+            return found
+    venv = (environ.get("VIRTUAL_ENV") or "").strip()
+    if venv:
+        found = venv_python(venv)
+        if found:
+            return found
+    if root:
+        for name in (".venv", "venv"):
+            found = venv_python(os.path.join(root, name))
+            if found:
+                return found
+    return sys.executable
+
+
+def run_probe(
+    tree: str,
+    probe: Probe,
+    timeout: float = DEFAULT_TIMEOUT,
+    *,
+    root: str | None = None,
+    python: str | None = None,
+) -> ProbeResult:
     """Run `probe` against `tree` in a fresh subprocess."""
+    py = python or probe_python(root)
     env = os.environ.copy()
     env["PYTHONPATH"] = pythonpath_for(tree)
     env["PYTHONHASHSEED"] = "0"
+    if py != sys.executable:
+        env.pop("PYTHONHOME", None)
     payload = json.dumps({"setup": probe.setup or "", "call": probe.call})
     try:
         proc = subprocess.run(
-            [sys.executable, "-c", _RUNNER],
+            [py, "-c", _RUNNER],
             input=payload, capture_output=True, text=True,
             cwd=tree, env=env, timeout=timeout,
         )
@@ -187,10 +246,17 @@ def run_probe(tree: str, probe: Probe, timeout: float = DEFAULT_TIMEOUT) -> Prob
     return ProbeResult.from_dict(data) or ProbeResult(kind="error")
 
 
-def run_twice(tree: str, probe: Probe, timeout: float = DEFAULT_TIMEOUT) -> tuple[ProbeResult, bool]:
+def run_twice(
+    tree: str,
+    probe: Probe,
+    timeout: float = DEFAULT_TIMEOUT,
+    *,
+    root: str | None = None,
+    python: str | None = None,
+) -> tuple[ProbeResult, bool]:
     """Run on baseline twice. Second return value is True when results differ (flaky)."""
-    a = run_probe(tree, probe, timeout)
-    b = run_probe(tree, probe, timeout)
+    a = run_probe(tree, probe, timeout, root=root, python=python)
+    b = run_probe(tree, probe, timeout, root=root, python=python)
     return a, not a.same_as(b)
 
 
@@ -211,21 +277,30 @@ def matches_expect(result: ProbeResult, expect: Expect | None) -> bool:
     return result.value == stripped
 
 
-def run_pytest_ids(tree: str, node_ids: list[str],
-                   timeout: float = 30.0) -> dict[str, str] | None:
+def run_pytest_ids(
+    tree: str,
+    node_ids: list[str],
+    timeout: float = 30.0,
+    *,
+    root: str | None = None,
+    python: str | None = None,
+) -> dict[str, str] | None:
     """`{nodeid: 'pass'|'fail'}` on `tree`, or None if pytest is not importable."""
     if not node_ids:
         return {}
+    py = python or probe_python(root)
     if importlib.util.find_spec("pytest") is None:
         return None
     env = os.environ.copy()
     env["PYTHONPATH"] = pythonpath_for(tree)
     env["PYTHONHASHSEED"] = "0"
+    if py != sys.executable:
+        env.pop("PYTHONHOME", None)
     out: dict[str, str] = {}
     for nid in node_ids:
         try:
             proc = subprocess.run(
-                [sys.executable, "-m", "pytest", nid, "-q", "--tb=no", "-p", "no:cacheprovider"],
+                [py, "-m", "pytest", nid, "-q", "--tb=no", "-p", "no:cacheprovider"],
                 capture_output=True, text=True, cwd=tree, env=env, timeout=timeout,
             )
         except (OSError, subprocess.TimeoutExpired):

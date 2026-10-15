@@ -1,0 +1,12 @@
+{
+  "id": "df0a3006c4-fix-duckdb-append-on-1-based-array-inser",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "09481cec085106bc77fb584e4d322f7e179a5a11",
+  "prompt": "fix(duckdb): append on 1-based ARRAY_INSERT -1 (#8597)\n\nSummary:\nSpark/Databricks ARRAY_INSERT with 1-based position -1 appends after the\nlast element, but the DuckDB helper normalized -1 to 0 and emitted a\nprepend (LIST_CONCAT([elem], arr)). Detect index_offset == 1 and pos == -1\nbefore normalization and emit LIST_CONCAT(arr, [elem]) with the same\nNULL-propagating CASE WHEN as the other branches. Snowflake/0-based -1,\npositive positions, -2 and below, and non-literal positions are unchanged.\n\nTest Plan:\npython3 -m unittest tests.dialects.test_duckdb tests.dialects.test_spark\ntests.dialects.test_databricks tests.dialects.test_dialect -> 203/204 pass;\nthe single error (test_lazy_load, missing 'python' binary) fails identically\non clean main. Transpile probes confirm Spark/Databricks -1 now appends and\nSnowflake -1 / Spark -2 / non-literal output is unchanged.",
+  "hidden_tests": [
+    "tests/dialects/test_duckdb.py::TestDuckDB::test_array_insert"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_duckdb.py b/tests/dialects/test_duckdb.py\nindex 7b8024b82..2780eb647 100644\n--- a/tests/dialects/test_duckdb.py\n+++ b/tests/dialects/test_duckdb.py\n@@ -1834,6 +1834,15 @@ class TestDuckDB(Validator):\n             },\n         )\n \n+        # Test 1-based -1 appends (Spark/Databricks), it isn't the 0-based \"before last\"\n+        self.validate_all(\n+            \"CASE WHEN [1, 2, 3] IS NULL THEN NULL ELSE LIST_CONCAT([1, 2, 3], [99]) END\",\n+            read={\n+                \"spark\": \"ARRAY_INSERT(ARRAY(1, 2, 3), -1, 99)\",\n+                \"databricks\": \"ARRAY_INSERT(ARRAY(1, 2, 3), -1, 99)\",\n+            },\n+        )\n+\n     def test_array_remove(self):\n         # Test NULL propagation with column reference: Snowflake \u2192 DuckDB\n         self.validate_all(\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

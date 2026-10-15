@@ -1,0 +1,12 @@
+{
+  "id": "f8606fe8f9-fix-tsql-treat-output-as-a-valid-identif",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "7404abdab87653dcd4e93b321ed281aa7bce01c1",
+  "prompt": "fix(tsql): treat `output` as a valid identifier closes #8545",
+  "hidden_tests": [
+    "tests/dialects/test_tsql.py::TestTSQL::test_tsql"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_tsql.py b/tests/dialects/test_tsql.py\nindex a9df1ef61..23c69a84c 100644\n--- a/tests/dialects/test_tsql.py\n+++ b/tests/dialects/test_tsql.py\n@@ -245,6 +245,8 @@ class TestTSQL(Validator):\n         # tsql allows .. which means use the default schema\n         self.validate_identity(\"SELECT * FROM a..b\")\n \n+        self.validate_identity(\"SELECT output FROM t\")\n+        self.validate_identity(\"SELECT 1 output\", \"SELECT 1 AS output\")\n         self.validate_identity(\"SELECT TOP (SELECT 1) * FROM t\")\n         self.validate_identity(\"SELECT ATN2(x, y)\")\n         self.validate_identity(\"SELECT EXP(1)\")\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

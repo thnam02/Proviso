@@ -21,16 +21,36 @@ PRE_MATCHER = (
 POST_MATCHER = "Edit|Write|MultiEdit"
 
 
-def install(root: str, claude_code: bool = True) -> str:
+def _mcp_args(root_arg: str, tools: str = "slim") -> list[str]:
+    args = ["--root", root_arg]
+    t = (tools or "slim").strip().lower()
+    if t and t != "slim":
+        args.extend(["--tools", t])
+    return args
+
+
+def install(
+    root: str,
+    claude_code: bool = True,
+    cursor: bool = False,
+    tools: str = "slim",
+) -> str:
     notes: list[str] = []
     if claude_code:
         notes += _merge_settings(root)
-        notes += _merge_mcp(root)
+        notes += _merge_mcp(root, tools=tools)
+    if cursor:
+        notes += _merge_cursor_hooks(root)
+        notes += _merge_cursor_mcp(root, tools=tools)
     return "\n".join(notes) or "nothing to install"
 
 
-def uninstall(root: str) -> str:
-    notes = _strip_settings(root) + _strip_mcp(root)
+def uninstall(root: str, claude_code: bool = True, cursor: bool = False) -> str:
+    notes: list[str] = []
+    if claude_code:
+        notes += _strip_settings(root) + _strip_mcp(root)
+    if cursor:
+        notes += _strip_cursor_hooks(root) + _strip_cursor_mcp(root)
     return "\n".join(notes) or "nothing to uninstall"
 
 
@@ -148,7 +168,7 @@ def _strip_settings(root: str) -> list[str]:
     return notes
 
 
-def _merge_mcp(root: str) -> list[str]:
+def _merge_mcp(root: str, tools: str = "slim") -> list[str]:
     path = _mcp_path(root)
     data = _load(path)
     servers = data.setdefault("mcpServers", {})
@@ -162,7 +182,7 @@ def _merge_mcp(root: str) -> list[str]:
     servers[MCP_KEY] = {
         "type": "stdio",
         "command": "dc-engine-mcp",
-        "args": ["--root", "${CLAUDE_PROJECT_DIR:-.}"],
+        "args": _mcp_args("${CLAUDE_PROJECT_DIR:-.}", tools),
     }
     _dump(path, data)
     return [f"add mcpServers.{MCP_KEY}"]
@@ -170,6 +190,142 @@ def _merge_mcp(root: str) -> list[str]:
 
 def _strip_mcp(root: str) -> list[str]:
     path = _mcp_path(root)
+    if not os.path.isfile(path):
+        return []
+    data = _load(path)
+    servers = data.get("mcpServers")
+    if not isinstance(servers, dict) or MCP_KEY not in servers:
+        return []
+    del servers[MCP_KEY]
+    if not servers:
+        data.pop("mcpServers", None)
+    _dump(path, data)
+    return [f"remove mcpServers.{MCP_KEY}"]
+
+
+# --- Cursor (.cursor/hooks.json + .cursor/mcp.json) ---
+
+CURSOR_HOOK_PRE = "dc-engine hook preToolUse --format cursor"
+CURSOR_HOOK_SHELL = "dc-engine hook beforeShellExecution --format cursor"
+CURSOR_HOOK_MCP = "dc-engine hook beforeMCPExecution --format cursor"
+CURSOR_HOOK_AFTER = "dc-engine hook afterFileEdit --format cursor"
+CURSOR_HOOK_STOP = "dc-engine hook stop --format cursor"
+CURSOR_OURS = {
+    CURSOR_HOOK_PRE, CURSOR_HOOK_SHELL, CURSOR_HOOK_MCP,
+    CURSOR_HOOK_AFTER, CURSOR_HOOK_STOP,
+}
+
+
+def _cursor_hooks_path(root: str) -> str:
+    return os.path.join(root, ".cursor", "hooks.json")
+
+
+def _cursor_mcp_path(root: str) -> str:
+    return os.path.join(root, ".cursor", "mcp.json")
+
+
+def _cursor_entry(command: str, matcher: str | None = None) -> dict[str, Any]:
+    e: dict[str, Any] = {"command": command}
+    if matcher:
+        e["matcher"] = matcher
+    return e
+
+
+def _cursor_has_command(entries: list, command: str) -> bool:
+    for e in entries:
+        if isinstance(e, dict) and e.get("command") == command:
+            return True
+    return False
+
+
+def _merge_cursor_hooks(root: str) -> list[str]:
+    path = _cursor_hooks_path(root)
+    data = _load(path)
+    if not isinstance(data.get("version"), int) or data.get("version") < 1:
+        data["version"] = 1
+    hooks = data.setdefault("hooks", {})
+    if not isinstance(hooks, dict):
+        hooks = {}
+        data["hooks"] = hooks
+    notes = []
+    wanted = [
+        ("preToolUse", CURSOR_HOOK_PRE, "Write"),
+        ("beforeShellExecution", CURSOR_HOOK_SHELL, None),
+        ("beforeMCPExecution", CURSOR_HOOK_MCP, None),
+        ("afterFileEdit", CURSOR_HOOK_AFTER, None),
+        ("stop", CURSOR_HOOK_STOP, None),
+    ]
+    for event, command, matcher in wanted:
+        entries = hooks.setdefault(event, [])
+        if not isinstance(entries, list):
+            entries = []
+            hooks[event] = entries
+        if _cursor_has_command(entries, command):
+            if matcher:
+                for e in entries:
+                    if isinstance(e, dict) and e.get("command") == command and e.get("matcher") != matcher:
+                        e["matcher"] = matcher
+                        notes.append(f"update {event} matcher → {command}")
+                        break
+                else:
+                    notes.append(f"keep {event} → {command}")
+            else:
+                notes.append(f"keep {event} → {command}")
+            continue
+        entries.append(_cursor_entry(command, matcher))
+        notes.append(f"add {event} → {command}")
+    _dump(path, data)
+    return notes
+
+
+def _strip_cursor_hooks(root: str) -> list[str]:
+    path = _cursor_hooks_path(root)
+    if not os.path.isfile(path):
+        return []
+    data = _load(path)
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return []
+    notes = []
+    for event, entries in list(hooks.items()):
+        if not isinstance(entries, list):
+            continue
+        kept = []
+        for e in entries:
+            cmd = e.get("command") if isinstance(e, dict) else None
+            if cmd in CURSOR_OURS:
+                notes.append(f"remove {event} → {cmd}")
+                continue
+            kept.append(e)
+        hooks[event] = kept
+        if not kept:
+            del hooks[event]
+    if not hooks:
+        data.pop("hooks", None)
+    _dump(path, data)
+    return notes
+
+
+def _merge_cursor_mcp(root: str, tools: str = "slim") -> list[str]:
+    path = _cursor_mcp_path(root)
+    data = _load(path)
+    servers = data.setdefault("mcpServers", {})
+    if not isinstance(servers, dict):
+        servers = {}
+        data["mcpServers"] = servers
+    if MCP_KEY in servers:
+        _dump(path, data)
+        return [f"keep mcpServers.{MCP_KEY}"]
+    servers[MCP_KEY] = {
+        "command": "dc-engine-mcp",
+        "args": _mcp_args(".", tools),
+    }
+    _dump(path, data)
+    return [f"add mcpServers.{MCP_KEY}"]
+
+
+def _strip_cursor_mcp(root: str) -> list[str]:
+    path = _cursor_mcp_path(root)
     if not os.path.isfile(path):
         return []
     data = _load(path)

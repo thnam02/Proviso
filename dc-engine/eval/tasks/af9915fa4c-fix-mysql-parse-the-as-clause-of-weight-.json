@@ -1,0 +1,12 @@
+{
+  "id": "af9915fa4c-fix-mysql-parse-the-as-clause-of-weight-",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "48beaa64b8d3348c31a8eab2e7daf90836d151b2",
+  "prompt": "fix(mysql): parse the AS clause of WEIGHT_STRING [CLAUDE] (#8544)\n\nWEIGHT_STRING(str AS CHAR(N)) and WEIGHT_STRING(str AS BINARY(N)) failed\nwith \"Expecting )\". Parse them into a new WeightString expression that\nkeeps the type in `to`. Calls with any other number of arguments, such as\nthe undocumented WEIGHT_STRING(str, n, n, n) form that MySQL also accepts,\nstay Anonymous with the name as written.\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+  "hidden_tests": [
+    "tests/dialects/test_mysql.py::TestMySQL::test_weight_string"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_mysql.py b/tests/dialects/test_mysql.py\nindex d5550f97a..bcfb9c756 100644\n--- a/tests/dialects/test_mysql.py\n+++ b/tests/dialects/test_mysql.py\n@@ -1903,6 +1903,22 @@ COMMENT='\u5ba2\u6237\u8d26\u6237\u8868'\"\"\"\n                 f\"\"\"SELECT JSON_VALUE({json_doc}, '$.price' RETURNING DECIMAL(4, 2) {on_option} ON EMPTY {on_option} ON ERROR) AS price\"\"\"\n             )\n \n+    def test_weight_string(self):\n+        for sql in (\n+            \"SELECT WEIGHT_STRING('ab')\",\n+            \"SELECT WEIGHT_STRING('1' AS CHAR(1))\",\n+            \"SELECT WEIGHT_STRING('ab' AS BINARY(4))\",\n+        ):\n+            with self.subTest(sql):\n+                self.validate_identity(sql).selects[0].assert_is(exp.WeightString)\n+\n+        self.validate_identity(\"SELECT WEIGHT_STRING('ab', 0, 3, 0)\").selects[0].assert_is(\n+            exp.Anonymous\n+        )\n+        self.assertEqual(\n+            self.parse_one(\"SELECT weight_string('ab', 0, 3, 0)\").selects[0].name, \"weight_string\"\n+        )\n+\n     def test_grant(self):\n         grant_cmds = [\n             \"GRANT 'role1', 'role2' TO 'user1'@'localhost', 'user2'@'localhost'\",\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

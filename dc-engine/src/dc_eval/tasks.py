@@ -21,6 +21,7 @@ class Task:
     test_patch: str = ""
     regression_tests: list[str] | str = field(default_factory=list)
     setup: str = ""
+    fix_commit: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -46,6 +47,7 @@ class Task:
             test_patch=str(data.get("test_patch") or ""),
             regression_tests=regr if isinstance(regr, str) else [str(x) for x in regr],
             setup=str(data.get("setup") or ""),
+            fix_commit=str(data.get("fix_commit") or ""),
         )
 
 
@@ -72,6 +74,64 @@ def load_tasks(eval_dir: str, ids: list[str] | None = None) -> list[Task]:
             continue
         out.append(task)
     return out
+
+
+class TaskSelectError(ValueError):
+    """A --tasks/--exclude prefix matched zero tasks or more than one."""
+
+
+def match_task_id(ids: list[str], prefix: str) -> str:
+    """Resolve one id-or-prefix to a single task id.
+
+    An exact id always wins. Otherwise the id must start with `prefix`,
+    and exactly one task may match.
+    """
+    needle = (prefix or "").strip()
+    if not needle:
+        raise TaskSelectError("empty task id or prefix")
+    if needle in ids:
+        return needle
+    hits = [i for i in ids if i.startswith(needle)]
+    if not hits:
+        raise TaskSelectError(f"no task matches prefix {needle!r}")
+    if len(hits) > 1:
+        raise TaskSelectError(
+            f"prefix {needle!r} matches more than one task: {', '.join(hits)}"
+        )
+    return hits[0]
+
+
+def select_task_ids(
+    ids: list[str],
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+) -> list[str]:
+    """Apply --tasks / --exclude prefixes. Each prefix must match exactly one id."""
+    universe = list(ids)
+    if include:
+        selected: list[str] = []
+        seen: set[str] = set()
+        for prefix in include:
+            tid = match_task_id(universe, prefix)
+            if tid not in seen:
+                selected.append(tid)
+                seen.add(tid)
+    else:
+        selected = list(universe)
+    if exclude:
+        drop = {match_task_id(universe, prefix) for prefix in exclude}
+        selected = [tid for tid in selected if tid not in drop]
+    return selected
+
+
+def select_tasks(
+    tasks: list[Task],
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+) -> list[Task]:
+    chosen = select_task_ids([t.id for t in tasks], include=include, exclude=exclude)
+    by_id = {t.id: t for t in tasks}
+    return [by_id[tid] for tid in chosen if tid in by_id]
 
 
 def save_task(eval_dir: str, task: Task) -> str:

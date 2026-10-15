@@ -13,15 +13,57 @@ from typing import TYPE_CHECKING, Any
 
 from . import active, baseline, checkpoints, probes
 from .contracts import (
-    CheckReport, CreateResult, DeltaContract, Probe, allocate_id, cache_path,
+    CheckReport, CreateResult, DeltaContract, Probe, allocate_id,
+    apply_auto_imports, cache_path, compact_probe_lines,
+    corrected_contract_example, EXPECT_RULES,
     executed_probe_text, load_cache, load_contract, list_saved, now_iso,
-    parse_probe_list, save_cache, save_contract,
+    parse_probe_list, save_cache, save_contract, split_import_target,
 )
 
 if TYPE_CHECKING:
     from .engine import Engine
 
 _MAX_REPORT_LINES = 15
+
+
+def _import_pairs(engine: Engine, qualnames: list[str]) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for qn in qualnames:
+        hits = engine.store.symbols_by_qualname(qn)
+        if hits:
+            pair = split_import_target(hits[0].qualname, hits[0].kind, hits[0].parent)
+        else:
+            pair = split_import_target(qn)
+        if pair and pair not in seen:
+            seen.add(pair)
+            pairs.append(pair)
+    return pairs
+
+
+def _auto_import_probes(
+    engine: Engine, probes_in: list[Probe], qualnames: list[str],
+) -> list[str]:
+    pairs = _import_pairs(engine, qualnames)
+    added_all: list[str] = []
+    for p in probes_in:
+        p.setup, added = apply_auto_imports(p.setup, pairs)
+        for line in added:
+            if line not in added_all:
+                added_all.append(line)
+    return added_all
+
+
+def _reject(errors: list[str], task: str, targets: list[str],
+            change: list[Probe], preserve: list[Probe]) -> CreateResult:
+    body = "\n".join(errors)
+    extra = executed_probe_text(change + preserve)
+    example = corrected_contract_example(task, targets, change, preserve)
+    bits = [body]
+    if extra:
+        bits.append(extra)
+    bits.append(f"{EXPECT_RULES}\n\nCorrected example:\n{example}")
+    return CreateResult(False, None, "\n".join(bits))
 
 
 def create_contract(engine: Engine, task: str, targets: list[str],
@@ -41,6 +83,8 @@ def create_contract(engine: Engine, task: str, targets: list[str],
         else:
             resolved.append(sym.qualname)
 
+    auto_added = _auto_import_probes(engine, change + preserve, resolved or list(targets or []))
+
     for p in change:
         if not p.call:
             errors.append(f"✗ must_change probe {p.id!r} is missing `call`")
@@ -51,7 +95,7 @@ def create_contract(engine: Engine, task: str, targets: list[str],
             errors.append(f"✗ must_preserve probe {p.id!r} is missing `call`")
 
     if errors:
-        return CreateResult(False, None, "\n".join(errors))
+        return _reject(errors, task, resolved or list(targets or []), change, preserve)
 
     cid = allocate_id(engine.root, task)
     try:
@@ -61,6 +105,7 @@ def create_contract(engine: Engine, task: str, targets: list[str],
 
     tree = baseline.baseline_path(engine.root, cid)
     timeout = engine.probe_timeout
+    py = probes.probe_python(engine.root)
     cache: dict[str, dict] = {}
     flaky: list[str] = []
     seen_ids: set[str] = set()
@@ -81,7 +126,8 @@ def create_contract(engine: Engine, task: str, targets: list[str],
 
     try:
         for p in change + preserve:
-            result, is_flaky = probes.run_twice(tree, p, timeout)
+            result, is_flaky = probes.run_twice(
+                tree, p, timeout, root=engine.root, python=py)
             cache[p.id] = result.to_dict()
             if is_flaky:
                 flaky.append(p.id)
@@ -101,12 +147,13 @@ def create_contract(engine: Engine, task: str, targets: list[str],
 
     if errors:
         baseline.close(engine.root, cid)
-        return CreateResult(False, None, "\n".join(errors))
+        return _reject(errors, task, resolved, change, preserve)
 
     contract = DeltaContract(
         id=cid, task=task, targets=resolved, must_change=change,
         must_preserve=preserve, pytest_ids=py_ids, baseline_ref=ref,
         created_at=now_iso(), status="open", flaky=flaky,
+        probe_python=py,
     )
     save_contract(engine.root, contract)
     save_cache(engine.root, cid, cache)
@@ -118,12 +165,17 @@ def create_contract(engine: Engine, task: str, targets: list[str],
         f"  must_change: {len(change)}  must_preserve: {len(preserve)}"
         + (f"  pytest: {len(py_ids)}" if py_ids else ""),
         f"  baseline: {ref[:12] if len(ref) > 12 else ref}",
+        f"  probe python: {py}",
     ]
+    if auto_added:
+        lines.append("  auto-imported: " + "; ".join(auto_added))
+    else:
+        lines.append("  auto-imported: (targets already imported)")
     if flaky:
         lines.append(f"  ⚠ flaky (excluded from scoring): {', '.join(flaky)}")
-    probe_txt = executed_probe_text(change + preserve)
-    if probe_txt:
-        lines.append(probe_txt)
+    compact = compact_probe_lines(change, preserve)
+    if compact:
+        lines.append(compact)
     return CreateResult(True, cid, "\n".join(lines), contract)
 
 
@@ -136,6 +188,7 @@ def check_contract(engine: Engine, cid: str) -> CheckReport | str:
     tree_new = engine.root
     tree_old = baseline.baseline_path(engine.root, cid)
     timeout = engine.probe_timeout
+    py = contract.probe_python or probes.probe_python(engine.root)
     cache = load_cache(engine.root, cid)
     flaky = set(contract.flaky)
     lines: list[str] = []
@@ -147,7 +200,7 @@ def check_contract(engine: Engine, cid: str) -> CheckReport | str:
         if cached is not None:
             return cached
         if os.path.isdir(tree_old):
-            return probes.run_probe(tree_old, p, timeout)
+            return probes.run_probe(tree_old, p, timeout, root=engine.root, python=py)
         return probes.ProbeResult(kind="error", exc_msg="no baseline")
 
     def note(ok: bool, text: str) -> None:
@@ -162,7 +215,7 @@ def check_contract(engine: Engine, cid: str) -> CheckReport | str:
             lines.append(f"⚠ flaky: {p.label()} (excluded)")
             continue
         old = old_result(p)
-        new = probes.run_probe(tree_new, p, timeout)
+        new = probes.run_probe(tree_new, p, timeout, root=engine.root, python=py)
         want = p.expect_new
         if want is not None and probes.matches_expect(new, want):
             note(True, f"{p.label()} {want.describe()} (was: {old.short()})")
@@ -178,15 +231,19 @@ def check_contract(engine: Engine, cid: str) -> CheckReport | str:
             lines.append(f"⚠ flaky: {p.label()} (excluded)")
             continue
         old = old_result(p)
-        new = probes.run_probe(tree_new, p, timeout)
+        new = probes.run_probe(tree_new, p, timeout, root=engine.root, python=py)
         if old.same_as(new):
             note(True, f"preserved: {p.label()}")
         else:
             note(False, f"unintended: {p.label()}  old={old.display()}  new={new.display()}")
 
     if contract.pytest_ids:
-        old_py = probes.run_pytest_ids(tree_old, contract.pytest_ids) if os.path.isdir(tree_old) else None
-        new_py = probes.run_pytest_ids(tree_new, contract.pytest_ids)
+        old_py = probes.run_pytest_ids(
+            tree_old, contract.pytest_ids, root=engine.root, python=py,
+        ) if os.path.isdir(tree_old) else None
+        new_py = probes.run_pytest_ids(
+            tree_new, contract.pytest_ids, root=engine.root, python=py,
+        )
         if old_py is None or new_py is None:
             lines.append("⚠ pytest not importable; node ids skipped")
         else:
@@ -337,14 +394,20 @@ def amend_contract(engine: Engine, cid: str, add_targets: Any = None,
 
     change = [unique(p) for p in change]
     preserve = [unique(p) for p in preserve]
+    _auto_import_probes(
+        engine, change + preserve,
+        list(existing) + [q for q in resolved if q not in contract.targets],
+    )
     change_ids = {p.id for p in change}
     timeout = engine.probe_timeout
+    py = contract.probe_python or probes.probe_python(engine.root)
     cache = load_cache(engine.root, cid)
     flaky = list(contract.flaky)
 
     try:
         for p in change + preserve:
-            result, is_flaky = probes.run_twice(tree, p, timeout)
+            result, is_flaky = probes.run_twice(
+                tree, p, timeout, root=engine.root, python=py)
             cache[p.id] = result.to_dict()
             if is_flaky:
                 flaky.append(p.id)
@@ -361,7 +424,11 @@ def amend_contract(engine: Engine, cid: str, add_targets: Any = None,
     except Exception as exc:
         return CreateResult(False, cid, f"✗ probe runner failed: {exc}")
     if errors:
-        return CreateResult(False, cid, "\n".join(errors))
+        body = "\n".join(errors)
+        extra = executed_probe_text(change + preserve)
+        if extra:
+            body += "\n" + extra
+        return CreateResult(False, cid, body)
 
     contract.targets = list(dict.fromkeys(contract.targets + resolved))
     contract.must_change.extend(change)
@@ -380,9 +447,9 @@ def amend_contract(engine: Engine, cid: str, add_targets: Any = None,
     if py_ids:
         bits.append(f"pytest +{len(py_ids)}")
     report = f"✓ amended {cid}: {', '.join(bits) or 'no-op'}"
-    added = executed_probe_text(change + preserve)
-    if added:
-        report += "\n" + added
+    compact = compact_probe_lines(change, preserve)
+    if compact:
+        report += "\n" + compact
     if flaky:
         report += f"\n  ⚠ flaky: {', '.join(flaky)}"
     return CreateResult(True, cid, report, contract)
@@ -431,6 +498,8 @@ def _render(c: DeltaContract) -> str:
         f"targets: {', '.join(c.targets) or '(none)'}",
         f"baseline: {c.baseline_ref}  created: {c.created_at}",
     ]
+    if c.probe_python:
+        lines.append(f"probe python: {c.probe_python}")
     if c.status == "closed":
         sc = f"{c.close_score:.1f}" if isinstance(c.close_score, float) else "?"
         lines.append(f"closed: score {sc}" + (f"  reason: {c.close_reason}" if c.close_reason else ""))

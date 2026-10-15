@@ -1,0 +1,43 @@
+{
+  "id": "d3c76f0bbe-fix-reject-out-of-order-concrete-super-t",
+  "repo": "/Users/hainamtran/dc-eval-sources/tomlkit",
+  "commit": "f40ae46323992b1cda523424bdfb30de899eb4f6",
+  "prompt": "fix: reject out-of-order concrete+super table redefinitions at parse time (#530)\n\nOut-of-order value-vs-table and dotted-key-vs-table redefinitions\nwere silently accepted (or only raised on access) because the inner\nif-elif chain in Container.append had no else clause for the case\nwhere an existing concrete table is extended by a super-table after\nan unrelated table header.\n\n- Add else clause that validates the super-table against the concrete\n  table, catching type mismatches and double table definitions at parse\n  time instead of lazily during access/unwrap.\n- Enhance _validate_table_candidate to detect when a non-dotted\n  candidate key is a prefix of an existing dotted key.\n- Call _validate_out_of_order_table after _raw_append in the fallthrough\n  path so out-of-order fragments are validated before the document is\n  materialized.\n\nFixes #523\n\nCo-authored-by: Frost Ming <me@frostming.com>",
+  "hidden_tests": [
+    "tests/test_toml_document.py::test_unwrap_preserves_raise_on_invalid_out_of_order_fragment",
+    "tests/test_toml_document.py::test_reject_out_of_order_dotted_key_redefinition_at_parse"
+  ],
+  "test_patch": "diff --git a/tests/test_toml_document.py b/tests/test_toml_document.py\nindex 0eea87e..a3fd566 100644\n--- a/tests/test_toml_document.py\n+++ b/tests/test_toml_document.py\n@@ -16,8 +16,9 @@ from tomlkit import parse\n from tomlkit import ws\n from tomlkit._utils import _utc\n from tomlkit.api import document\n-from tomlkit.exceptions import KeyAlreadyPresent\n from tomlkit.exceptions import NonExistentKey\n+from tomlkit.exceptions import ParseError\n+from tomlkit.exceptions import TOMLKitError\n from tomlkit.toml_document import TOMLDocument\n \n \n@@ -607,18 +608,39 @@ def test_unwrap_out_of_order_tables() -> None:\n \n \n def test_unwrap_preserves_raise_on_invalid_out_of_order_fragment() -> None:\n-    # Regression guard for the unwrap() fast path: this document is actually\n-    # *invalid* TOML -- `b` is a value under [a], then reopened as a table by\n-    # the out-of-order [a.b]. Ideally tomlkit would reject it at parse (it does\n-    # for the in-order form, and so does the stdlib tomllib); today the conflict\n-    # is only detected lazily when the out-of-order proxy is built, so it\n-    # surfaces at access/unwrap time. This test does NOT bless that deferred\n-    # timing -- it only pins that the faster unwrap() keeps going through the\n-    # proxy and still raises, rather than silently merging the conflict into a\n-    # corrupted dict.\n-    doc = parse(\"[a]\\nb = true\\n[zz]\\nq = 9\\n[a.b]\\narr = [1, 2]\\n\")\n-    with pytest.raises(KeyAlreadyPresent):\n-        doc.unwrap()\n+    # Regression guard: this document is actually *invalid* TOML -- `b` is a value\n+    # under [a], then reopened as a table by the out-of-order [a.b].  The in-order\n+    # form and stdlib tomllib both reject it.  Since the Container.append concrete-\n+    # +super fix, tomlkit now rejects it at parse time as well.\n+    with pytest.raises(ParseError):\n+        parse(\"[a]\\nb = true\\n[zz]\\nq = 9\\n[a.b]\\narr = [1, 2]\\n\")\n+\n+\n+def test_reject_out_of_order_dotted_key_redefinition_at_parse() -> None:\n+    # https://github.com/python-poetry/tomlkit/issues/523\n+    # A dotted key (b.c) creates an implicit table definition that is later\n+    # redefined by an explicit [a.b] table header after an unrelated table [zz].\n+    # This is invalid TOML (defining a table multiple times) and must be rejected\n+    # at parse, not silently accepted.\n+    with pytest.raises(ParseError):\n+        parse(\"[a]\\nb.c = 1\\n[zz]\\nq = 9\\n[a.b]\\nd = 2\\n\")\n+\n+\n+def test_reject_out_of_order_dotted_prefix_at_parse() -> None:\n+    # https://github.com/python-poetry/tomlkit/issues/523\n+    # A non-dotted candidate key (b) that is a prefix of an existing dotted key\n+    # (b.c) means the table would be defined twice \u2014 once implicitly by the\n+    # dotted key and once explicitly by the table header.  This must raise.\n+    with pytest.raises((ParseError, TOMLKitError)):\n+        parse(\"[a]\\nb.c=1\\n[a.b]\\nd=2\\n\")\n+\n+\n+def test_valid_out_of_order_independent_tables() -> None:\n+    # [zz] splits unrelated tables; the concrete+super merge must not break\n+    # valid out-of-order extensions.\n+    doc = parse(\"[a]\\nx=1\\n[zz]\\n[a.b]\\nc=1\\n\")\n+    assert doc.unwrap() == {\"a\": {\"x\": 1, \"b\": {\"c\": 1}}, \"zz\": {}}\n+    assert doc.as_string() == \"[a]\\nx=1\\n[zz]\\n[a.b]\\nc=1\\n\"\n \n \n def test_out_of_order_table_merges_aot_fragments() -> None:\n",
+  "regression_tests": [
+    "tests/test_api.py::test_a_raw_dict_can_be_dumped",
+    "tests/test_api.py::test_mapping_types_can_be_dumped",
+    "tests/test_api.py::test_dumps_wrapper_delegating_as_string_preserves_layout",
+    "tests/test_api.py::test_parsed_document_can_be_dumped_with_sorted_keys",
+    "tests/test_api.py::test_dumps_weird_object",
+    "tests/test_api.py::test_dump_tuple_value_as_array",
+    "tests/test_api.py::test_dump_to_file_object",
+    "tests/test_api.py::test_dump_nested_dotted_table",
+    "tests/test_api.py::test_integer",
+    "tests/test_api.py::test_float",
+    "tests/test_api.py::test_boolean",
+    "tests/test_api.py::test_date",
+    "tests/test_api.py::test_time",
+    "tests/test_api.py::test_datetime",
+    "tests/test_api.py::test_comment_single_line",
+    "tests/test_api.py::test_comment_multiline_is_valid_toml",
+    "tests/test_api.py::test_array",
+    "tests/test_api.py::test_table",
+    "tests/test_api.py::test_inline_table",
+    "tests/test_api.py::test_aot",
+    "tests/test_api.py::test_key",
+    "tests/test_api.py::test_key_value",
+    "tests/test_api.py::test_string",
+    "tests/test_api.py::test_item_dict_to_table",
+    "tests/test_api.py::test_item_mixed_aray",
+    "tests/test_api.py::test_build_super_table",
+    "tests/test_api.py::test_add_dotted_key",
+    "tests/test_api.py::test_key_with_single_element_list_is_a_single_key",
+    "tests/test_api.py::test_parse_many_dotted_keys_with_shared_prefix"
+  ],
+  "setup": "python -m pip install -e . -q"
+}

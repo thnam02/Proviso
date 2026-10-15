@@ -5,10 +5,18 @@ from __future__ import annotations
 import ast
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
-from . import MAX_NON_TEST_LINES
+from . import (
+    MAX_HIDDEN_VERIFY,
+    MAX_NON_TEST_LINES,
+    MAX_REGRESSION_TESTS,
+    MINE_PYTEST_TIMEOUT,
+)
 from .gitutil import git_out, git_root, is_git_repo, is_git_url
-from .grade import apply_patch, is_test_path, run_pytest
+from .grade import apply_patch, install_test_env, is_test_path, run_pytest
+from .run import create_run_venv, venv_env, venv_python
 from .tasks import Task, save_task
 
 
@@ -98,11 +106,24 @@ def _has_pyproject(root: str) -> bool:
     )
 
 
-def _pytest_pass_fail(root: str, node_ids: list[str]) -> tuple[set[str], set[str]]:
+def _log(msg: str) -> None:
+    print(msg, file=sys.stderr, flush=True)
+
+
+def _pytest_pass_fail(
+    root: str,
+    node_ids: list[str],
+    python: str | None = None,
+) -> tuple[set[str], set[str]] | None:
     if not node_ids:
         return set(), set()
     xml_path = os.path.join(root, ".dc-eval-mine.xml")
-    results = run_pytest(root, node_ids, xml_path, timeout=180)
+    try:
+        results = run_pytest(
+            root, node_ids, xml_path, timeout=MINE_PYTEST_TIMEOUT, python=python,
+        )
+    except subprocess.TimeoutExpired:
+        return None
     req_passed, req_failed = set(), set()
     for nid in node_ids:
         if results.get(nid):
@@ -110,6 +131,28 @@ def _pytest_pass_fail(root: str, node_ids: list[str]) -> tuple[set[str], set[str
         else:
             req_failed.add(nid)
     return req_passed, req_failed
+
+
+def _regression_node_ids(root: str, skip_files: set[str], limit: int) -> list[str]:
+    """Unchanged test files, capped so mine/eval do not run the whole suite."""
+    out: list[str] = []
+    if limit <= 0:
+        return out
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [
+            d for d in dirnames
+            if d not in {".git", "__pycache__", ".dc-engine", ".venv", "venv", "node_modules"}
+        ]
+        dirnames.sort()
+        for fn in sorted(filenames):
+            rel = os.path.relpath(os.path.join(dirpath, fn), root).replace("\\", "/")
+            if not is_test_path(rel) or rel in skip_files:
+                continue
+            for nid in collect_node_ids_ast(root, [rel]):
+                out.append(nid)
+                if len(out) >= limit:
+                    return out
+    return out
 
 
 def candidate_from_commit(
@@ -151,30 +194,42 @@ def candidate_from_commit(
         hidden = collect_node_ids_ast(gold, test_files)
         if not hidden:
             return None
-        # regression: tests that already existed on the parent, from unchanged test files
-        all_parent_tests: list[str] = []
         _checkout_tree(repo, parent, base)
-        for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames if d not in {".git", "__pycache__", ".dc-engine"}]
-            for fn in filenames:
-                rel = os.path.relpath(os.path.join(dirpath, fn), base).replace("\\", "/")
-                if is_test_path(rel) and rel not in test_files:
-                    all_parent_tests.append(rel)
-        regression = collect_node_ids_ast(base, all_parent_tests)
+        regression = _regression_node_ids(base, set(test_files), MAX_REGRESSION_TESTS)
         if verify:
             apply_patch(base, test_patch)
-            _passed_b, failed_b = _pytest_pass_fail(base, hidden)
-            hidden = [h for h in hidden if h in failed_b]
+            to_run = hidden[:MAX_HIDDEN_VERIFY]
+            _log(f"  verify {commit[:10]}  hidden={len(to_run)}  regr={len(regression)}")
+            venv = create_run_venv(os.path.join(tmp, "env"))
+            venv_py = venv_python(venv)
+            run_env = venv_env(venv)
+
+            def _verify_tree(tree: str, nodes: list[str]) -> tuple[set[str], set[str]] | None:
+                install_test_env(venv_py, tree, env=run_env)
+                return _pytest_pass_fail(tree, nodes, python=venv_py)
+
+            base_pf = _verify_tree(base, to_run)
+            if base_pf is None:
+                return None
+            _passed_b, failed_b = base_pf
+            hidden = [h for h in to_run if h in failed_b]
             if not hidden:
                 return None
-            passed_g, failed_g = _pytest_pass_fail(gold, hidden)
+            gold_pf = _verify_tree(gold, hidden)
+            if gold_pf is None:
+                return None
+            passed_g, failed_g = gold_pf
             if failed_g or not passed_g:
                 return None
             if regression:
                 clean = os.path.join(tmp, "parent")
                 _checkout_tree(repo, parent, clean)
-                passed_r, _failed_r = _pytest_pass_fail(clean, regression)
-                regression = [r for r in regression if r in passed_r]
+                regr_pf = _verify_tree(clean, regression)
+                if regr_pf is None:
+                    regression = []
+                else:
+                    passed_r, _failed_r = regr_pf
+                    regression = [r for r in regression if r in passed_r]
     finally:
         if tmp:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -192,6 +247,7 @@ def candidate_from_commit(
         test_patch=test_patch,
         regression_tests=regression,
         setup=setup,
+        fix_commit=commit,
     )
 
 
@@ -214,17 +270,26 @@ def mine_repo(
         if ln.strip()
     ]
     found: list[Task] = []
-    for commit in commits:
-        try:
-            task = candidate_from_commit(
-                root, commit,
-                max_non_test_lines=max_non_test_lines,
-                verify=verify,
-            )
-        except Exception:
-            continue
-        if task is None:
-            continue
-        save_task(eval_dir, task)
-        found.append(task)
+    _log(f"mine {root}  commits={len(commits)}  verify={verify}")
+    try:
+        for i, commit in enumerate(commits, 1):
+            if i == 1 or i % 20 == 0:
+                _log(f"  scan {i}/{len(commits)} {commit[:10]}")
+            try:
+                task = candidate_from_commit(
+                    root, commit,
+                    max_non_test_lines=max_non_test_lines,
+                    verify=verify,
+                )
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                continue
+            if task is None:
+                continue
+            save_task(eval_dir, task)
+            found.append(task)
+            _log(f"  wrote {task.id}  hidden={len(task.hidden_tests)}  regr={len(task.regression_tests) if isinstance(task.regression_tests, list) else task.regression_tests}")
+    except KeyboardInterrupt:
+        _log(f"mine interrupted ({len(found)} tasks so far)")
     return found

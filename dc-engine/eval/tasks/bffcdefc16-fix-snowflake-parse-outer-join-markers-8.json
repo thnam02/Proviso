@@ -1,0 +1,12 @@
+{
+  "id": "bffcdefc16-fix-snowflake-parse-outer-join-markers-8",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "b65592b45831df5e7f13d418e50f24c4cea118f0",
+  "prompt": "fix(snowflake): parse (+) outer join markers (#8492)\n\nSnowflake accepts the Oracle-style (+) outer join marker in WHERE\nclauses, but the Snowflake tokenizer did not register the token, so\n`WHERE t1.c1 = t2.c2(+)` was parsed as a call to a function named c2\nand generated as `t2.c2()`, silently dropping the outer join.\n\nRegister \"(+)\" as JOIN_MARKER in the Snowflake tokenizer, which also\nflips SUPPORTS_COLUMN_JOIN_MARKS for the dialect. The parser now only\nsets join_mark when the marker is actually present instead of storing\njoin_mark=None on every column (and on function expressions returned\nthrough _parse_column), which kept the existing Snowflake AST argument\nassertions intact.",
+  "hidden_tests": [
+    "tests/dialects/test_snowflake.py::TestSnowflake::test_join_marker"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_snowflake.py b/tests/dialects/test_snowflake.py\nindex 4c93e38d3..c18f0c7aa 100644\n--- a/tests/dialects/test_snowflake.py\n+++ b/tests/dialects/test_snowflake.py\n@@ -4876,6 +4876,24 @@ FROM persons AS p, LATERAL FLATTEN(input => p.c, path => 'contact') AS _flattene\n             },\n         )\n \n+    def test_join_marker(self):\n+        self.validate_identity(\"SELECT t1.c1, t2.c2 FROM t1, t2 WHERE t1.c1 = t2.c2 (+)\")\n+        self.validate_identity(\"SELECT t1.c1, t2.c2 FROM t1, t2 WHERE t1.c1 (+) = t2.c2\")\n+        self.validate_identity(\n+            \"SELECT t1.c1, t2.c2 FROM t1, t2 WHERE t1.c1 = t2.c2(+)\",\n+            \"SELECT t1.c1, t2.c2 FROM t1, t2 WHERE t1.c1 = t2.c2 (+)\",\n+        )\n+        self.validate_all(\n+            \"SELECT t1.c1, t2.c2 FROM t1, t2 WHERE t1.c1 = t2.c2 (+)\",\n+            read={\n+                \"oracle\": \"SELECT t1.c1, t2.c2 FROM t1, t2 WHERE t1.c1 = t2.c2 (+)\",\n+            },\n+            write={\n+                \"oracle\": \"SELECT t1.c1, t2.c2 FROM t1, t2 WHERE t1.c1 = t2.c2 (+)\",\n+                \"redshift\": \"SELECT t1.c1, t2.c2 FROM t1, t2 WHERE t1.c1 = t2.c2 (+)\",\n+            },\n+        )\n+\n     def test_values(self):\n         select = exp.select(\"*\").from_(\"values (map(['a'], [1]))\")\n         self.assertEqual(select.sql(\"snowflake\"), \"SELECT * FROM (SELECT OBJECT_CONSTRUCT('a', 1))\")\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "0ceaf1319e-fix-clickhouse-map-iso-calendar-function",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "bffcdefc16b01527ee252ad2bf322b0bbff33bc8",
+  "prompt": "fix(clickhouse): map ISO calendar functions in both directions [CLAUDE] (#8494)\n\n* fix(clickhouse): map ISO calendar functions in both directions\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n* Update sqlglot/parsers/clickhouse.py\n\n* Apply suggestion from @georgesittas\n\n---------\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>\nCo-authored-by: Jo <46752250+georgesittas@users.noreply.github.com>",
+  "hidden_tests": [
+    "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py\nindex 5971952ff..1b8f1886f 100644\n--- a/tests/dialects/test_clickhouse.py\n+++ b/tests/dialects/test_clickhouse.py\n@@ -146,6 +146,35 @@ class TestClickhouse(Validator):\n                 \"snowflake\": \"DAYOFYEAR(x)\",\n             },\n         )\n+        self.validate_all(\n+            \"toDayOfWeek(x)\",\n+            read={\n+                \"\": \"DAYOFWEEK_ISO(x)\",\n+                \"duckdb\": \"ISODOW(x)\",\n+                \"snowflake\": \"DAYOFWEEKISO(x)\",\n+            },\n+            write={\"duckdb\": \"ISODOW(x)\", \"snowflake\": \"DAYOFWEEKISO(x)\"},\n+        )\n+        self.validate_all(\n+            \"toISOWeek(x)\",\n+            read={\n+                \"\": \"WEEK_OF_YEAR(x)\",\n+                \"presto\": \"WEEK(x)\",\n+                \"snowflake\": \"WEEKISO(x)\",\n+            },\n+            write={\"duckdb\": \"WEEKOFYEAR(x)\", \"snowflake\": \"WEEKISO(x)\"},\n+        )\n+        self.validate_all(\n+            \"toISOYear(x)\",\n+            read={\n+                \"\": \"YEAR_OF_WEEK_ISO(x)\",\n+                \"snowflake\": \"YEAROFWEEKISO(x)\",\n+            },\n+            write={\"duckdb\": \"EXTRACT(ISOYEAR FROM x)\", \"snowflake\": \"YEAROFWEEKISO(x)\"},\n+        )\n+        self.validate_identity(\"toDayOfWeek(x, 3)\")\n+        self.validate_identity(\"toISOWeek(x, 'UTC')\")\n+        self.validate_identity(\"toISOYear(x, 'UTC')\")\n         self.validate_identity(\"SELECT * FROM foo WHERE x GLOBAL IN (SELECT * FROM bar)\")\n         self.validate_identity(\"SELECT * FROM foo WHERE x GLOBAL NOT IN (SELECT * FROM bar)\")\n         self.validate_identity(\"POSITION(haystack, needle)\")\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

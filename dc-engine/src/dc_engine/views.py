@@ -8,9 +8,13 @@ anything that was left out (so the agent never has to guess or re-read).
 
 from __future__ import annotations
 
+import json
+import os
+import re
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
+from .contracts import CREATE_CONTRACT_EXAMPLE, apply_auto_imports, split_import_target
 from .parser import Symbol
 
 if TYPE_CHECKING:
@@ -21,6 +25,29 @@ if TYPE_CHECKING:
 # name match against repo symbols would mostly be wrong; no "possibly" hints.
 _COMMON_METHODS = {n for t in (dict, list, str, bytes, set, tuple, int, float)
                    for n in dir(t) if not n.startswith("_")} | {"read", "write", "close", "flush", "seek", "tell"}
+
+SMALL_REPO_TOKENS = 8000
+DEFAULT_REPO_MAP_TOKENS = 800
+DEFAULT_SLICE_TOKENS = 1500
+DEFAULT_START_TOKENS = 2500
+GET_SYMBOL_MAX_TOKENS = 300
+_TASK_STOP = {
+    "a", "an", "the", "to", "of", "in", "for", "and", "or", "on", "is", "be",
+    "it", "by", "with", "from", "that", "this", "should", "must", "not",
+    "call", "calls", "code", "file", "function", "make", "please",
+}
+
+
+def is_test_symbol(sym: Symbol) -> bool:
+    path = sym.path.replace("\\", "/")
+    base = os.path.basename(path)
+    if base.startswith("test_") and base.endswith(".py"):
+        return True
+    if base.endswith("_test.py"):
+        return True
+    if "/tests/" in f"/{path}/" or path.startswith("tests/"):
+        return True
+    return sym.name.startswith("test_")
 
 
 def est_tokens(text: str) -> int:
@@ -49,7 +76,7 @@ class Views:
         self.e = engine
 
     # ------------------------------------------------------------------
-    def repo_map(self, path_prefix: str = "", max_tokens: int = 2000) -> str:
+    def repo_map(self, path_prefix: str = "", max_tokens: int = DEFAULT_REPO_MAP_TOKENS) -> str:
         files = sorted(
             (m for m in self.e.store.file_meta().values() if m.path.startswith(path_prefix)),
             key=lambda m: m.path,
@@ -166,11 +193,34 @@ class Views:
             out.append("```python")
             out.append(self.e.symbol_source(sym).rstrip("\n"))
             out.append("```")
-        elif sym.kind != "class":
+            return "\n".join(out)
+        if sym.kind != "class":
             body = self.e.symbol_source(sym)
             out.append(f"(body: {sym.end_line - sym.start_line + 1} lines, ~{est_tokens(body)} tokens; "
                        f"include_body=true to load)")
-        return "\n".join(out)
+        text = "\n".join(out)
+        if est_tokens(text) <= GET_SYMBOL_MAX_TOKENS:
+            return text
+        # Keep signature + location; drop long doc / member lists until it fits.
+        head = out[:2]
+        tail = [ln for ln in out[2:] if ln.startswith("(body:")]
+        kept = head[:]
+        used = est_tokens("\n".join(kept + tail))
+        for ln in out[2:]:
+            if ln in tail:
+                continue
+            cost = est_tokens(ln + "\n")
+            if used + cost > GET_SYMBOL_MAX_TOKENS - 8:
+                kept.append("… (truncated; include_body=true for source)")
+                break
+            kept.append(ln)
+            used += cost
+        kept.extend(tail)
+        text = "\n".join(kept)
+        if est_tokens(text) > GET_SYMBOL_MAX_TOKENS:
+            room = max(0, GET_SYMBOL_MAX_TOKENS * 4 - 40)
+            text = text[:room] + "\n… (truncated; include_body=true for source)"
+        return text
 
     # ------------------------------------------------------------------
     def find_references(self, ref: str, limit: int = 40) -> str:
@@ -214,8 +264,169 @@ class Views:
         return "\n".join(out)
 
     # ------------------------------------------------------------------
-    def get_slice(self, refs: list[str], depth: int = 1, max_tokens: int = 4000,
-                  include_bodies: bool = True) -> str:
+    def tests_for_targets(self, targets: list[Symbol]) -> list[Symbol]:
+        """Test functions that call the targets, or whose names match them."""
+        found: list[Symbol] = []
+        seen: set[str] = set()
+        tnames = {t.qualname for t in targets}
+        short = {t.name.lower() for t in targets if len(t.name) > 2}
+
+        def add(sym: Symbol) -> None:
+            if sym.qualname in seen or sym.qualname in tnames:
+                return
+            if not is_test_symbol(sym):
+                return
+            seen.add(sym.qualname)
+            found.append(sym)
+
+        for t in targets:
+            for row in self.e.store.callers_of(t.qualname):
+                for s in self.e.store.symbols_by_qualname(row["caller"]):
+                    add(s)
+        for s in self.e.store.all_symbols():
+            if not is_test_symbol(s):
+                continue
+            blob = (s.name + " " + (s.docstring or "")).lower()
+            if any(n in blob for n in short):
+                add(s)
+        return found
+
+    def match_task_symbols(self, task: str, limit: int = 5) -> list[Symbol]:
+        words = [
+            w for w in re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", (task or "").lower())
+            if len(w) > 2 and w not in _TASK_STOP
+        ]
+        if not words:
+            return []
+        scored: list[tuple[int, int, Symbol]] = []
+        for s in self.e.store.all_symbols():
+            blob = f"{s.name} {s.qualname} {s.docstring or ''}".lower()
+            score = 0
+            for w in words:
+                if s.name.lower() == w:
+                    score += 3
+                elif w in s.name.lower() or w in s.qualname.lower():
+                    score += 2
+                elif w in blob:
+                    score += 1
+            if score:
+                scored.append((score, len(s.qualname), s))
+        scored.sort(key=lambda x: (-x[0], x[1], x[2].qualname))
+        out: list[Symbol] = []
+        seen: set[str] = set()
+        for _, _, s in scored:
+            if s.qualname in seen:
+                continue
+            seen.add(s.qualname)
+            out.append(s)
+            if len(out) >= limit:
+                break
+        return out
+
+    def contract_template(self, task: str, symbols: list[Symbol]) -> str:
+        targets = [s.qualname for s in symbols] or list(CREATE_CONTRACT_EXAMPLE["targets"])
+        imports: list[tuple[str, str]] = []
+        for s in symbols:
+            pair = split_import_target(s.qualname, s.kind, s.parent)
+            if pair:
+                imports.append(pair)
+        setup, _ = apply_auto_imports("", imports)
+        if symbols:
+            call_name = symbols[0].name
+            if symbols[0].kind == "method":
+                cls = (symbols[0].parent or "").rsplit(".", 1)[-1]
+                call = f"{cls}(...).{call_name}(...)"
+            else:
+                call = f"{call_name}(...)"
+            change = [{
+                "id": "change-1",
+                "setup": setup,
+                "call": call,
+                "expect_new": {"raises": "ValueError"},
+            }]
+            preserve = [{
+                "id": "preserve-1",
+                "setup": setup,
+                "call": call,
+                "expect_old": {"raises": "ValueError"},
+                "expect_new": {"raises": "ValueError"},
+            }]
+            obj = {
+                "task": task or CREATE_CONTRACT_EXAMPLE["task"],
+                "targets": targets,
+                "must_change": change,
+                "must_preserve": preserve,
+            }
+        else:
+            obj = dict(CREATE_CONTRACT_EXAMPLE)
+            obj["task"] = task or obj["task"]
+        return json.dumps(obj, indent=2)
+
+    def start(self, task: str, hint_symbols: list[str] | None = None,
+              max_tokens: int = DEFAULT_START_TOKENS) -> str:
+        stats = self.e.store.stats()
+        repo_tokens = int(stats.get("chars") or 0) // 4
+        small = repo_tokens < SMALL_REPO_TOKENS
+        picked: list[Symbol] = []
+        seen: set[str] = set()
+        for ref in hint_symbols or []:
+            sym, err = self.e.resolve_ref(ref)
+            if sym and sym.qualname not in seen:
+                seen.add(sym.qualname)
+                picked.append(sym)
+        if not picked:
+            picked = self.match_task_symbols(task)
+
+        sections: list[str] = [
+            f"== REPO  ~{repo_tokens} tokens, {stats.get('files', 0)} files, "
+            f"{stats.get('symbols', 0)} symbols",
+        ]
+        if small:
+            sections.append(
+                f"This repo is small (under {SMALL_REPO_TOKENS} tokens). "
+                "Read files directly. Call dc_contract(action=create) before "
+                "editing (hooks still require a contract). Skip extra "
+                "exploration tools."
+            )
+        else:
+            map_budget = max(200, min(800, max_tokens // 4))
+            sections.append("== MAP")
+            sections.append(self.repo_map("", map_budget))
+            if picked:
+                used = est_tokens("\n".join(sections))
+                slice_budget = max(400, max_tokens - used - 600)
+                sections.append("== SLICES")
+                sections.append(self.get_slice(
+                    [s.qualname for s in picked], 1, slice_budget, True,
+                    include_tests=True,
+                ))
+        sections.append("== CONTRACT TEMPLATE")
+        sections.append(self.contract_template(task, picked))
+        sections.append("== CONTRACT EXAMPLE")
+        sections.append(json.dumps(CREATE_CONTRACT_EXAMPLE, indent=2))
+        sections.append(
+            "Fill setup/call/expect_new, then dc_contract(action=create). "
+            + ("Do not call dc_find separately." if small
+               else "Use dc_find if this is not enough.")
+        )
+        text = "\n".join(sections)
+        if est_tokens(text) <= max_tokens:
+            return text
+        # Trim from the end of MAP/SLICES, keep REPO + template.
+        keep_head = sections[0]
+        tmpl_i = next(i for i, s in enumerate(sections) if s == "== CONTRACT TEMPLATE")
+        tail = "\n".join(sections[tmpl_i:])
+        room = max_tokens - est_tokens(keep_head) - est_tokens(tail) - 20
+        mid = "\n".join(sections[1:tmpl_i])
+        if est_tokens(mid) > room > 40:
+            # character-approximate trim
+            mid = mid[: max(0, room * 4)] + "\n… (truncated to max_tokens)"
+        return keep_head + "\n" + mid + "\n" + tail
+
+    def get_slice(self, refs: list[str], depth: int = 1,
+                  max_tokens: int = DEFAULT_SLICE_TOKENS,
+                  include_bodies: bool = True, include_tests: bool = False,
+                  include_test_bodies: bool = False) -> str:
         targets: list[Symbol] = []
         errors: list[str] = []
         for ref in refs:
@@ -324,7 +535,27 @@ class Views:
             budget -= est_tokens(block)
             target_blocks.append(block)
 
-        out = "\n".join(target_blocks) + "\n" + tail_text
+        test_blocks: list[str] = []
+        if include_tests:
+            for t in self.tests_for_targets(targets)[:8]:
+                header = f"== TEST {t.qualname}  {t.path}:L{t.start_line}-{t.end_line}"
+                src = self.e.symbol_source(t).rstrip("\n")
+                body_block = f"{header}\n```python\n{src}\n```"
+                want_body = include_bodies and include_test_bodies
+                if want_body and est_tokens(body_block) <= budget:
+                    block = body_block
+                else:
+                    reason = (
+                        "budget" if want_body
+                        else ("include_test_bodies=false" if include_bodies
+                              else "include_bodies=false")
+                    )
+                    block = (f"{header}\n{t.signature}\n"
+                             f"(body ~{est_tokens(src)} tokens omitted: {reason}; dc_get_symbol to load)")
+                budget -= est_tokens(block)
+                test_blocks.append(block)
+
+        out = "\n".join(target_blocks + test_blocks) + "\n" + tail_text
         head = (f"SLICE {', '.join(t.qualname for t in targets)}  "
                 f"(depth {depth}, {len(callees)} callees, {len(callers)} callers, ~{est_tokens(out)} tokens)")
         return head + "\n" + out

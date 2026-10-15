@@ -135,7 +135,9 @@ dc-engine --root <repo> contract-create spec.json
 dc-engine --root <repo> contract-check <id>
 dc-engine --root <repo> contract-list
 dc-engine --root <repo> install --claude-code
+dc-engine --root <repo> install --cursor
 dc-engine hook pre-edit|post-edit|stop     # Claude Code; JSON on stdin
+dc-engine hook preToolUse --format cursor  # Cursor; JSON on stdin
 ```
 
 ## Tests
@@ -180,8 +182,8 @@ src/dc_engine/
   delta.py      create / validate / check / close / amend
   checkpoints.py score-gated hidden git refs (or copied files)
   active.py     one active contract per repo + enforce mode
-  hooks.py      Claude Code pre-edit / post-edit / stop
-  install.py    merge hooks into .claude/settings.json and .mcp.json
+  hooks.py      Claude Code + Cursor (`--format cursor`) hook adapters
+  install.py    merge hooks into .claude/settings.json / .cursor/hooks.json and MCP configs
 tests/
   test_engine.py, test_contracts.py, test_phase3.py, mcp_smoke.py, fixtures/shop/
 ```
@@ -297,3 +299,47 @@ result so a human can read it before anything runs. Run the layer only on
 repos and machines where executing agent-written snippets is acceptable, and
 keep `dc_create_contract` / `dc_amend_contract` on **manual approval** in
 Claude Code permissions (do not auto-allow those two tools).
+
+## Using with Cursor
+
+```bash
+dc-engine --root <repo> install --cursor
+```
+
+That merges (never overwrites) into `.cursor/hooks.json` (`version`: 1) and
+`.cursor/mcp.json`. `install --cursor --uninstall` removes only our entries.
+Enforce mode is the same `.dc-engine/config.json` field: `"block"` (default),
+`"warn"`, or `"off"`.
+
+| Cursor event | What it does |
+|---|---|
+| `preToolUse` (matcher `Write`) | Deny Python writes until there is an active contract (`permission: deny` + `agent_message`). |
+| `beforeShellExecution` | Same `.py`-write detection as the Claude Code Bash hook. |
+| `beforeMCPExecution` | Always `permission: allow` (MCP tools enforce themselves). |
+| `afterFileEdit` | Observational only: records the path in `.dc-engine/session.json` for the stop check. **Cannot inject context** (weaker than Claude Code `PostToolUse` `additionalContext`). |
+| `stop` | If the score is below 1.0 (or `.py` changed with no contract), return `followup_message`. Respects Cursor `loop_count` and our own 3-identical-score release. Warn/off never follow up. |
+
+## Evaluating with Cursor
+
+Use a **fixed model** (never `auto`) so baseline and layer are comparable. Turn
+**off on-demand spending** in the Cursor dashboard first. The harness runs
+**one agent at a time** so usage-export rows can be matched to runs.
+
+```bash
+# from outside the repo (live runs refuse the working copy)
+dc-eval run --runner cursor --model composer-1 --eval-dir /abs/path/dc-engine/eval --reps 1
+```
+
+After the batch, export usage from [cursor.com/dashboard/usage](https://cursor.com/dashboard/usage)
+and:
+
+```bash
+dc-eval import-usage usage.csv --eval-dir /abs/path/dc-engine/eval
+dc-eval report --eval-dir /abs/path/dc-engine/eval
+```
+
+Check **hooks active: yes/no** per run in the report. Cursor's docs do not
+confirm that project hooks run in the CLI; that flag is how you tell. Token
+cost in the report is **estimated** from `eval/prices.json` (fill in real
+prices). Dashboard `Total Tokens` becomes the main token metric when the
+import finds a match.

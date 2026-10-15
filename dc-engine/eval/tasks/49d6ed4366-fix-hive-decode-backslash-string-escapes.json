@@ -1,0 +1,14 @@
+{
+  "id": "49d6ed4366-fix-hive-decode-backslash-string-escapes",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "b06f44200c72d3e254133fd63eae910f76a9634b",
+  "prompt": "fix(hive): decode backslash string escapes (#8478)",
+  "hidden_tests": [
+    "tests/dialects/test_hive.py::TestHive::test_hive",
+    "tests/dialects/test_hive.py::TestHive::test_escapes",
+    "tests/dialects/test_spark.py::TestSpark::test_string_escapes"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_hive.py b/tests/dialects/test_hive.py\nindex e0b8d3afa..d49992e08 100644\n--- a/tests/dialects/test_hive.py\n+++ b/tests/dialects/test_hive.py\n@@ -548,7 +548,8 @@ class TestHive(Validator):\n             \"INSERT OVERWRITE TABLE zipcodes PARTITION(state = 0) VALUES (896, 'US', 'TAMPA', 33607)\"\n         )\n         self.validate_identity(\n-            \"INSERT OVERWRITE DIRECTORY 'x' ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\001' COLLECTION ITEMS TERMINATED BY ',' MAP KEYS TERMINATED BY ':' LINES TERMINATED BY '' STORED AS TEXTFILE SELECT * FROM `a`.`b`\"\n+            \"INSERT OVERWRITE DIRECTORY 'x' ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\001' COLLECTION ITEMS TERMINATED BY ',' MAP KEYS TERMINATED BY ':' LINES TERMINATED BY '' STORED AS TEXTFILE SELECT * FROM `a`.`b`\",\n+            \"INSERT OVERWRITE DIRECTORY 'x' ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\\\001' COLLECTION ITEMS TERMINATED BY ',' MAP KEYS TERMINATED BY ':' LINES TERMINATED BY '' STORED AS TEXTFILE SELECT * FROM `a`.`b`\",\n         )\n         self.validate_identity(\n             \"SELECT a, b, SUM(c) FROM tabl AS t GROUP BY a, b GROUPING SETS ((a, b), a)\"\n@@ -1032,7 +1033,7 @@ class TestHive(Validator):\n     def test_escapes(self) -> None:\n         self.validate_identity(\"'\\n'\", \"'\\\\n'\")\n         self.validate_identity(\"'\\\\n'\")\n-        self.validate_identity(\"'\\\\\\n'\", \"'\\\\\\\\\\\\n'\")\n+        self.validate_identity(\"'\\\\\\n'\", \"'\\\\n'\")\n         self.validate_identity(\"'\\\\\\\\n'\")\n         self.validate_identity(\"''\")\n         self.validate_identity(\"'\\\\\\\\'\")\ndiff --git a/tests/dialects/test_spark.py b/tests/dialects/test_spark.py\nindex c3096d18c..951262ccb 100644\n--- a/tests/dialects/test_spark.py\n+++ b/tests/dialects/test_spark.py\n@@ -9,6 +9,11 @@ from tests.dialects.test_dialect import Validator\n class TestSpark(Validator):\n     dialect = \"spark\"\n \n+    def test_string_escapes(self):\n+        self.validate_identity(r\"'\\U0001F600'\", \"'\\U0001f600'\")\n+        self.validate_identity(r\"r'\\u0041\\101\\z'\", r\"'\\\\u0041\\\\101\\\\z'\")\n+        self.validate_all(\"'U0001F600'\", read={\"spark2\": r\"'\\U0001F600'\"})\n+\n     def test_ddl(self):\n         self.validate_identity(\"DAYOFWEEK(TO_DATE(x))\")\n         self.validate_identity(\"DAYOFMONTH(TO_DATE(x))\")\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

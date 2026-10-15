@@ -1,0 +1,12 @@
+{
+  "id": "6202d94764-feat-starrocks-support-hll-columns-and-t",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "5b949bd6b7f1db1474a87ac34d3a9246fa7de237",
+  "prompt": "feat(starrocks): support HLL columns and the HLL_UNION aggregation type [CLAUDE] (#8612)\n\nStarRocks' HLL type maps to the existing HLLSKETCH type, used for Redshift's\nHLLSKETCH and Presto's HYPERLOGLOG.",
+  "hidden_tests": [
+    "tests/dialects/test_starrocks.py::TestStarrocks::test_aggregate_key"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_starrocks.py b/tests/dialects/test_starrocks.py\nindex edd9165ed..835fad286 100644\n--- a/tests/dialects/test_starrocks.py\n+++ b/tests/dialects/test_starrocks.py\n@@ -538,3 +538,7 @@ class TestStarrocks(Validator):\n                 self.validate_identity(\n                     f\"CREATE TABLE t (k1 INT, v1 INT {agg} NULL) AGGREGATE KEY (k1) DISTRIBUTED BY HASH (k1)\"\n                 ).assert_is(exp.Create)\n+\n+        self.validate_identity(\n+            \"CREATE TABLE t (k1 INT, v1 HLL HLL_UNION) AGGREGATE KEY (k1) DISTRIBUTED BY HASH (k1)\"\n+        ).assert_is(exp.Create)\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

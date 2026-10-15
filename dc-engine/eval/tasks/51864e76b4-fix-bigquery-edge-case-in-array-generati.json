@@ -1,0 +1,13 @@
+{
+  "id": "51864e76b4-fix-bigquery-edge-case-in-array-generati",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "bea35b336cba03cb528a6e34c17b265c84ed9793",
+  "prompt": "fix(bigquery)!: edge case in array generation",
+  "hidden_tests": [
+    "tests/dialects/test_bigquery.py::TestBigQuery::test_array",
+    "tests/dialects/test_duckdb.py::TestDuckDB::test_array"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_bigquery.py b/tests/dialects/test_bigquery.py\nindex c5b14fc47..56e268c26 100644\n--- a/tests/dialects/test_bigquery.py\n+++ b/tests/dialects/test_bigquery.py\n@@ -3513,6 +3513,17 @@ OPTIONS (\n         finally:\n             BigQuery.NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_INSENSITIVE\n \n+    def test_array(self):\n+        for sql in (\n+            \"SELECT [(SELECT 1)]\",\n+            \"SELECT [COALESCE((SELECT 1), 0)]\",\n+            \"SELECT ARRAY_LENGTH([(SELECT 1 FROM (SELECT 1) AS t WHERE FALSE)])\",\n+            \"SELECT ARRAY(SELECT 1 FROM (SELECT 1) AS t WHERE FALSE)\",\n+            \"SELECT ARRAY((SELECT 1 FROM (SELECT 1) AS t WHERE FALSE))\",\n+        ):\n+            self.validate_all(sql, write={\"bigquery\": sql, \"duckdb\": sql})\n+        self.validate_identity(\"SELECT [STRUCT((SELECT 1) AS a)]\")\n+\n     def test_array_agg(self):\n         for distinct in (\"\", \"DISTINCT \"):\n             self.validate_all(\ndiff --git a/tests/dialects/test_duckdb.py b/tests/dialects/test_duckdb.py\nindex 7f8811d93..7b8024b82 100644\n--- a/tests/dialects/test_duckdb.py\n+++ b/tests/dialects/test_duckdb.py\n@@ -2179,6 +2179,16 @@ class TestDuckDB(Validator):\n         self.validate_identity(\"ARRAY(SELECT id FROM t)\")\n         self.validate_identity(\"ARRAY((SELECT id FROM t))\")\n         self.validate_identity(\"[(SELECT id FROM t), 2]\")\n+        for sql in (\n+            \"SELECT [(SELECT 1)]\",\n+            \"SELECT [COALESCE((SELECT 1), 0)]\",\n+            \"SELECT ARRAY_LENGTH([(SELECT 1 FROM (SELECT 1) AS t WHERE FALSE)])\",\n+            \"SELECT ARRAY(SELECT 1 FROM (SELECT 1) AS t WHERE FALSE)\",\n+            \"SELECT ARRAY((SELECT 1 FROM (SELECT 1) AS t WHERE FALSE))\",\n+        ):\n+            self.validate_all(sql, write={\"bigquery\": sql, \"duckdb\": sql})\n+        self.validate_identity(\"SELECT [{'a': (SELECT 1)}]\")\n+        self.validate_identity(\"SELECT LIST_VALUE((SELECT 1))\", \"SELECT [(SELECT 1)]\")\n \n     def test_cast(self):\n         self.validate_identity(\"x::int[3]\", \"CAST(x AS INT[3])\")\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

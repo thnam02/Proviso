@@ -1,11 +1,11 @@
 """Command-line access to the engine, for trying it out and for benchmarks.
 
     dc-engine status
-    dc-engine map [--prefix shop/] [--max-tokens 2000]
+    dc-engine map [--prefix shop/] [--max-tokens 800]
     dc-engine find charge
     dc-engine show billing.charge [--body]
     dc-engine refs User.notify
-    dc-engine slice billing.charge [more targets] [--depth 1] [--max-tokens 4000]
+    dc-engine slice billing.charge [more targets] [--depth 1] [--max-tokens 1500]
     dc-engine outline shop/billing.py
     dc-engine replace billing.charge new_code.py      (or '-' for stdin)
     dc-engine bench billing.charge [more targets]
@@ -13,8 +13,12 @@
     dc-engine contract-check <id>
     dc-engine contract-list
     dc-engine hook pre-edit|post-edit|stop     (Claude Code; JSON on stdin)
+    dc-engine hook preToolUse|beforeShellExecution|beforeMCPExecution|afterFileEdit|stop --format cursor
     dc-engine install --claude-code
+    dc-engine install --cursor
     dc-engine install --uninstall
+    dc-engine install --cursor --uninstall
+    dc-engine tools [--tools slim|full|contracts] [--json]
     dc-engine clean [--days 7]
 """
 
@@ -68,41 +72,65 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--root", default=os.environ.get("DC_ROOT", os.getcwd()))
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
-    m = sub.add_parser("map"); m.add_argument("--prefix", default=""); m.add_argument("--max-tokens", type=int, default=2000)
+    m = sub.add_parser("map"); m.add_argument("--prefix", default=""); m.add_argument("--max-tokens", type=int, default=800)
     f = sub.add_parser("find"); f.add_argument("query"); f.add_argument("--limit", type=int, default=15)
     s = sub.add_parser("show"); s.add_argument("name"); s.add_argument("--body", action="store_true")
     r = sub.add_parser("refs"); r.add_argument("name")
     sl = sub.add_parser("slice"); sl.add_argument("targets", nargs="+")
-    sl.add_argument("--depth", type=int, default=1); sl.add_argument("--max-tokens", type=int, default=4000)
+    sl.add_argument("--depth", type=int, default=1); sl.add_argument("--max-tokens", type=int, default=1500)
     sl.add_argument("--no-bodies", action="store_true")
     o = sub.add_parser("outline"); o.add_argument("path")
     rp = sub.add_parser("replace"); rp.add_argument("name"); rp.add_argument("code_file")
     rp.add_argument("--no-check", action="store_true")
     b = sub.add_parser("bench"); b.add_argument("targets", nargs="+")
-    b.add_argument("--depth", type=int, default=1); b.add_argument("--max-tokens", type=int, default=4000)
+    b.add_argument("--depth", type=int, default=1); b.add_argument("--max-tokens", type=int, default=1500)
     cc = sub.add_parser("contract-create"); cc.add_argument("json_file")
     ck = sub.add_parser("contract-check"); ck.add_argument("id")
     sub.add_parser("contract-list")
     am = sub.add_parser("contract-amend"); am.add_argument("id"); am.add_argument("json_file")
     cp = sub.add_parser("checkpoints"); cp.add_argument("id")
     rs = sub.add_parser("restore"); rs.add_argument("id"); rs.add_argument("n", type=int)
-    hk = sub.add_parser("hook"); hk.add_argument("event", choices=["pre-edit", "post-edit", "stop"])
+    hk = sub.add_parser("hook")
+    hk.add_argument("event", choices=[
+        "pre-edit", "post-edit", "stop",
+        "preToolUse", "beforeShellExecution", "beforeMCPExecution", "afterFileEdit",
+    ])
+    hk.add_argument("--format", choices=["claude", "cursor"], default="claude",
+                    dest="hook_format")
     ins = sub.add_parser("install")
     ins.add_argument("--claude-code", action="store_true")
+    ins.add_argument("--cursor", action="store_true")
     ins.add_argument("--uninstall", action="store_true")
+    ins.add_argument("--tools", choices=("slim", "full", "contracts"), default="slim")
+    tl = sub.add_parser("tools", help="dump the MCP tool surface (no repo needed)")
+    tl.add_argument("--tools", choices=("slim", "full", "contracts"), default="slim")
+    tl.add_argument("--json", action="store_true")
     cln = sub.add_parser("clean")
     cln.add_argument("--days", type=int, default=7)
     a = p.parse_args(argv)
 
     if a.cmd == "hook":
         from .hooks import run_cli
-        return run_cli(a.event, a.root)
+        return run_cli(a.event, a.root, a.hook_format)
     if a.cmd == "install":
         from . import install as inst
+        do_cursor = bool(a.cursor)
+        do_claude = bool(a.claude_code) or not do_cursor
         if a.uninstall:
-            print(inst.uninstall(a.root))
+            print(inst.uninstall(a.root, claude_code=do_claude, cursor=do_cursor))
         else:
-            print(inst.install(a.root, claude_code=True))
+            print(inst.install(
+                a.root, claude_code=do_claude, cursor=do_cursor, tools=a.tools,
+            ))
+        return
+    if a.cmd == "tools":
+        from .server import dump_catalog
+        from .catalog import format_catalog
+        cat = dump_catalog(a.tools)
+        if a.json:
+            print(json.dumps(cat, indent=2))
+        else:
+            print(format_catalog(cat))
         return
     if a.cmd == "clean":
         from .checkpoints import clean_stale

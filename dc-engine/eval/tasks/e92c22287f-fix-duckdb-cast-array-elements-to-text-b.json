@@ -1,0 +1,13 @@
+{
+  "id": "e92c22287f-fix-duckdb-cast-array-elements-to-text-b",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "b1b244b1f38a3000c94a7b21ee6dfae1959dd4b2",
+  "prompt": "fix(duckdb): cast array elements to text before applying the ARRAY_TO_STRING null replacement [CLAUDE] (#8627)",
+  "hidden_tests": [
+    "tests/dialects/test_bigquery.py::TestBigQuery::test_bigquery",
+    "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_bigquery.py b/tests/dialects/test_bigquery.py\nindex 56e268c26..1734a9799 100644\n--- a/tests/dialects/test_bigquery.py\n+++ b/tests/dialects/test_bigquery.py\n@@ -1950,7 +1950,7 @@ WHERE\n             \"SELECT ARRAY_TO_STRING(['cake', 'pie', NULL], '--', 'MISSING') AS text\",\n             write={\n                 \"bigquery\": \"SELECT ARRAY_TO_STRING(['cake', 'pie', NULL], '--', 'MISSING') AS text\",\n-                \"duckdb\": \"SELECT ARRAY_TO_STRING(LIST_TRANSFORM(['cake', 'pie', NULL], x -> COALESCE(x, 'MISSING')), '--') AS text\",\n+                \"duckdb\": \"SELECT ARRAY_TO_STRING(LIST_TRANSFORM(['cake', 'pie', NULL], x -> COALESCE(CAST(x AS TEXT), 'MISSING')), '--') AS text\",\n             },\n         )\n         self.validate_all(\ndiff --git a/tests/dialects/test_duckdb.py b/tests/dialects/test_duckdb.py\nindex d86e13746..769469d0a 100644\n--- a/tests/dialects/test_duckdb.py\n+++ b/tests/dialects/test_duckdb.py\n@@ -148,6 +148,13 @@ class TestDuckDB(Validator):\n                 \"snowflake\": \"SELECT ARRAY_TO_STRING(arr, delim)\",\n             },\n         )\n+        self.validate_all(\n+            \"SELECT ARRAY_TO_STRING(LIST_TRANSFORM([1, 2, 3, NULL, 5], x -> COALESCE(CAST(x AS TEXT), '*')), ',')\",\n+            read={\n+                \"postgres\": \"SELECT ARRAY_TO_STRING(ARRAY[1, 2, 3, NULL, 5], ',', '*')\",\n+                \"presto\": \"SELECT ARRAY_JOIN(ARRAY[1, 2, 3, NULL, 5], ',', '*')\",\n+            },\n+        )\n         self.validate_all(\n             \"SELECT SUM(X) OVER (ORDER BY x)\",\n             write={\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

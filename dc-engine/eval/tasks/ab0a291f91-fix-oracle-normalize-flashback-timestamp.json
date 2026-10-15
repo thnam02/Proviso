@@ -1,0 +1,12 @@
+{
+  "id": "ab0a291f91-fix-oracle-normalize-flashback-timestamp",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "282f7b29e9b183cfcad34f2d3bc197bf72cb0a57",
+  "prompt": "fix(oracle): normalize flashback timestamps and simplify parsing (#8608)",
+  "hidden_tests": [
+    "tests/dialects/test_oracle.py::TestOracle::test_flashback"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_oracle.py b/tests/dialects/test_oracle.py\nindex 5e5116f87..da9009fbf 100644\n--- a/tests/dialects/test_oracle.py\n+++ b/tests/dialects/test_oracle.py\n@@ -84,7 +84,7 @@ class TestOracle(Validator):\n             \"SELECT * FROM sales SUBPARTITION(sp1) SAMPLE (10) AS OF TIMESTAMP SYSDATE - 1 s WHERE s.id = 1\"\n         )\n         self.validate_all(\n-            \"SELECT * FROM sales SAMPLE (10) AS OF TIMESTAMP '2026-10-10 12:00:00' s\",\n+            \"SELECT * FROM sales SAMPLE (10) AS OF TIMESTAMP TO_TIMESTAMP('2026-10-10 12:00:00', 'YYYY-MM-DD HH24:MI:SS.FF6') s\",\n             read={\n                 \"spark\": \"SELECT * FROM sales TIMESTAMP AS OF '2026-10-10 12:00:00' TABLESAMPLE (10 PERCENT) AS s\",\n             },\n@@ -94,12 +94,19 @@ class TestOracle(Validator):\n         )\n         self.validate_identity(\"SELECT * FROM sales AS s\", \"SELECT * FROM sales s\")\n         self.validate_all(\n-            \"SELECT * FROM sales AS OF TIMESTAMP '2026-10-10 12:00:00' s\",\n+            \"SELECT * FROM sales AS OF TIMESTAMP TO_TIMESTAMP('2026-10-10 12:00:00', 'YYYY-MM-DD HH24:MI:SS.FF6') s\",\n             read={\n                 \"bigquery\": \"SELECT * FROM sales AS s FOR SYSTEM_TIME AS OF '2026-10-10 12:00:00'\",\n             },\n             write={\n-                \"bigquery\": \"SELECT * FROM sales AS s FOR SYSTEM_TIME AS OF '2026-10-10 12:00:00'\",\n+                \"bigquery\": \"SELECT * FROM sales AS s FOR SYSTEM_TIME AS OF PARSE_TIMESTAMP('%F %H:%M:%E6S', '2026-10-10 12:00:00')\",\n+            },\n+        )\n+        self.validate_all(\n+            \"SELECT * FROM sales AS OF TIMESTAMP TO_TIMESTAMP('2026-10-10 12:00:00.123456', 'YYYY-MM-DD HH24:MI:SS.FF6') s\",\n+            read={\n+                \"bigquery\": \"SELECT * FROM sales AS s FOR SYSTEM_TIME AS OF '2026-10-10 12:00:00.123456'\",\n+                \"spark\": \"SELECT * FROM sales TIMESTAMP AS OF '2026-10-10 12:00:00.123456' AS s\",\n             },\n         )\n         self.assertEqual(\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

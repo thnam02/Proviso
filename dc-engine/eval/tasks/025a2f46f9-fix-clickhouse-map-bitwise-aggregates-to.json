@@ -1,0 +1,12 @@
+{
+  "id": "025a2f46f9-fix-clickhouse-map-bitwise-aggregates-to",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "97a2fa2ed6351835f07303bd839fec96a01c472e",
+  "prompt": "fix(clickhouse): map bitwise aggregates to groupBitAnd/Or/Xor (#8556)\n\nCo-authored-by: Claude Fable 5.1 <noreply@anthropic.com>",
+  "hidden_tests": [
+    "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py\nindex 4071ec1d7..7e46fdfa7 100644\n--- a/tests/dialects/test_clickhouse.py\n+++ b/tests/dialects/test_clickhouse.py\n@@ -132,6 +132,22 @@ class TestClickhouse(Validator):\n                 \"postgres\": \"VAR_POP(x)\",\n             },\n         )\n+        for ch_name, op in ((\"groupBitAnd\", \"AND\"), (\"groupBitOr\", \"OR\"), (\"groupBitXor\", \"XOR\")):\n+            self.validate_all(\n+                f\"{ch_name}(x)\",\n+                read={\n+                    \"\": f\"BITWISE_{op}_AGG(x)\",\n+                    \"clickhouse\": f\"{ch_name}(x)\",\n+                    \"duckdb\": f\"BIT_{op}(x)\",\n+                    \"postgres\": f\"BIT_{op}(x)\",\n+                },\n+                write={\"duckdb\": f\"BIT_{op}(x)\", \"postgres\": f\"BIT_{op}(x)\"},\n+            )\n+        self.validate_identity(\"SELECT groupBitAndIf(x, y) FROM t\").selects[0].assert_is(\n+            exp.CombinedAggFunc\n+        )\n+        window = self.validate_identity(\"SELECT groupBitAnd(x) OVER (PARTITION BY y) FROM t\")\n+        window.selects[0].assert_is(exp.Window).this.assert_is(exp.BitwiseAndAgg)\n         self.validate_all(\n             \"toDayOfMonth(x)\",\n             read={\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

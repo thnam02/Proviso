@@ -1,0 +1,12 @@
+{
+  "id": "7fb054f17f-fix-clickhouse-generate-position-0-for-c",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "f337c70ee42614bb3224fe8c54b7af5be286eb85",
+  "prompt": "fix(clickhouse): generate POSITION(...) > 0 for Contains (#8507)\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+  "hidden_tests": [
+    "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py\nindex 1b8f1886f..b69300d7f 100644\n--- a/tests/dialects/test_clickhouse.py\n+++ b/tests/dialects/test_clickhouse.py\n@@ -709,6 +709,24 @@ class TestClickhouse(Validator):\n             write={\"duckdb\": \"SELECT ISINF(x)\"},\n         )\n \n+        self.validate_all(\n+            \"SELECT POSITION(s, 'a') > 0\",\n+            read={\n+                \"snowflake\": \"SELECT CONTAINS(s, 'a')\",\n+                \"duckdb\": \"SELECT CONTAINS(s, 'a')\",\n+            },\n+        )\n+        self.validate_all(\n+            \"SELECT POSITION(LOWER(s), LOWER('a')) > 0\",\n+            read={\"bigquery\": \"SELECT CONTAINS_SUBSTR(s, 'a')\"},\n+        )\n+        self.validate_all(\n+            \"SELECT (POSITION(s, 'a') > 0) = (POSITION(t, 'b') > 0) FROM x WHERE NOT POSITION(s, 'a') > 0 AND y\",\n+            read={\n+                \"snowflake\": \"SELECT CONTAINS(s, 'a') = CONTAINS(t, 'b') FROM x WHERE NOT CONTAINS(s, 'a') AND y\"\n+            },\n+        )\n+\n         self.validate_identity(\"SELECT startsWith('a', 'b')\")\n         self.validate_all(\n             \"SELECT STARTS_WITH('a', 'b'), STARTSWITH('a', 'b')\",\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

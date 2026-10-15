@@ -1,0 +1,12 @@
+{
+  "id": "b679d0cf8c-feat-databricks-match-recognize-support-",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "c0a945740e55facdc7120c17cda2771dc55c7903",
+  "prompt": "feat(databricks): match_recognize support closes #8617",
+  "hidden_tests": [
+    "tests/dialects/test_databricks.py::TestDatabricks::test_match_recognize"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_databricks.py b/tests/dialects/test_databricks.py\nindex 834d87d07..5d6e0959a 100644\n--- a/tests/dialects/test_databricks.py\n+++ b/tests/dialects/test_databricks.py\n@@ -6,6 +6,29 @@ from tests.dialects.test_dialect import Validator\n class TestDatabricks(Validator):\n     dialect = \"databricks\"\n \n+    def test_match_recognize(self):\n+        sql = (\n+            \"SELECT symbol, start_tstamp, end_tstamp, run_length FROM stock_ticker \"\n+            \"MATCH_RECOGNIZE (PARTITION BY symbol ORDER BY tstamp \"\n+            \"MEASURES FIRST(tstamp) AS start_tstamp, LAST(tstamp) AS end_tstamp, \"\n+            \"COUNT(*) AS run_length ONE ROW PER MATCH AFTER MATCH SKIP PAST LAST ROW \"\n+            \"PATTERN (strt up+) DEFINE up AS price > PREV(price))\"\n+        )\n+        expression = self.validate_identity(f\"{sql} AS T\", f\"{sql} T\")\n+        self.assertIsInstance(expression.args[\"match\"], exp.MatchRecognize)\n+        self.assertEqual(self.parse_one(expression.sql(self.dialect)), expression)\n+\n+        for rows in (\"\", \"ALL ROWS PER MATCH \", \"ALL ROWS PER MATCH SHOW EMPTY MATCHES \"):\n+            with self.subTest(rows=rows):\n+                self.validate_identity(\n+                    \"SELECT * FROM stock_ticker MATCH_RECOGNIZE (\"\n+                    \"PARTITION BY symbol ORDER BY tstamp \"\n+                    \"MEASURES MATCH_NUMBER() AS match_no, CLASSIFIER() AS class, \"\n+                    \"LAST(down.tstamp) AS bottom_tstamp \"\n+                    f\"{rows}PATTERN (strt down+ up+) \"\n+                    \"DEFINE down AS price < PREV(price), up AS price > PREV(price))\"\n+                )\n+\n     def test_insert_replace_using(self):\n         self.validate_identity(\n             \"INSERT INTO target REPLACE USING (c1, c2) SELECT c1, c2 FROM source\"\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

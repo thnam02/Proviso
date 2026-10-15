@@ -1,0 +1,10 @@
+{"type":"system","subtype":"init","apiKeySource":"login","cwd":"/tmp/eval-run","session_id":"sess-1","model":"composer-1","permissionMode":"default"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"fix billing"}]},"session_id":"sess-1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I'll read billing.py"}]},"session_id":"sess-1"}
+{"type":"tool_call","subtype":"started","call_id":"c1","tool_call":{"readToolCall":{"args":{"path":"shop/billing.py"}}},"session_id":"sess-1"}
+{"type":"tool_call","subtype":"completed","call_id":"c1","tool_call":{"readToolCall":{"args":{"path":"shop/billing.py"},"result":{"success":{"content":"x","isEmpty":false,"exceededLimit":false,"totalLines":34,"totalChars":1254}}}},"session_id":"sess-1"}
+{"type":"usage","inputTokens":100,"outputTokens":10,"cacheReadTokens":1000,"cacheWriteTokens":50}
+{"type":"tool_call","subtype":"started","call_id":"c2","tool_call":{"writeToolCall":{"args":{"path":"shop/billing.py","fileText":"new"}}},"session_id":"sess-1"}
+{"type":"tool_call","subtype":"completed","call_id":"c2","tool_call":{"writeToolCall":{"args":{"path":"shop/billing.py","fileText":"new"},"result":{"success":{"path":"/tmp/eval-run/shop/billing.py","linesCreated":34,"fileSize":900}}}},"session_id":"sess-1"}
+{"type":"usage","inputTokens":80,"outputTokens":20,"cacheReadTokens":500,"cacheWriteTokens":25}
+{"type":"result","subtype":"success","duration_ms":5234,"duration_api_ms":5234,"is_error":false,"result":"done","session_id":"sess-1"}

@@ -1,0 +1,12 @@
+{
+  "id": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "9114355463fd02a9b505c869edb0561503a07b19",
+  "prompt": "fix: allow `EXTERNAL FUNCTION` in Athena `CTAS` (#8602)\n\nCo-authored-by: Matthias Queitsch <matthias.queitsch@unite.eu>",
+  "hidden_tests": [
+    "tests/dialects/test_athena.py::TestAthena::test_ctas_using_external_function"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_athena.py b/tests/dialects/test_athena.py\nindex c1a299381..92aaae489 100644\n--- a/tests/dialects/test_athena.py\n+++ b/tests/dialects/test_athena.py\n@@ -331,6 +331,22 @@ class TestAthena(Validator):\n             \"CREATE TABLE foo.bar WITH (table_type='iceberg', location='s3://foo', partitioning=ARRAY['partition_col', 'BUCKET(a, 4)']) AS SELECT 1\",\n         )\n \n+    def test_ctas_using_external_function(self):\n+        # The USING EXTERNAL FUNCTION clause may directly follow CTAS ... AS\n+        # ref: https://docs.aws.amazon.com/athena/latest/ug/querying-udf.html\n+        create = self.validate_identity(\n+            \"CREATE TABLE t WITH (format='PARQUET') AS \"\n+            \"USING EXTERNAL FUNCTION f(x VARCHAR) RETURNS VARCHAR LAMBDA 'l' \"\n+            \"SELECT f('a') AS b\",\n+            check_command_warning=True,\n+        )\n+        self.assertIsInstance(create, exp.Create)\n+        self.assertIsInstance(create.expression, exp.Command)\n+        self.assertEqual(create.expression.text(\"this\"), \"USING\")\n+\n+        # Without the USING clause being present, plain CTAS parsing is unaffected\n+        self.validate_identity(\"CREATE TABLE t WITH (format='PARQUET') AS SELECT 1 AS a\")\n+\n     def test_parse_partitioned_by_returns_iceberg_transforms(self):\n         # check that parse_into works for PartitionedByProperty and also that correct AST nodes are emitted for Iceberg transforms\n         parsed = self.parse_one(\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

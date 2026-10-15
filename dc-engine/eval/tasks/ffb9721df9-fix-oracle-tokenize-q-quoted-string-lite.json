@@ -1,0 +1,12 @@
+{
+  "id": "ffb9721df9-fix-oracle-tokenize-q-quoted-string-lite",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "189fe3f4c0cf3da06b4e9319e3b71a7b43a78f2c",
+  "prompt": "fix(oracle): tokenize q'...' quoted string literals [CLAUDE] (#8582)\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+  "hidden_tests": [
+    "tests/dialects/test_oracle.py::TestOracle::test_alternative_quoting"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_oracle.py b/tests/dialects/test_oracle.py\nindex 9aac6120d..9594336e9 100644\n--- a/tests/dialects/test_oracle.py\n+++ b/tests/dialects/test_oracle.py\n@@ -1049,6 +1049,30 @@ CONNECT BY PRIOR employee_id = manager_id AND LEVEL <= 4\"\"\"\n         self.validate_identity(\"SELECT CHR(187 USING NCHAR_CS)\")\n         self.validate_identity(\"SELECT CHR(187)\")\n \n+    def test_alternative_quoting(self):\n+        for sql in (\n+            \"SELECT q'[it's]' FROM dual\",\n+            \"SELECT q'{it's}' FROM dual\",\n+            \"SELECT q'(it's)' FROM dual\",\n+            \"SELECT q'<it's>' FROM dual\",\n+            \"SELECT q'!it's!' FROM dual\",\n+            \"SELECT Q'#it's#' FROM dual\",\n+        ):\n+            with self.subTest(sql):\n+                self.validate_identity(sql, \"SELECT 'it''s' FROM dual\")\n+\n+        self.validate_identity(\"SELECT q'[a''b]' FROM dual\", \"SELECT 'a''''b' FROM dual\")\n+        self.validate_identity(\"SELECT q'[a]b]' FROM dual\", \"SELECT 'a]b' FROM dual\")\n+        self.validate_identity(\"SELECT q'|\\\\n|' FROM dual\", \"SELECT '\\\\n' FROM dual\")\n+\n+        expressions = parse(\n+            \"INSERT INTO t VALUES (q'[a;b]'); CREATE TABLE u (id NUMBER)\", read=\"oracle\"\n+        )\n+        self.assertEqual(\n+            [e.sql(\"oracle\") for e in expressions],\n+            [\"INSERT INTO t VALUES ('a;b')\", \"CREATE TABLE u (id NUMBER)\"],\n+        )\n+\n     def test_full_procedure(self):\n         sql = \"\"\"\n         CREATE OR REPLACE PROCEDURE query_emp(\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

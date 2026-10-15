@@ -1,0 +1,12 @@
+{
+  "id": "c7778cf56d-fix-parser-bare-alter-drop-refactor-and-",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "ac084c5bdb2f188ff878687000273ae2247db24b",
+  "prompt": "fix(parser): bare ALTER DROP refactor and indexes named concurrently",
+  "hidden_tests": [
+    "tests/dialects/test_mysql.py::TestMySQL::test_alter_drop_column"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_mysql.py b/tests/dialects/test_mysql.py\nindex ed159b7f4..6d6dc4217 100644\n--- a/tests/dialects/test_mysql.py\n+++ b/tests/dialects/test_mysql.py\n@@ -388,6 +388,10 @@ class TestMySQL(Validator):\n         self.validate_identity(\n             \"ALTER TABLE t DROP materialized\", \"ALTER TABLE t DROP COLUMN materialized\"\n         )\n+        self.validate_identity(\n+            \"ALTER TABLE t DROP temporary\", \"ALTER TABLE t DROP COLUMN temporary\"\n+        )\n+        self.validate_identity(\"ALTER TABLE t DROP iceberg\", \"ALTER TABLE t DROP COLUMN iceberg\")\n         self.validate_identity(\"ALTER TABLE t DROP date\", \"ALTER TABLE t DROP COLUMN date\")\n         self.validate_identity(\n             \"ALTER TABLE t DROP concurrently\", \"ALTER TABLE t DROP COLUMN concurrently\"\n@@ -417,9 +421,14 @@ class TestMySQL(Validator):\n         self.validate_identity(\"ALTER TABLE t DROP COLUMN concurrently\").args[\"actions\"][\n             0\n         ].assert_is(exp.Drop)\n-        self.validate_identity(\"ALTER TABLE t DROP INDEX concurrently\").args[\"actions\"][\n-            0\n-        ].assert_is(exp.Drop)\n+        drop = (\n+            self.validate_identity(\"ALTER TABLE t DROP INDEX concurrently\")\n+            .args[\"actions\"][0]\n+            .assert_is(exp.Drop)\n+        )\n+        self.assertEqual(drop.args[\"tables\"][0].name, \"concurrently\")\n+        self.assertIs(drop.args[\"concurrently\"], False)\n+        self.validate_identity(\"DROP INDEX concurrently ON t\")\n \n     def test_identity(self):\n         self.validate_identity(\"SELECT a, SUM(b) FROM t GROUP BY a WITH ROLLUP LIMIT 2\")\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

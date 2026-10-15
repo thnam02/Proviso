@@ -1,0 +1,12 @@
+{
+  "id": "022bb41fc5-fix-duckdb-generate-using-sample-before-",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "aa64321744bcb38828146b33ead1c0529dd64652",
+  "prompt": "fix(duckdb): generate USING SAMPLE before ORDER BY and LIMIT [CLAUDE] (#8550)",
+  "hidden_tests": [
+    "tests/dialects/test_duckdb.py::TestDuckDB::test_sample"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_duckdb.py b/tests/dialects/test_duckdb.py\nindex fc848b0a3..c1a339655 100644\n--- a/tests/dialects/test_duckdb.py\n+++ b/tests/dialects/test_duckdb.py\n@@ -2153,6 +2153,9 @@ class TestDuckDB(Validator):\n             \"SELECT * FROM tbl, tbl2 WHERE tbl.i=tbl2.i USING SAMPLE RESERVOIR(20%)\",\n             \"SELECT * FROM tbl, tbl2 WHERE tbl.i = tbl2.i USING SAMPLE RESERVOIR (20 PERCENT)\",\n         )\n+        self.validate_identity(\n+            \"SELECT a, COUNT(*) OVER w AS c FROM tbl WHERE a > 0 GROUP BY a HAVING COUNT(*) > 0 WINDOW w AS (ORDER BY a) QUALIFY c > 0 USING SAMPLE SYSTEM (50 PERCENT) ORDER BY a LIMIT 3 OFFSET 1\"\n+        )\n \n         self.validate_all(\n             \"SELECT * FROM example TABLESAMPLE RESERVOIR (3 ROWS) REPEATABLE (82)\",\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

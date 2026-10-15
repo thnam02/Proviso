@@ -11,12 +11,19 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
 
 from dc_engine import Engine
-from dc_engine.contracts import CheckReport, CreateResult
+from dc_engine.contracts import (
+    CREATE_CONTRACT_DESCRIPTION, CREATE_CONTRACT_EXAMPLE, CheckReport, CreateResult,
+    Probe, allocate_id, apply_auto_imports, already_imported, load_contract,
+    split_import_target,
+)
+from dc_engine.probes import probe_python, run_probe, venv_python
+from dc_engine.server import INSTRUCTIONS
 
 FIXTURE = os.path.join(HERE, "fixtures", "shop")
 
@@ -204,6 +211,100 @@ class GitContractTests(unittest.TestCase):
             os.path.join(self.root, ".dc-engine", "baseline", r.contract_id)))
 
 
+class AutoImportAndIdTests(unittest.TestCase):
+    def test_auto_import_function(self):
+        pair = split_import_target("shop.billing.charge", "function")
+        self.assertEqual(pair, ("shop.billing", "charge"))
+        setup, added = apply_auto_imports("user = User('a', 'AU')\n", [pair])
+        self.assertEqual(added, ["from shop.billing import charge"])
+        self.assertTrue(setup.startswith("from shop.billing import charge\n"))
+        self.assertIn("user = User", setup)
+
+    def test_auto_import_method_imports_class(self):
+        pair = split_import_target(
+            "shop.billing.Receipt.total", "method", "shop.billing.Receipt")
+        self.assertEqual(pair, ("shop.billing", "Receipt"))
+        setup, added = apply_auto_imports("", [pair])
+        self.assertEqual(added, ["from shop.billing import Receipt"])
+
+    def test_auto_import_skips_if_already_imported(self):
+        setup = "from shop.billing import charge, Receipt\n"
+        self.assertTrue(already_imported(setup, "shop.billing", "charge"))
+        new, added = apply_auto_imports(setup, [("shop.billing", "charge")])
+        self.assertEqual(added, [])
+        self.assertEqual(new, setup)
+
+    def test_create_prepends_target_import_and_reports_it(self):
+        tmp = tempfile.mkdtemp(prefix="dc-auto-")
+        root = os.path.join(tmp, "shop")
+        try:
+            shutil.copytree(FIXTURE, root)
+            git_init(root)
+            e = Engine(root, typecheck="off", refresh_interval=0, probe_timeout=1.0)
+            probe = {
+                "id": "zero",
+                "setup": (
+                    "from decimal import Decimal\n"
+                    "from shop.models import User\n"
+                    "user = User('a', 'AU')\n"
+                ),
+                "call": "validate_amount(Decimal(0))",
+                "expect_new": {"raises": "ValueError"},
+            }
+            r = e.create_contract(
+                "Reject zero charges", ["billing.validate_amount"], [probe], [])
+            self.assertTrue(r.ok, r.report)
+            self.assertIn("from shop.billing import validate_amount", r.report)
+            self.assertIn("auto-imported:", r.report)
+            setup = r.contract.must_change[0].setup
+            self.assertTrue(setup.startswith("from shop.billing import validate_amount\n"))
+            e.close()
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_short_ids_three_words_plus_hash(self):
+        cid = allocate_id("/tmp/dc-no-contracts-xyz", "Reject zero-dollar charges in shop billing")
+        parts = cid.split("-")
+        self.assertRegex(parts[-1], r"^[a-f0-9]{4}$")
+        self.assertEqual(len(parts[-1]), 4)
+        self.assertLessEqual(len(parts) - 1, 3)
+        self.assertTrue(cid.startswith("reject-zero"))
+
+    def test_create_description_has_complete_example(self):
+        from dc_engine.catalog import word_count
+        self.assertIn("must_change", CREATE_CONTRACT_DESCRIPTION)
+        self.assertIn("must_preserve", CREATE_CONTRACT_DESCRIPTION)
+        self.assertIn("expect_old", CREATE_CONTRACT_DESCRIPTION)
+        self.assertIn("expect_new", CREATE_CONTRACT_DESCRIPTION)
+        self.assertIn('"raises"', CREATE_CONTRACT_DESCRIPTION)
+        self.assertIn('"returns"', CREATE_CONTRACT_DESCRIPTION)
+        self.assertNotIn("shop.billing.validate_amount", CREATE_CONTRACT_DESCRIPTION)
+        self.assertEqual(CREATE_CONTRACT_EXAMPLE["targets"][0], "shop.billing.validate_amount")
+        self.assertIn("task", CREATE_CONTRACT_EXAMPLE)
+        self.assertIn("targets", CREATE_CONTRACT_EXAMPLE)
+        self.assertIn("dc_start", INSTRUCTIONS)
+        self.assertIn("FIRST", INSTRUCTIONS)
+        self.assertIn("exact current source", INSTRUCTIONS)
+        self.assertIn("contract status", INSTRUCTIONS)
+        self.assertLessEqual(word_count(INSTRUCTIONS), 120)
+
+    def test_rejected_contract_includes_corrected_example(self):
+        tmp = tempfile.mkdtemp(prefix="dc-ex-")
+        root = os.path.join(tmp, "shop")
+        try:
+            shutil.copytree(FIXTURE, root)
+            git_init(root)
+            e = Engine(root, typecheck="off", refresh_interval=0, probe_timeout=1.0)
+            r = e.create_contract("x", ["charg"], [ZERO_PROBE], [])
+            self.assertFalse(r.ok)
+            self.assertIn("Corrected example", r.report)
+            self.assertIn('"task"', r.report)
+            self.assertIn("expect_new", r.report)
+            e.close()
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 class CopyContractTests(unittest.TestCase):
     """Non-git repo uses a copied baseline."""
 
@@ -225,6 +326,248 @@ class CopyContractTests(unittest.TestCase):
         self.e.replace_symbol("billing.validate_amount", REJECT_ZERO)
         report = self.e.check_contract(r.contract_id)
         self.assertEqual(report.score, 1.0)
+
+
+def _clean_probe_env(**extra: str) -> dict[str, str]:
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("DC_PROBE_PYTHON", "VIRTUAL_ENV")}
+    env.update(extra)
+    return env
+
+
+def _fake_venv(path: str) -> str:
+    if os.name == "nt":
+        bindir = os.path.join(path, "Scripts")
+        py = os.path.join(bindir, "python.exe")
+    else:
+        bindir = os.path.join(path, "bin")
+        py = os.path.join(bindir, "python")
+    os.makedirs(bindir, exist_ok=True)
+    with open(py, "w", encoding="utf-8") as fh:
+        fh.write("#!/bin/sh\n")
+    os.chmod(py, 0o755)
+    return py
+
+
+class ProbePythonTests(unittest.TestCase):
+    def test_dc_probe_python_wins(self):
+        tmp = tempfile.mkdtemp(prefix="dc-py-env-")
+        try:
+            chosen = _fake_venv(os.path.join(tmp, "chosen"))
+            other = _fake_venv(os.path.join(tmp, "other"))
+            root = os.path.join(tmp, "repo")
+            _fake_venv(os.path.join(root, ".venv"))
+            got = probe_python(root, env=_clean_probe_env(
+                DC_PROBE_PYTHON=chosen, VIRTUAL_ENV=os.path.join(tmp, "other"),
+            ))
+            self.assertEqual(got, chosen)
+            self.assertNotEqual(got, other)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_virtual_env_wins_over_repo_venv(self):
+        tmp = tempfile.mkdtemp(prefix="dc-py-venv-")
+        try:
+            active = _fake_venv(os.path.join(tmp, "active"))
+            root = os.path.join(tmp, "repo")
+            _fake_venv(os.path.join(root, ".venv"))
+            got = probe_python(root, env=_clean_probe_env(
+                VIRTUAL_ENV=os.path.join(tmp, "active"),
+            ))
+            self.assertEqual(got, active)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_repo_dot_venv_before_venv(self):
+        tmp = tempfile.mkdtemp(prefix="dc-py-dot-")
+        try:
+            root = os.path.join(tmp, "repo")
+            dot = _fake_venv(os.path.join(root, ".venv"))
+            _fake_venv(os.path.join(root, "venv"))
+            got = probe_python(root, env=_clean_probe_env())
+            self.assertEqual(got, dot)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_repo_venv_directory(self):
+        tmp = tempfile.mkdtemp(prefix="dc-py-plain-")
+        try:
+            root = os.path.join(tmp, "repo")
+            plain = _fake_venv(os.path.join(root, "venv"))
+            got = probe_python(root, env=_clean_probe_env())
+            self.assertEqual(got, plain)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_sys_executable_fallback(self):
+        tmp = tempfile.mkdtemp(prefix="dc-py-sys-")
+        try:
+            got = probe_python(tmp, env=_clean_probe_env())
+            self.assertEqual(got, sys.executable)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_create_records_probe_python(self):
+        tmp = tempfile.mkdtemp(prefix="dc-py-rec-")
+        root = os.path.join(tmp, "shop")
+        try:
+            shutil.copytree(FIXTURE, root)
+            git_init(root)
+            e = Engine(root, typecheck="off", refresh_interval=0, probe_timeout=1.0)
+            r = e.create_contract(
+                "zero charge", ["billing.validate_amount"], [ZERO_PROBE], [])
+            self.assertTrue(r.ok, r.report)
+            py = probe_python(root)
+            self.assertIn("probe python:", r.report)
+            self.assertIn(py, r.report)
+            saved = load_contract(root, r.contract_id)
+            self.assertIsNotNone(saved)
+            self.assertEqual(saved.probe_python, py)
+            e.close()
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_probe_imports_package_only_in_temp_venv(self):
+        tmp = tempfile.mkdtemp(prefix="dc-py-pkg-")
+        try:
+            venv = os.path.join(tmp, "venv")
+            subprocess.run(
+                [sys.executable, "-m", "venv", venv],
+                check=True, capture_output=True, timeout=60,
+            )
+            py = venv_python(venv)
+            self.assertTrue(py and os.path.isfile(py), py)
+            loc = subprocess.run(
+                [py, "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
+                check=True, capture_output=True, text=True, timeout=15,
+            )
+            site = loc.stdout.strip()
+            self.assertTrue(os.path.isdir(site), site)
+            with open(os.path.join(site, "dc_probe_only_pkg.py"), "w", encoding="utf-8") as fh:
+                fh.write("MARKER = 'from-venv'\n")
+            missing = subprocess.run(
+                [sys.executable, "-c", "import dc_probe_only_pkg"],
+                capture_output=True, text=True, timeout=15,
+            )
+            self.assertNotEqual(missing.returncode, 0)
+            tree = os.path.join(tmp, "tree")
+            os.makedirs(tree)
+            probe = Probe(
+                id="pkg",
+                setup="import dc_probe_only_pkg",
+                call="dc_probe_only_pkg.MARKER",
+            )
+            with patch.dict(os.environ, {"DC_PROBE_PYTHON": py}):
+                result = run_probe(tree, probe, timeout=5)
+            self.assertEqual(result.kind, "return", result.display())
+            self.assertEqual(result.value, "'from-venv'")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class SlimToolTests(unittest.TestCase):
+    typecheck = "off"
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp(prefix="dc-slim-")
+        self.root = os.path.join(self.tmp, "shop")
+        shutil.copytree(FIXTURE, self.root)
+        git_init(self.root)
+        self.e = Engine(self.root, typecheck=self.typecheck, refresh_interval=0,
+                        probe_timeout=1.0)
+
+    def tearDown(self) -> None:
+        self.e.close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_slim_names_and_full_superset(self):
+        from dc_engine.catalog import SLIM_NAMES
+        from dc_engine.server import dump_catalog, make_tool_functions
+        slim = [f.__name__ for f in make_tool_functions(self.e, "slim")]
+        self.assertEqual(slim, list(SLIM_NAMES))
+        full = [f.__name__ for f in make_tool_functions(self.e, "full")]
+        for name in SLIM_NAMES:
+            self.assertIn(name, full)
+        self.assertIn("dc_create_contract", full)
+        self.assertIn("dc_get_slice", full)
+        self.assertIn("dc_insert_symbol", full)
+        slim_cat = dump_catalog("slim")
+        full_cat = dump_catalog("full")
+        self.assertEqual(slim_cat["tool_count"], 5)
+        self.assertGreater(full_cat["tool_count"], 5)
+        self.assertLess(slim_cat["chars"], full_cat["chars"])
+        blob = "\n".join(t["description"] for t in slim_cat["tools"])
+        self.assertNotIn("shop.billing.validate_amount", blob)
+        self.assertLessEqual(slim_cat["instructions_words"], 120)
+        names = [t["name"] for t in slim_cat["tools"]]
+        self.assertEqual(names, list(SLIM_NAMES))
+        schema = next(t["input_schema"] for t in slim_cat["tools"] if t["name"] == "dc_contract")
+        self.assertIn("action", schema.get("required") or [])
+        self.assertEqual(schema["properties"]["action"]["type"], "string")
+        self.assertEqual(schema["properties"]["targets"]["type"], "array")
+        start_s = next(t["input_schema"] for t in slim_cat["tools"] if t["name"] == "dc_start")
+        self.assertEqual(start_s["properties"]["max_tokens"]["type"], "integer")
+        self.assertEqual(start_s["properties"]["hint_symbols"]["type"], "array")
+        from dc_engine.catalog import CONTRACTS_NAMES
+        from dc_engine.server import INSTRUCTIONS_OPTIONAL
+        contracts = [f.__name__ for f in make_tool_functions(self.e, "contracts")]
+        self.assertEqual(contracts, list(CONTRACTS_NAMES))
+        ccat = dump_catalog("contracts")
+        self.assertEqual(ccat["tool_count"], 2)
+        self.assertEqual([t["name"] for t in ccat["tools"]], list(CONTRACTS_NAMES))
+        self.assertNotIn("dc_start", [t["name"] for t in ccat["tools"]])
+        self.assertIn("Read and Grep", ccat["instructions"])
+        self.assertIn("never required", INSTRUCTIONS_OPTIONAL)
+        cdesc = next(t["description"] for t in ccat["tools"] if t["name"] == "dc_contract")
+        self.assertIn("shop.billing.validate_amount", cdesc)
+        self.assertIn('"action":"create"', cdesc)
+        self.assertNotIn("dc_start", cdesc)
+        self.assertNotIn("dc_start", ccat["instructions"])
+        sdesc = next(t["description"] for t in slim_cat["tools"] if t["name"] == "dc_contract")
+        self.assertIn("dc_start", sdesc)
+        self.assertNotIn("shop.billing.validate_amount", sdesc)
+
+    def test_mode_texts_only_name_exposed_tools(self):
+        import re
+        from dc_engine.catalog import TOOL_MODES
+        from dc_engine.server import dump_catalog
+        catalogs = {mode: dump_catalog(mode) for mode in TOOL_MODES}
+        universe = set()
+        for cat in catalogs.values():
+            universe.update(t["name"] for t in cat["tools"])
+        pattern = re.compile(
+            r"\b(?:" + "|".join(re.escape(n) for n in sorted(universe, key=len, reverse=True)) + r")\b"
+        )
+        for mode, cat in catalogs.items():
+            exposed = {t["name"] for t in cat["tools"]}
+            blobs = [cat.get("instructions") or ""]
+            blobs.extend(t.get("description") or "" for t in cat["tools"])
+            for blob in blobs:
+                for name in pattern.findall(blob):
+                    self.assertIn(
+                        name, exposed,
+                        f"{mode} text names {name!r} which is not in that mode's tools",
+                    )
+
+    def test_dc_contract_and_dc_find(self):
+        from dc_engine.server import make_tool_functions
+        fns = {f.__name__: f for f in make_tool_functions(self.e, "slim")}
+        created = fns["dc_contract"](
+            action="create",
+            task="charge(user, Decimal(0)) should raise ValueError",
+            targets=["billing.validate_amount"],
+            must_change=[ZERO_PROBE],
+            must_preserve=[PREVIEW_PROBE],
+        )
+        self.assertTrue(created.startswith("✓ contract created:"), created)
+        cid = created.split(":", 1)[1].strip().split()[0]
+        checked = fns["dc_contract"](action="check", contract_id=cid)
+        self.assertIn("not changed", checked)
+        self.assertIn("unknown action", fns["dc_contract"](action="nope"))
+        hits = fns["dc_find"]("charge")
+        self.assertIn("shop.billing.charge", hits)
+        refs = fns["dc_find"]("billing.charge", mode="references")
+        self.assertTrue(refs.strip(), refs)
 
 
 if __name__ == "__main__":

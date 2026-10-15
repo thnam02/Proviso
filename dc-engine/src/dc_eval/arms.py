@@ -1,17 +1,42 @@
-"""Claude Code CLI invocations for the two eval arms.
+"""Claude Code / Cursor CLI invocations for eval arms.
 
 Flags match https://code.claude.com/docs/en/cli-reference and
 https://code.claude.com/docs/en/headless — `claude --bare -p`,
 `--output-format stream-json --verbose`, `--permission-mode acceptEdits`,
 `--allowedTools`, `--max-budget-usd`, plus `--mcp-config` / `--settings`
-on the layer arm.
+on MCP arms.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shlex
+import sys
 from typing import Any
+
+from . import ALL_ARMS, ARMS
+
+# Per-arm recipe: MCP tool surface, contract policy, and whether hooks run.
+# Cursor argv is identical; only files in the run copy differ.
+ARM_CONFIG: dict[str, dict[str, Any]] = {
+    "baseline": {
+        "mcp": False, "hooks": False, "tools": None,
+        "contract_policy": None, "hook_mode": "off",
+    },
+    "tools": {
+        "mcp": True, "hooks": False, "tools": "slim",
+        "contract_policy": "optional", "hook_mode": "off",
+    },
+    "contracts": {
+        "mcp": True, "hooks": True, "tools": "contracts",
+        "contract_policy": "required", "hook_mode": "block",
+    },
+    "layer": {
+        "mcp": True, "hooks": True, "tools": "slim",
+        "contract_policy": "required", "hook_mode": "block",
+    },
+}
 
 # Built-in tools the agent needs to read, edit, and run pytest (headless docs).
 # Layer arm also allows the dc-engine MCP server (prefix form from the CLI ref).
@@ -28,7 +53,109 @@ HOOK_POST = "dc-engine hook post-edit"
 HOOK_STOP = "dc-engine hook stop"
 
 
-def layer_settings() -> dict[str, Any]:
+def parse_arms(spec: str | None, arm_flag: str | None = None) -> tuple[str, ...]:
+    """Parse `--arms a,b` (preferred) or legacy `--arm both|name`."""
+    if spec and str(spec).strip():
+        parts = [p.strip().lower() for p in str(spec).split(",") if p.strip()]
+        if not parts:
+            raise ValueError("--arms is empty")
+        seen: set[str] = set()
+        out: list[str] = []
+        for p in parts:
+            if p not in ARM_CONFIG:
+                raise ValueError(
+                    f"unknown arm {p!r}; use {', '.join(ALL_ARMS)}"
+                )
+            if p in seen:
+                raise ValueError(f"duplicate arm {p!r} in --arms")
+            seen.add(p)
+            out.append(p)
+        return tuple(out)
+    if arm_flag and arm_flag != "both":
+        a = arm_flag.strip().lower()
+        if a not in ARM_CONFIG:
+            raise ValueError(f"unknown arm {a!r}; use {', '.join(ALL_ARMS)}")
+        return (a,)
+    return ARMS
+
+
+def arm_config(arm: str) -> dict[str, Any]:
+    a = (arm or "").strip().lower()
+    if a not in ARM_CONFIG:
+        raise ValueError(f"unknown arm: {arm}")
+    return ARM_CONFIG[a]
+
+
+def arm_extras_note(arm: str) -> str:
+    """One-line dry-run description of MCP/hooks for this arm."""
+    cfg = arm_config(arm)
+    if not cfg["mcp"]:
+        return "layer extras: none (no dc-engine MCP, no dc-engine hooks)"
+    flags: list[str] = []
+    if cfg["tools"] and cfg["tools"] != "slim":
+        flags.append(f"--tools {cfg['tools']}")
+    if cfg["contract_policy"] == "optional":
+        flags.append("--contracts optional")
+    flag_s = (" " + " ".join(flags)) if flags else ""
+    if cfg["hooks"]:
+        inst = engine_cli_cmd(f"--root <run-copy> install --cursor{flag_s}")
+        if cfg["tools"] == "contracts":
+            detail = (
+                "hooks + dc_contract/dc_replace_symbol only; "
+                "commands use this interpreter"
+            )
+        else:
+            detail = "hooks + MCP in the copy only; commands use this interpreter"
+        return f"layer extras: `{inst}` ({detail})"
+    return (
+        "layer extras: slim MCP, no hooks "
+        "(contracts optional; dc_contract available but never required)"
+    )
+
+
+def server_mcp_args(
+    root: str = ".",
+    *,
+    tools: str | None = "slim",
+    contract_policy: str | None = "required",
+) -> list[str]:
+    args = ["-m", "dc_engine.server", "--root", root]
+    t = (tools or "slim").strip().lower()
+    if t and t != "slim":
+        args.extend(["--tools", t])
+    pol = (contract_policy or "required").strip().lower()
+    if pol == "optional":
+        args.extend(["--contracts", "optional"])
+    return args
+
+
+def harness_python() -> str:
+    return os.path.abspath(sys.executable)
+
+
+def engine_cli_cmd(args: str, python: str | None = None) -> str:
+    """Shell command that runs this harness's dc-engine, never PATH `dc-engine`."""
+    py = os.path.abspath(python or sys.executable)
+    return f"{shlex.quote(py)} -m dc_engine {args}"
+
+
+def hook_command(
+    args: str,
+    python: str | None = None,
+    probe_python: str | None = None,
+) -> str:
+    """Hook shell command, with DC_PROBE_PYTHON set when the run has a venv."""
+    cmd = engine_cli_cmd(args, python)
+    pp = (probe_python or "").strip()
+    if not pp:
+        return cmd
+    return f"DC_PROBE_PYTHON={shlex.quote(os.path.abspath(pp))} {cmd}"
+
+
+def layer_settings(
+    python: str | None = None,
+    probe_python: str | None = None,
+) -> dict[str, Any]:
     """Hooks with enforce=block, same matcher groups as `dc-engine install`."""
     def group(command: str, matcher: str | None = None) -> dict[str, Any]:
         g: dict[str, Any] = {"hooks": [{"type": "command", "command": command}]}
@@ -37,35 +164,60 @@ def layer_settings() -> dict[str, Any]:
         return g
     return {
         "hooks": {
-            "PreToolUse": [group(HOOK_PRE, PRE_MATCHER)],
-            "PostToolUse": [group(HOOK_POST, POST_MATCHER)],
-            "Stop": [group(HOOK_STOP)],
+            "PreToolUse": [group(hook_command("hook pre-edit", python, probe_python), PRE_MATCHER)],
+            "PostToolUse": [group(hook_command("hook post-edit", python, probe_python), POST_MATCHER)],
+            "Stop": [group(hook_command("hook stop", python, probe_python))],
         }
     }
 
 
-def layer_mcp_config() -> dict[str, Any]:
-    return {
-        "mcpServers": {
-            "dc-engine": {
-                "type": "stdio",
-                "command": "dc-engine-mcp",
-                "args": ["--root", "${CLAUDE_PROJECT_DIR:-.}"],
-            }
-        }
+def layer_mcp_config(
+    python: str | None = None,
+    probe_python: str | None = None,
+    tools: str | None = "slim",
+    contract_policy: str | None = "required",
+) -> dict[str, Any]:
+    py = os.path.abspath(python or sys.executable)
+    server: dict[str, Any] = {
+        "type": "stdio",
+        "command": py,
+        "args": server_mcp_args(
+            "${CLAUDE_PROJECT_DIR:-.}",
+            tools=tools, contract_policy=contract_policy,
+        ),
     }
+    pp = (probe_python or "").strip()
+    if pp:
+        server["env"] = {"DC_PROBE_PYTHON": os.path.abspath(pp)}
+    return {"mcpServers": {"dc-engine": server}}
 
 
-def write_layer_files(harness_dir: str) -> tuple[str, str]:
+def write_layer_files(
+    harness_dir: str,
+    python: str | None = None,
+    probe_python: str | None = None,
+    *,
+    tools: str | None = "slim",
+    contract_policy: str | None = "required",
+    hooks: bool = True,
+) -> tuple[str, str | None]:
     os.makedirs(harness_dir, exist_ok=True)
-    settings_path = os.path.join(harness_dir, "settings.json")
     mcp_path = os.path.join(harness_dir, "mcp.json")
-    with open(settings_path, "w", encoding="utf-8") as fh:
-        json.dump(layer_settings(), fh, indent=2)
-        fh.write("\n")
     with open(mcp_path, "w", encoding="utf-8") as fh:
-        json.dump(layer_mcp_config(), fh, indent=2)
+        json.dump(
+            layer_mcp_config(
+                python, probe_python,
+                tools=tools, contract_policy=contract_policy,
+            ),
+            fh, indent=2,
+        )
         fh.write("\n")
+    settings_path = None
+    if hooks:
+        settings_path = os.path.join(harness_dir, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump(layer_settings(python, probe_python), fh, indent=2)
+            fh.write("\n")
     return mcp_path, settings_path
 
 
@@ -79,6 +231,42 @@ def write_layer_repo_config(repo_dir: str) -> None:
         fh.write("\n")
 
 
+def cursor_argv(
+    prompt: str,
+    *,
+    model: str,
+    workspace: str,
+    agent_bin: str = "agent",
+) -> list[str]:
+    """Cursor CLI flags, identical for both arms (no --sandbox; leave the default).
+
+    `agent -p --output-format stream-json --force --trust --approve-mcps
+    --workspace <run-copy> --model <model>`. Baseline has no MCP servers, so
+    --approve-mcps is a no-op there.
+    """
+    m = (model or "").strip()
+    if not m or m.lower() == "auto":
+        raise ValueError(
+            'refusing model "auto" (or empty). Both arms must use one fixed --model.'
+        )
+    if not workspace:
+        raise ValueError("cursor runner requires an explicit --workspace path")
+    return [
+        agent_bin,
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--force",
+        "--trust",
+        "--approve-mcps",
+        "--workspace",
+        workspace,
+        "--model",
+        m,
+        prompt,
+    ]
+
+
 def claude_argv(
     prompt: str,
     arm: str,
@@ -90,9 +278,8 @@ def claude_argv(
     claude_bin: str = "claude",
 ) -> list[str]:
     """Exact documented flags. Prompt is the `-p` argument."""
-    if arm not in ("baseline", "layer"):
-        raise ValueError(f"unknown arm: {arm}")
-    tools = LAYER_TOOLS if arm == "layer" else BASELINE_TOOLS
+    cfg = arm_config(arm)
+    tools = LAYER_TOOLS if cfg["mcp"] else BASELINE_TOOLS
     argv = [
         claude_bin,
         "--bare",
@@ -110,13 +297,12 @@ def claude_argv(
         "--model",
         model,
     ]
-    if arm == "layer":
-        if not mcp_config or not settings:
-            raise ValueError("layer arm requires --mcp-config and --settings paths")
-        argv.extend([
-            "--mcp-config", mcp_config,
-            "--settings", settings,
-            "--strict-mcp-config",
-            "--include-hook-events",
-        ])
+    if cfg["mcp"]:
+        if not mcp_config:
+            raise ValueError(f"{arm} arm requires --mcp-config")
+        argv.extend(["--mcp-config", mcp_config, "--strict-mcp-config"])
+        if cfg["hooks"]:
+            if not settings:
+                raise ValueError(f"{arm} arm requires --settings")
+            argv.extend(["--settings", settings, "--include-hook-events"])
     return argv

@@ -14,7 +14,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
 
 from dc_engine import Engine
 from dc_engine.parser import module_name, parse_source
-from dc_engine.views import est_tokens
+from dc_engine.views import (
+    DEFAULT_REPO_MAP_TOKENS, DEFAULT_SLICE_TOKENS, DEFAULT_START_TOKENS,
+    GET_SYMBOL_MAX_TOKENS, SMALL_REPO_TOKENS, est_tokens,
+)
+from unittest.mock import patch
 
 FIXTURE = os.path.join(HERE, "fixtures", "shop")
 
@@ -111,7 +115,19 @@ class ViewTests(FixtureCase):
         self.assertIn("calls: shop.billing.Receipt, shop.billing.validate_amount", out)
         self.assertIn("called by: shop.api.checkout", out)
         self.assertNotIn("validate_amount(amount)\n", out)  # no body unless asked
+        self.assertLessEqual(est_tokens(out), GET_SYMBOL_MAX_TOKENS)
         self.assertIn("validate_amount(amount)", self.e.get_symbol("billing.charge", include_body=True))
+
+    def test_default_budgets(self):
+        self.assertEqual(DEFAULT_REPO_MAP_TOKENS, 800)
+        self.assertEqual(DEFAULT_SLICE_TOKENS, 1500)
+        self.assertEqual(DEFAULT_START_TOKENS, 2500)
+        mapped = self.e.repo_map()
+        self.assertLessEqual(est_tokens(mapped), DEFAULT_REPO_MAP_TOKENS)
+        sliced = self.e.get_slice(["billing.charge"])
+        self.assertLessEqual(est_tokens(sliced), DEFAULT_SLICE_TOKENS + 80)
+        old_map = self.e.repo_map(max_tokens=2000)
+        self.assertGreaterEqual(est_tokens(old_map), est_tokens(mapped))
 
     def test_duplicate_names_need_line(self):
         self.assertIn("pick one", self.e.get_symbol("Admin.label"))
@@ -138,6 +154,29 @@ class ViewTests(FixtureCase):
     def test_method_slice_has_class_context(self):
         out = self.e.get_slice(["Receipt.total"])
         self.assertIn("is in class Receipt", out)
+
+    def test_slice_include_tests(self):
+        path = os.path.join(self.root, "tests", "test_charge.py")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(
+                "from decimal import Decimal\n"
+                "from shop.billing import charge\n"
+                "from shop.models import User\n"
+                "\n"
+                "def test_charge_positive():\n"
+                "    charge(User('a', 'US'), Decimal('1'))\n"
+            )
+        out = self.e.get_slice(["billing.charge"], include_tests=True)
+        self.assertIn("== TEST", out)
+        self.assertIn("test_charge_positive", out)
+        self.assertNotIn("charge(User('a', 'US')", out)
+        with_bodies = self.e.get_slice(
+            ["billing.charge"], include_tests=True, include_test_bodies=True,
+        )
+        self.assertIn("charge(User('a', 'US')", with_bodies)
+        without = self.e.get_slice(["billing.charge"], include_tests=False)
+        self.assertNotIn("== TEST", without)
 
 
 class EditTests(FixtureCase):
@@ -238,6 +277,45 @@ class TypeCheckTests(FixtureCase):
         self.assertIn("✗ breaks", out)
         self.assertIn("shop/billing.py", out)   # resolved caller (Receipt.total)
         self.assertIn("shop/api.py", out)       # resolved caller via alias (preview)
+
+
+class StartTests(FixtureCase):
+    def test_small_repo_mode_threshold(self):
+        self.assertEqual(SMALL_REPO_TOKENS, 8000)
+        out = self.e.start("Reject zero-dollar charges in shop billing")
+        self.assertIn("== REPO", out)
+        self.assertIn("small", out.lower())
+        self.assertIn(str(SMALL_REPO_TOKENS), out)
+        self.assertIn("Read files directly", out)
+        self.assertNotIn("== MAP", out)
+        self.assertNotIn("== SLICES", out)
+        self.assertIn("== CONTRACT TEMPLATE", out)
+        self.assertIn("== CONTRACT EXAMPLE", out)
+        self.assertIn("dc_contract", out)
+        self.assertIn("shop.billing.validate_amount", out)
+
+    def test_start_sections_and_budget_when_large(self):
+        real = self.e.store.stats()
+        big = dict(real)
+        big["chars"] = (SMALL_REPO_TOKENS + 100) * 4
+        with patch.object(self.e.store, "stats", return_value=big):
+            out = self.e.start(
+                "charge user receipt",
+                hint_symbols=["billing.charge"],
+                max_tokens=2000,
+            )
+        self.assertIn("== REPO", out)
+        self.assertIn("== MAP", out)
+        self.assertIn("== SLICES", out)
+        self.assertIn("== CONTRACT TEMPLATE", out)
+        self.assertIn("== CONTRACT EXAMPLE", out)
+        self.assertNotIn("Read files directly", out)
+        self.assertLessEqual(est_tokens(out), 2500)
+
+    def test_start_template_uses_hint_symbols(self):
+        out = self.e.start("fix billing", hint_symbols=["billing.validate_amount"])
+        self.assertIn("shop.billing.validate_amount", out)
+        self.assertIn("from shop.billing import validate_amount", out)
 
 
 if __name__ == "__main__":

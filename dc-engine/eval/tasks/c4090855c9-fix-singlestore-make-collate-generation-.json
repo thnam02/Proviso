@@ -1,0 +1,12 @@
+{
+  "id": "c4090855c9-fix-singlestore-make-collate-generation-",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "b3b6c57cea516bf8f76c6262b308d86dff82ca1b",
+  "prompt": "fix(singlestore): make Collate generation idempotent (#8454)\n\nSingleStore's collate_sql wraps the collated expression in a\n\":> LONGTEXT\" cast, since SingleStore does not support setting a\ncollation for a column in a SELECT query. Reparsing that SQL yields\nCollate(this=Cast(...)), and generating again wrapped the expression\nin a second cast, adding one more \":> LONGTEXT\" on every transpile\npass.\n\nSkip adding the cast when the collated expression is already a cast to\nLONGTEXT, so repeated parse -> generate cycles reach a fixed point.",
+  "hidden_tests": [
+    "tests/dialects/test_singlestore.py::TestSingleStore::test_collate_sql"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_singlestore.py b/tests/dialects/test_singlestore.py\nindex e5dd678f7..758f70c07 100644\n--- a/tests/dialects/test_singlestore.py\n+++ b/tests/dialects/test_singlestore.py\n@@ -898,7 +898,6 @@ class TestSingleStore(Validator):\n         )\n         self.validate_identity(\n             \"SELECT name :> LONGTEXT COLLATE 'utf8mb4_bin' FROM `users`\",\n-            \"SELECT name :> LONGTEXT :> LONGTEXT COLLATE 'utf8mb4_bin' FROM `users`\",\n         )\n \n     def test_match_against(self):\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

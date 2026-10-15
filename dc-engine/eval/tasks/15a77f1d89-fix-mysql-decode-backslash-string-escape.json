@@ -1,0 +1,13 @@
+{
+  "id": "15a77f1d89-fix-mysql-decode-backslash-string-escape",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "c7778cf56d90e409c75e59b82842544b118fa850",
+  "prompt": "fix(mysql): decode backslash string escapes (#8471)\n\n* fix(mysql): decode backslash string escapes\n\n* fix(ci): filter integration workflow runs by branch\n\n* transpile is_ascii to rlike",
+  "hidden_tests": [
+    "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse",
+    "tests/dialects/test_singlestore.py::TestSingleStore::test_is_ascii"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py\nindex a1f7ca280..9b486e0f5 100644\n--- a/tests/dialects/test_clickhouse.py\n+++ b/tests/dialects/test_clickhouse.py\n@@ -501,7 +501,7 @@ class TestClickhouse(Validator):\n             },\n             write={\n                 \"clickhouse\": \"SELECT '\\\\0'\",\n-                \"mysql\": \"SELECT '\\0'\",\n+                \"mysql\": \"SELECT '\\\\0'\",\n             },\n         )\n         self.validate_all(\ndiff --git a/tests/dialects/test_singlestore.py b/tests/dialects/test_singlestore.py\nindex dd4da5190..c44ffdd37 100644\n--- a/tests/dialects/test_singlestore.py\n+++ b/tests/dialects/test_singlestore.py\n@@ -436,6 +436,24 @@ class TestSingleStore(Validator):\n             },\n         )\n \n+    def test_is_ascii(self):\n+        self.validate_identity(\n+            \"SELECT ('a' RLIKE '^[\\x00-\\x7f]*$')\",\n+            \"SELECT ('a' RLIKE '^[\\\\0-\\x7f]*$')\",\n+        )\n+        self.validate_all(\n+            \"SELECT ('a' RLIKE '^[\\\\0-\\x7f]*$')\",\n+            read={\"\": \"SELECT IS_ASCII('a')\"},\n+        )\n+        self.validate_all(\n+            \"SELECT 1 + ('a' RLIKE '^[\\\\0-\\x7f]*$')\",\n+            read={\"\": \"SELECT 1 + IS_ASCII('a')\"},\n+        )\n+        self.validate_all(\n+            \"SELECT NOT ('\u00e9' RLIKE '^[\\\\0-\\x7f]*$')\",\n+            read={\"\": \"SELECT NOT IS_ASCII('\u00e9')\"},\n+        )\n+\n     def test_string_functions(self):\n         self.validate_all(\n             \"SELECT 'a' RLIKE 'b'\",\n@@ -460,10 +478,6 @@ class TestSingleStore(Validator):\n                 \"singlestore\": \"SELECT REGEXP_SUBSTR('adog', 'O', 1, 1, 'c')\",\n             },\n         )\n-        self.validate_all(\n-            \"SELECT ('a' RLIKE '^[\\x00-\\x7f]*$')\",\n-            read={\"singlestore\": \"SELECT ('a' RLIKE '^[\\x00-\\x7f]*$')\", \"\": \"SELECT IS_ASCII('a')\"},\n-        )\n         self.validate_all(\n             \"SELECT UNHEX(MD5('data'))\",\n             read={\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}

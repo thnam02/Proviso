@@ -1,0 +1,12 @@
+{
+  "id": "e1e0d2e52f-fix-trino-preserve-precision-for-timesta",
+  "repo": "/Users/hainamtran/dc-eval-sources/sqlglot",
+  "commit": "818483464bf50a1b41d6982dbc172e7934141c52",
+  "prompt": "fix(trino)!: preserve precision for timestamp and time literals (#8534) (#8538)\n\n* fix(trino): preserve precision for timestamp and time literals (#8534)\n\n* refactor(trino): simplify temporal literal parsing (#8534)",
+  "hidden_tests": [
+    "tests/dialects/test_trino.py::TestTrino::test_trino"
+  ],
+  "test_patch": "diff --git a/tests/dialects/test_trino.py b/tests/dialects/test_trino.py\nindex 20209ad24..69bb896d5 100644\n--- a/tests/dialects/test_trino.py\n+++ b/tests/dialects/test_trino.py\n@@ -151,6 +151,22 @@ class TestTrino(Validator):\n             \"SELECT TIMESTAMP '2012-10-31 01:00 +2'\",\n             \"SELECT CAST('2012-10-31 01:00 +2' AS TIMESTAMP WITH TIME ZONE)\",\n         )\n+        self.validate_identity(\n+            \"SELECT TIMESTAMP '2026-03-01 00:00:00.1234'\",\n+            \"SELECT CAST('2026-03-01 00:00:00.1234' AS TIMESTAMP(4))\",\n+        )\n+        self.validate_identity(\n+            \"SELECT TIMESTAMP '2026-03-01 00:00:00.123456789'\",\n+            \"SELECT CAST('2026-03-01 00:00:00.123456789' AS TIMESTAMP(9))\",\n+        )\n+        self.validate_identity(\n+            \"SELECT TIMESTAMP '2026-03-01 00:00:00.1234 +02:00'\",\n+            \"SELECT CAST('2026-03-01 00:00:00.1234 +02:00' AS TIMESTAMP(4) WITH TIME ZONE)\",\n+        )\n+        self.validate_identity(\n+            \"SELECT TIME '01:02:03.1234'\",\n+            \"SELECT CAST('01:02:03.1234' AS TIME(4))\",\n+        )\n \n         self.validate_identity(\n             \"SELECT TIME '01:02:03.456 -08:00'\",\n",
+  "regression_tests": [],
+  "setup": "python -m pip install -e . -q"
+}
