@@ -1,0 +1,342 @@
+[
+ {
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 3948,
+  "op": "flip",
+  "code": "elif self._match(TokenType.ORDER_BY, advance=False):",
+  "killed": true,
+  "failing": 4,
+  "selected": 17,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 6189,
+  "op": "flip",
+  "code": "this = self.expression(exp.Is(this=this, expression=exp.Null(), negate=True))",
+  "killed": true,
+  "failing": 5,
+  "selected": 870,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 5937,
+  "op": "flip",
+  "code": "result = False",
+  "killed": true,
+  "failing": 4,
+  "selected": 857,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/generators/redshift.py",
+  "line": 360,
+  "op": "flip",
+  "code": "exprs = self.expressions(expression, flat=True)",
+  "killed": true,
+  "failing": 3,
+  "selected": 1,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/tokenizer_core.py",
+  "line": 771,
+  "op": "flip",
+  "code": "_end = _current >= size",
+  "killed": true,
+  "failing": 294,
+  "selected": 1059,
+  "missed": [
+   ".py::::tests.dialects.test_athena",
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.dialects.test_clickhouse",
+   ".py::::tests.dialects.test_databricks",
+   ".py::::tests.dialects.test_dax",
+   ".py::::tests.dialects.test_dialect",
+   ".py::::tests.dialects.test_doris",
+   ".py::::tests.dialects.test_dremio",
+   ".py::::tests.dialects.test_drill",
+   ".py::::tests.dialects.test_druid",
+   ".py::::tests.dialects.test_duckdb",
+   ".py::::tests.dialects.test_dune",
+   ".py::::tests.dialects.test_exasol",
+   ".py::::tests.dialects.test_fabric",
+   ".py::::tests.dialects.test_hive",
+   ".py::::tests.dialects.test_materialize",
+   ".py::::tests.dialects.test_mysql",
+   ".py::::tests.dialects.test_oracle",
+   ".py::::tests.dialects.test_pipe_syntax",
+   ".py::::tests.dialects.test_postgres",
+   ".py::::tests.dialects.test_presto",
+   ".py::::tests.dialects.test_prql",
+   ".py::::tests.dialects.test_redshift",
+   ".py::::tests.dialects.test_risingwave",
+   ".py::::tests.dialects.test_singlestore",
+   ".py::::tests.dialects.test_snowflake",
+   ".py::::tests.dialects.test_solr",
+   ".py::::tests.dialects.test_spark",
+   ".py::::tests.dialects.test_sqlite",
+   ".py::::tests.dialects.test_starrocks",
+   ".py::::tests.dialects.test_tableau",
+   ".py::::tests.dialects.test_teradata",
+   ".py::::tests.dialects.test_trino",
+   ".py::::tests.dialects.test_tsql",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer",
+   "tests/test_dialect_imports.py::TestDialectImports::test_dialect_import_no_deadlock",
+   "tests/test_time.py::TestTime::test_canonical_time_format_vocabulary",
+   "tests/test_typing.py::TestTyping::test_no_redundant_expression_metadata"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/expressions/query.py",
+  "line": 1659,
+  "op": "flip",
+  "code": "copy: if `False`, modify this expression instance in-place.",
+  "killed": true,
+  "failing": 3,
+  "selected": 1,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/generator.py",
+  "line": 4519,
+  "op": "flip",
+  "code": "this = self.expressions(expression, flat=True)",
+  "killed": true,
+  "failing": 3,
+  "selected": 29,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/executor/__init__.py",
+  "line": 79,
+  "op": "flip",
+  "code": "logger.debug(\"Optimized SQL: %s\", expression.sql(pretty=True))",
+  "killed": true,
+  "failing": 3,
+  "selected": 0,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/generator.py",
+  "line": 1363,
+  "op": "flip",
+  "code": "kind == \"TRIGGER\"",
+  "killed": true,
+  "failing": 5,
+  "selected": 110,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/executor/python.py",
+  "line": 157,
+  "op": "flip",
+  "code": "copy=False,",
+  "killed": true,
+  "failing": 3,
+  "selected": 0,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 2544,
+  "op": "flip",
+  "code": "exists = self._parse_exists(not_=True)",
+  "killed": true,
+  "failing": 12,
+  "selected": 120,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "function",
+  "file": "sqlglot/optimizer/pushdown_predicates.py",
+  "line": 217,
+  "op": "flip",
+  "code": "table_node.having(inner_predicate, copy=False)",
+  "killed": true,
+  "failing": 3,
+  "selected": 0,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "function"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/parsers/exasol.py",
+  "line": 64,
+  "op": "delete",
+  "code": "\"HASH_SHA\": exp.SHA.from_arg_list,",
+  "killed": true,
+  "failing": 4,
+  "selected": 30,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/dialects/dialect.py",
+  "line": 965,
+  "op": "delete",
+  "code": "\"S\": \"SECOND\",",
+  "killed": true,
+  "failing": 4,
+  "selected": 1072,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/generators/postgres.py",
+  "line": 393,
+  "op": "delete",
+  "code": "exp.SHA2Digest: sha2_digest_sql,",
+  "killed": true,
+  "failing": 3,
+  "selected": 83,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/parsers/materialize.py",
+  "line": 15,
+  "op": "delete",
+  "code": "\"MAP\": lambda self: self._parse_map(),",
+  "killed": true,
+  "failing": 4,
+  "selected": 3,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/generators/clickhouse.py",
+  "line": 239,
+  "op": "delete",
+  "code": "exp.DType.DECIMAL128: \"Decimal128\",",
+  "killed": true,
+  "failing": 3,
+  "selected": 74,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/parsers/sqlite.py",
+  "line": 39,
+  "op": "flip",
+  "code": "ALTER_RENAME_REQUIRES_COLUMN = False",
+  "killed": true,
+  "failing": 4,
+  "selected": 31,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/generators/bigquery.py",
+  "line": 343,
+  "op": "delete",
+  "code": "exp.GenerateSeries: generate_series_sql(\"GENERATE_ARRAY\"),",
+  "killed": true,
+  "failing": 7,
+  "selected": 94,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ }
+]
