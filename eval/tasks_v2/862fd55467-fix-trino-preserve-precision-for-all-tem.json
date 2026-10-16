@@ -4,8 +4,8 @@
   "commit": "54005bf19b32d1dbcaecbd9f752059bc647339c5",
   "prompt": "Trino temporal types and literals lose their fractional-second precision. In Trino, CAST(... AS TIMESTAMP(n)) and TIME(n), with or without WITH TIME ZONE, should keep the precision, and TIMESTAMP/TIME '...' literals should become casts whose precision matches the literal's fractional digits. Presto only supports millisecond precision, so generating Presto from any other precision should drop it and warn \"Presto only supports millisecond precision for temporal types\" (raising under ErrorLevel.RAISE).\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT TIMESTAMP '2020-01-01 00:00:00.10'\", read=\"trino\").sql(\"trino\")\n# currently: SELECT CAST('2020-01-01 00:00:00.10' AS TIMESTAMP)\n# expected:  SELECT CAST('2020-01-01 00:00:00.10' AS TIMESTAMP(2))\n\nparse_one(\"CAST('2020-01-01 00:00:00.123' AS TIMESTAMP(6))\", read=\"trino\").sql(\"presto\")\n# currently: CAST('2020-01-01 00:00:00.123' AS TIMESTAMP(6))\n# expected:  CAST('2020-01-01 00:00:00.123' AS TIMESTAMP)\n\nparse_one(\"SELECT TIME '12:00:00.1'\", read=\"trino\").sql(\"trino\")\n# currently: SELECT CAST('12:00:00.1' AS TIME)\n# expected:  SELECT CAST('12:00:00.1' AS TIME(1))\n```\n\nOther forms of the same constructs described above should work as well.",
   "hidden_tests": [
-    "tests/dialects/test_presto.py::TestPresto::test_temporal_precision",
     "tests/dialects/test_presto.py::TestPresto::test_cast",
+    "tests/dialects/test_presto.py::TestPresto::test_temporal_precision",
     "tests/dialects/test_trino.py::TestTrino::test_temporal_literal_precision",
     "tests/dialects/test_trino.py::TestTrino::test_trino"
   ],
@@ -50,5 +50,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix(trino): preserve precision for all temporal literals (#8564)\n\n* fix(trino): preserve precision for all temporal literals\n\n* PR feedback",
   "fix_commit": "862fd55467e09527e07240725c6e78c793099ff1",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

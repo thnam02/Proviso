@@ -60,5 +60,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix(duckdb): preserve Spark array slice length (#8524)\n\n* fix(duckdb): preserve Spark array slice length\n\n* fix(duckdb): keep array slice tests independent of DuckDB\n\nUse SQL-string assertions for Spark slice bounds and apply zero-based adjustment before length handling.\n\nRefs #8520.\n\n* Update sqlglot/generators/duckdb.py\n\n* Update sqlglot/generators/duckdb.py\n\n---------\n\nCo-authored-by: Jo <46752250+georgesittas@users.noreply.github.com>",
   "fix_commit": "818483464bf50a1b41d6982dbc172e7934141c52",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

@@ -153,5 +153,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix!: preserve BD literal semantics in Hive and Spark (#8455)",
   "fix_commit": "d84f7f3ee1ff50778c93970b086d59692714dcdc",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

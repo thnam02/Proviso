@@ -57,6 +57,9 @@ def handle(event: str, payload: dict[str, Any], root: str | None = None) -> dict
 
 
 def _handle_body(event: str, payload: dict[str, Any], cwd: str) -> dict[str, Any]:
+    if event.startswith("proviso-"):
+        from .proviso import handle_event
+        return handle_event(event, payload, cwd)
     mode = active.enforce_mode(cwd)
     if mode == "off":
         return {}

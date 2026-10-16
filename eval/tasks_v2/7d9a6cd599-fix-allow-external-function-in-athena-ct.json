@@ -23,5 +23,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix: allow `EXTERNAL FUNCTION` in Athena `CTAS` (#8602)\n\nCo-authored-by: Matthias Queitsch <matthias.queitsch@unite.eu>",
   "fix_commit": "7d9a6cd599c41e4bd886c757e1b9e60b39bef70c",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

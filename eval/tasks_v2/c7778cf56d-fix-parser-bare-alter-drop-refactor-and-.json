@@ -98,5 +98,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix(parser): bare ALTER DROP refactor and indexes named concurrently",
   "fix_commit": "c7778cf56d90e409c75e59b82842544b118fa850",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

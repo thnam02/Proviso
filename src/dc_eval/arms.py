@@ -36,6 +36,19 @@ ARM_CONFIG: dict[str, dict[str, Any]] = {
         "mcp": True, "hooks": True, "tools": "slim",
         "contract_policy": "required", "hook_mode": "block",
     },
+    # Trajectory-mined checks (dc_engine/proviso.py): Claude Code hooks only, no MCP tools.
+    "proviso": {
+        "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
+        "proviso": {"context": True, "trajectory": True, "tests": True},
+    },
+    "replay-only": {
+        "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
+        "proviso": {"context": False, "trajectory": True, "tests": True},
+    },
+    "tests-only": {
+        "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
+        "proviso": {"context": False, "trajectory": False, "tests": True},
+    },
 }
 
 # Built-in tools the agent needs to read, edit, and run pytest (headless docs).
@@ -171,6 +184,43 @@ def layer_settings(
     }
 
 
+def proviso_settings(python: str | None = None, probe_python: str | None = None) -> dict[str, Any]:
+    """Claude Code hooks for the proviso arms (prompt context, Bash capture, Stop verify)."""
+    def group(args: str, matcher: str | None = None, timeout: int = 120) -> dict[str, Any]:
+        g: dict[str, Any] = {"hooks": [{"type": "command",
+                                        "command": hook_command(args, python, probe_python),
+                                        "timeout": timeout}]}
+        if matcher:
+            g["matcher"] = matcher
+        return g
+    return {
+        "hooks": {
+            "UserPromptSubmit": [group("hook proviso-context")],
+            "PostToolUse": [group("hook proviso-capture", "Bash")],
+            "Stop": [group("hook proviso-verify", timeout=600)],
+        }
+    }
+
+
+def write_proviso_files(
+    harness_dir: str, repo_dir: str, probe_python: str | None, flags: dict[str, Any],
+    python: str | None = None,
+) -> str:
+    os.makedirs(harness_dir, exist_ok=True)
+    settings_path = os.path.join(harness_dir, "settings.json")
+    with open(settings_path, "w", encoding="utf-8") as fh:
+        json.dump(proviso_settings(python, probe_python), fh, indent=2)
+        fh.write("\n")
+    folder = os.path.join(repo_dir, ".dc-engine")
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, ".gitignore"), "w", encoding="utf-8") as fh:
+        fh.write("*\n")
+    with open(os.path.join(folder, "proviso.json"), "w", encoding="utf-8") as fh:
+        json.dump({**flags, "python": os.path.abspath(probe_python) if probe_python else ""}, fh, indent=2)
+        fh.write("\n")
+    return settings_path
+
+
 def layer_mcp_config(
     python: str | None = None,
     probe_python: str | None = None,
@@ -302,6 +352,10 @@ def claude_argv(
         "--model",
         model,
     ]
+    if cfg.get("proviso"):
+        if not settings:
+            raise ValueError(f"{arm} arm requires --settings")
+        argv.extend(["--settings", settings, "--include-hook-events"])
     if cfg["mcp"]:
         if not mcp_config:
             raise ValueError(f"{arm} arm requires --mcp-config")
