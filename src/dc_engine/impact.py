@@ -50,8 +50,9 @@ def _asset(root: str, name: str) -> Any:
         return None
 
 
-def _units(path: str, src: str) -> tuple[list[tuple[str, int, int, bool]], list[tuple[int, int]]]:
-    """(name, start, end, is_function) for every function and class/module-level statement; class spans."""
+def _units(path: str, src: str) -> tuple[list[tuple[str, int, int, bool]], list[tuple[int, int, str]]]:
+    """(name, start, end, is_function) for every function and class/module-level statement; class spans with
+    their qualified names."""
     try:
         tree = ast.parse(src)
     except SyntaxError:
@@ -65,7 +66,7 @@ def _units(path: str, src: str) -> tuple[list[tuple[str, int, int, bool]], list[
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 units.append((prefix + node.name, start, end, True))
             elif isinstance(node, ast.ClassDef):
-                classes.append((node.lineno, end))
+                classes.append((node.lineno, end, prefix + node.name))
                 walk(node.body, prefix + node.name + ".")
             elif not isinstance(node, (ast.Import, ast.ImportFrom)):
                 units.append((prefix + f"<stmt@{node.lineno}>", start, end, False))
@@ -96,7 +97,7 @@ def packages(covmap: dict) -> list[str]:
 
 def selection(root: str, covmap: dict) -> tuple[list[str] | None, dict]:
     """Test node ids to run for the current change, or None for the full suite. Second value: why."""
-    pk = packages(covmap)
+    pk = packages({k: v for k, v in covmap.items() if k != "__global__"})
     if not pk:
         return None, {"reason": "empty coverage map"}
     diff = _git(root, "diff", "-U0", "HEAD", "--", *pk)
@@ -108,6 +109,7 @@ def selection(root: str, covmap: dict) -> tuple[list[str] | None, dict]:
     funcs: set[tuple[str, int]] = set()
     whole_files: set[str] = set()
     classes: set[tuple[str, int, int]] = set()
+    class_names: set[str] = set()
     for f, lines in _changed_old_lines(diff).items():
         src = _git(root, "show", f"HEAD:{f}")
         units, cls = _units(f, src)
@@ -121,10 +123,24 @@ def selection(root: str, covmap: dict) -> tuple[list[str] | None, dict]:
             if best is not None and enc:
                 c = min(enc, key=lambda c: c[1] - c[0])
                 classes.add((f, c[0], c[1]))
+                class_names.add(f"{f}:{c[2]}")
             else:
                 whole_files.add(f)
+    glob_funcs = {tuple(x) for x in (covmap.get("__global__") or {}).get("funcs", [])}
+    hit_global = sorted(funcs & glob_funcs)
+    if hit_global:
+        return None, {"reason": f"{hit_global[0][0]} code you changed also runs at import time"}
     sel = []
+    any_change = bool(funcs or whole_files or classes)
     for node, v in covmap.items():
+        if node == "__global__":
+            continue
+        if any_change and v.get("always"):
+            sel.append(node)
+            continue
+        if class_names and class_names & set(v.get("classes") or []):
+            sel.append(node)
+            continue
         for f, line in v["funcs"]:
             if (f, line) in funcs or f in whole_files or any(f == c[0] and c[1] <= line <= c[2] for c in classes):
                 sel.append(node)
@@ -221,6 +237,7 @@ def _junit(xml: str) -> dict[str, bool]:
 
 def run_selected(root: str, python: str) -> str:
     covmap = _asset(root, "covmap.json") or {}
+    n_suite = len([k for k in covmap if k != "__global__"])
     base_fail = set(_asset(root, "base_failures.json") or [])
     t0 = time.time()
     sel, why = selection(root, covmap) if covmap else (None, {"reason": "no coverage map"})
@@ -230,8 +247,8 @@ def run_selected(root: str, python: str) -> str:
     targets = ["tests"] if sel is None else sel
     if sel is not None and not sel:
         summary = ("[Proviso] Your changes do not reach any code the existing tests execute, so no existing test can "
-                   f"change outcome; nothing to run (full suite: {len(covmap)} tests).")
-        _log_run(root, 0, len(covmap), 0.0, [], why)
+                   f"change outcome; nothing to run (full suite: {n_suite} tests).")
+        _log_run(root, 0, n_suite, 0.0, [], why)
         return summary
     cmd = [python, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=short", "--no-header", "-rN",
            "--continue-on-collection-errors", f"--junitxml={xml}"]
@@ -249,7 +266,7 @@ def run_selected(root: str, python: str) -> str:
     failing = sorted(n for n, ok in res.items() if not ok)
     new = [n for n in failing if n not in base_fail and n.split("::")[0] not in base_fail]
     old = [n for n in failing if n not in new]
-    scope = (f"the {len(res)} existing tests whose code your changes reach (of {len(covmap)})" if sel is not None
+    scope = (f"the {len(res)} existing tests whose code your changes reach (of {n_suite})" if sel is not None
              else f"the full suite ({why.get('reason', 'change could not be placed')})")
     lines = [f"[Proviso] Ran {scope} in {secs:.0f}s instead of the full suite."]
     if new:
@@ -263,7 +280,7 @@ def run_selected(root: str, python: str) -> str:
     if old:
         lines.append(f"{len(old)} failure(s) that already fail at the original commit (not caused by you).")
     lines.append(f"{sum(res.values())} passed.")
-    _log_run(root, len(res), len(covmap), secs, new, why)
+    _log_run(root, len(res), n_suite, secs, new, why)
     return "\n".join(lines)
 
 

@@ -338,5 +338,282 @@
    ".py::::tests.test_optimizer"
   ],
   "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/expressions/json.py",
+  "line": 24,
+  "op": "delete",
+  "code": "\"this\": True,",
+  "killed": true,
+  "failing": 8,
+  "selected": 0,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer",
+   "tests/dialects/test_oracle.py::TestOracle::test_oracle",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres",
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_json",
+   "tests/dialects/test_sqlite.py::TestSQLite::test_sqlite",
+   "tests/dialects/test_tsql.py::TestTSQL::test_tsql"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/generators/exasol.py",
+  "line": 356,
+  "op": "delete",
+  "code": "exp.GroupConcat: lambda self, e: groupconcat_sql(self, e, on_overflow=True),",
+  "killed": true,
+  "failing": 4,
+  "selected": 28,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/generators/presto.py",
+  "line": 353,
+  "op": "delete",
+  "code": "exp.Encode: lambda self, e: encode_decode_sql(self, e, \"TO_UTF8\"),",
+  "killed": true,
+  "failing": 6,
+  "selected": 114,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/generators/tsql.py",
+  "line": 260,
+  "op": "delete",
+  "code": "exp.TimestampTrunc: lambda self, e: self.func(\"DATETRUNC\", e.unit, e.this),",
+  "killed": true,
+  "failing": 4,
+  "selected": 126,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "class",
+  "file": "sqlglot/dialects/drill.py",
+  "line": 40,
+  "op": "delete",
+  "code": "\"m\": \"%-M\",",
+  "killed": true,
+  "failing": 3,
+  "selected": 1,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "class"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/dialects/dialect.py",
+  "line": 161,
+  "op": "delete",
+  "code": "\"%dstrict\": \"%d\",",
+  "killed": true,
+  "failing": 13,
+  "selected": 1075,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/dialects/dialect.py",
+  "line": 74,
+  "op": "delete",
+  "code": "\"\\\\t\": \"\\t\",",
+  "killed": true,
+  "failing": 7,
+  "selected": 1075,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/generators/mysql.py",
+  "line": 100,
+  "op": "delete",
+  "code": "\"minutes\": \"minute\",",
+  "killed": true,
+  "failing": 3,
+  "selected": 102,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 250,
+  "op": "delete",
+  "code": "\"exp\": exp,",
+  "killed": true,
+  "failing": 3,
+  "selected": 0,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/generators/tsql.py",
+  "line": 27,
+  "op": "delete",
+  "code": "\"WEEKISO\": \"ISO_WEEK\",",
+  "killed": true,
+  "failing": 4,
+  "selected": 126,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/parsers/tsql.py",
+  "line": 27,
+  "op": "delete",
+  "code": "\"mm\": \"%B\",",
+  "killed": true,
+  "failing": 4,
+  "selected": 104,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/parsers/tsql.py",
+  "line": 81,
+  "op": "delete",
+  "code": "\"KEEP\": (\"PLAN\",),",
+  "killed": true,
+  "failing": 4,
+  "selected": 104,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 284,
+  "op": "delete",
+  "code": "\"GT\": null_if_any(lambda this, e: this > e),",
+  "killed": true,
+  "failing": 3,
+  "selected": 0,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/typing/bigquery.py",
+  "line": 346,
+  "op": "delete",
+  "code": "exp.Array: {\"annotator\": _annotate_array},",
+  "killed": true,
+  "failing": 3,
+  "selected": 1,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 302,
+  "op": "delete",
+  "code": "\"NEQ\": null_if_any(lambda this, e: this != e),",
+  "killed": true,
+  "failing": 3,
+  "selected": 0,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/typing/databricks.py",
+  "line": 36,
+  "op": "delete",
+  "code": "exp.RegrCount: {\"returns\": exp.DType.BIGINT},",
+  "killed": true,
+  "failing": 3,
+  "selected": 1,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
+ },
+ {
+  "kind": "module",
+  "file": "sqlglot/expressions/core.py",
+  "line": 2472,
+  "op": "delete",
+  "code": "\"connect\": False,",
+  "killed": true,
+  "failing": 3,
+  "selected": 1031,
+  "missed": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer"
+  ],
+  "rule": "file"
  }
 ]
