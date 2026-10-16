@@ -639,6 +639,11 @@ BRIEF_HEADER = (
     "files or re-running these commands; read further only for what it does not cover."
 )
 BRIEF_CHARS = 40000  # hard cap on a pre-fetched brief (~10k tokens)
+# Claude Code shows the model only a 2 KB preview of a hook output over ~10,000 characters, so a brief
+# is split on block boundaries (blank-line separated) into parts, each delivered by its own
+# UserPromptSubmit hook (proviso-brief-1..BRIEF_PARTS). Parts are self-contained: hooks run in parallel.
+BRIEF_PART_CHARS = 9000
+BRIEF_PARTS = 5
 
 
 def load_brief(root: str) -> str:
@@ -648,6 +653,34 @@ def load_brief(root: str) -> str:
             return fh.read()[:BRIEF_CHARS].strip()
     except OSError:
         return ""
+
+
+def brief_parts(text: str, limit: int = BRIEF_PART_CHARS, parts: int = BRIEF_PARTS) -> list[str]:
+    """Split a brief into at most `parts` chunks of whole blocks, each under `limit` characters."""
+    blocks, out, cur = re.split(r"\n\s*\n(?=\S)", text.strip()), [], ""
+    for b in blocks:
+        b = b.strip()
+        if len(b) > limit:
+            b = b[:limit - 40] + "\n… (truncated)"
+        if cur and len(cur) + len(b) + 2 > limit:
+            out.append(cur)
+            cur = ""
+        cur = (cur + "\n\n" + b) if cur else b
+    if cur:
+        out.append(cur)
+    return out[:parts]
+
+
+def brief_event(part: int, root: str, cfg: dict[str, Any]) -> dict[str, Any]:
+    if not cfg.get("brief"):
+        return {}
+    chunks = brief_parts(load_brief(root))
+    if part > len(chunks):
+        return {}
+    head = BRIEF_HEADER if part == 1 else "Proviso pre-fetch (continued)."
+    text = f"{head} Part {part} of {len(chunks)}.\n\n{chunks[part - 1]}"
+    log_event(root, {"event": "brief", "part": part, "parts": len(chunks), "chars": len(text)})
+    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}
 
 
 def context(payload: dict[str, Any], root: str, cfg: dict[str, Any]) -> dict[str, Any]:
@@ -662,10 +695,6 @@ def context(payload: dict[str, Any], root: str, cfg: dict[str, Any]) -> dict[str
         text = INSTRUCTION.format(what=" and ".join(what))
     t0 = time.perf_counter()
     ctx = ""
-    if cfg.get("brief"):
-        ctx = load_brief(root)
-        if ctx:
-            text = (text + "\n\n" if text else "") + BRIEF_HEADER + "\n\n" + ctx
     if cfg.get("context"):
         ctx = build_context(str(payload.get("prompt") or ""), root)
         if ctx:
@@ -684,6 +713,8 @@ def handle_event(event: str, payload: dict[str, Any], root: str) -> dict[str, An
     cfg = load_config(root)
     if event == "proviso-context":
         return context(payload, root, cfg)
+    if event.startswith("proviso-brief-"):
+        return brief_event(int(event.rsplit("-", 1)[1]), root, cfg)
     if event == "proviso-capture":
         return capture(payload, root, cfg)
     if event == "proviso-verify":

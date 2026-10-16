@@ -94,6 +94,7 @@ def main(argv: list[str] | None = None) -> None:
     hk.add_argument("event", choices=[
         "pre-edit", "post-edit", "stop",
         "proviso-context", "proviso-capture", "proviso-verify",
+        "proviso-brief-1", "proviso-brief-2", "proviso-brief-3", "proviso-brief-4", "proviso-brief-5",
         "preToolUse", "beforeShellExecution", "beforeMCPExecution", "afterFileEdit",
     ])
     hk.add_argument("--format", choices=["claude", "cursor"], default="claude",

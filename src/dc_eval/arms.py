@@ -204,7 +204,11 @@ def proviso_settings(python: str | None = None, probe_python: str | None = None,
         if matcher:
             g["matcher"] = matcher
         return g
-    hooks: dict[str, Any] = {"UserPromptSubmit": [group("hook proviso-context")]}
+    prompt_hooks = [group("hook proviso-context")]
+    if flags and flags.get("brief"):
+        from dc_engine.proviso import BRIEF_PARTS
+        prompt_hooks += [group(f"hook proviso-brief-{i}") for i in range(1, BRIEF_PARTS + 1)]
+    hooks: dict[str, Any] = {"UserPromptSubmit": prompt_hooks}
     if flags is None or flags.get("trajectory") or flags.get("tests"):
         hooks["PostToolUse"] = [group("hook proviso-capture", "Bash")]
         hooks["Stop"] = [group("hook proviso-verify", timeout=600)]
