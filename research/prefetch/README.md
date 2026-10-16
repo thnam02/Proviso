@@ -47,3 +47,45 @@ Cost split per run: cache writes $0.125 → $0.138, cache reads $0.118 → $0.07
 
 Caveat: this is a ceiling. The briefs come from baseline runs on the same task (no solution content, but the exact
 reads that task needed). The real system must choose reads for an unseen task from other tasks' trajectories.
+
+# Checks A-C: does the method (not just the ceiling) work?
+
+## A. Offline coverage of prompt-only briefs (all 26 tasks, free) — `coverage.py`, `coverage.json`
+
+Ground truth: code units (functions, or class/module statements such as `TRANSFORMS = {...}`) the reference fix
+changes ("gold"), and units baseline agents changed. Brief budget 20,000 characters (about 5k tokens).
+
+| brief built from | gold units touched | gold files touched | tasks fully covered |
+|---|---|---|---|
+| prompt words only (BM25) | 26% (bodies only) | 47% | 2 / 26 |
+| prompt examples executed + traced (functions that run in the example but not in a plain query) | 35% (bodies only) | 61% | 5 / 26 |
+| realistic brief: traced bodies + grep lines for names in the prompt and executed expression classes | 47% | 77% | 5 / 26 |
+| reference: what agents themselves had seen before their first edit | 79% | 87% | 12 / 26 |
+
+Running the prompt's examples is the strongest signal (word search cannot connect "CAST ... CHAR(4)" to
+`Parser._parse_cast`), but the realistic brief reaches about 60% of the agents' own pre-edit view. Most misses are
+registry entries or new methods that never execute in the example (e.g. a `TRANSFORMS` dict entry, a new
+`*_sql` method). A first category prior learned from other tasks' agent edits made ranking worse.
+
+## B. Compact oracle (~3-4k tokens) and C. failures-only, 8 runs each — `build_variant_briefs.py`, `abc_results.json`
+
+| mean per run | baseline | oracle (15.6k tok) | compact (3-4k tok) | failures only |
+|---|---|---|---|---|
+| cost | $0.249 | $0.225 | $0.214 | $0.232 |
+| cost change (95% CI) | | −9% (−18, −3) | −14% (−19, −9) | −8% (−14, +1) |
+| tokens change | | −32% | −14% | −10% |
+| model requests | 11.4 | 6.3 | 9.9 | 10.3 |
+| request of first edit | 5.6 | 1.5 | 3.5 | 5.3 |
+| wall time | 113 s | 57 s | 73 s | 75 s |
+| full-suite runs by the agent | 1.1 | 0 | 0 | 0 |
+| hidden-test score | 0.948 | 0.941 | 0.946 | 0.948 |
+| existing tests broken | 0 | 0 | 0 | 0 |
+
+Reading:
+- The compact brief kept only reads of files agents later edited, plus their snippets. It is cheap to deliver and
+  gives the best dollar change (−14%), but it removes far fewer requests than the oracle (−13% vs −45%): the
+  searches and listings that were dropped were doing much of the locating.
+- The failures line alone removes every full-suite run and gives about half the compact brief's cost effect
+  (−8%, CI crosses zero) and a quarter less wall time. It is simple and not novel.
+- So the code content adds roughly 6 points of cost and 4 points of requests over the failures line, with the
+  compact selection used here. The estimated −25-30% for a 5k brief is not supported.
