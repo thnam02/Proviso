@@ -18,7 +18,8 @@ from dc_engine import impact as I  # noqa: E402
 class Rewrite(unittest.TestCase):
     def test_broad_runs_rewritten_targeted_left_alone(self):
         r = I.rewrite("cd /x && python -m pytest tests -q 2>&1 | tail -5; python -m pytest tests/a.py", "/h", "/v")
-        self.assertIn("/h -m dc_engine.impact run --python /v | tail -5", r)
+        self.assertIn("/h -m dc_engine.impact run --python /v;", r)
+        self.assertNotIn("tail -5", r)
         self.assertIn("python -m pytest tests/a.py", r)
         self.assertIsNotNone(I.rewrite("python -m unittest discover -s tests", "/h", "/v"))
         self.assertIsNotNone(I.rewrite("make unit", "/h", "/v"))
