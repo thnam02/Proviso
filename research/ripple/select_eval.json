@@ -7,14 +7,12 @@
   "edited_funcs": 3,
   "class_rules": 4,
   "file_rules": [
-   "sqlglot/dialects/oracle.py",
-   "sqlglot/tokenizer_core.py",
-   "sqlglot/tokens.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -26,14 +24,12 @@
   "edited_funcs": 4,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/oracle.py",
-   "sqlglot/tokenizer_core.py",
-   "sqlglot/tokens.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -48,9 +44,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -65,9 +61,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -79,14 +75,12 @@
   "edited_funcs": 1,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -98,14 +92,12 @@
   "edited_funcs": 1,
   "class_rules": 2,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -118,9 +110,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 14,
+  "selected": 148,
   "tests": 1098,
-  "time_share": 0.021,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -133,9 +125,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 14,
+  "selected": 148,
   "tests": 1098,
-  "time_share": 0.021,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -147,13 +139,12 @@
   "edited_funcs": 6,
   "class_rules": 2,
   "file_rules": [
-   "sqlglot/parser.py",
-   "sqlglot/parsers/postgres.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 923,
+  "selected": 981,
   "tests": 981,
-  "time_share": 0.995,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -165,13 +156,12 @@
   "edited_funcs": 7,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/parser.py",
-   "sqlglot/parsers/postgres.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 923,
+  "selected": 981,
   "tests": 981,
-  "time_share": 0.995,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -186,9 +176,9 @@
    "sqlglot/generators/postgres.py"
   ],
   "new_files": [],
-  "selected": 81,
+  "selected": 82,
   "tests": 986,
-  "time_share": 0.089,
+  "time_share": 0.087,
   "failing": [],
   "missed": []
  },
@@ -203,9 +193,9 @@
    "sqlglot/generators/postgres.py"
   ],
   "new_files": [],
-  "selected": 81,
+  "selected": 82,
   "tests": 986,
-  "time_share": 0.089,
+  "time_share": 0.087,
   "failing": [],
   "missed": []
  },
@@ -222,9 +212,9 @@
    "sqlglot/parsers/spark2.py"
   ],
   "new_files": [],
-  "selected": 161,
+  "selected": 249,
   "tests": 971,
-  "time_share": 0.099,
+  "time_share": 0.098,
   "failing": [],
   "missed": []
  },
@@ -241,9 +231,9 @@
    "sqlglot/parsers/spark2.py"
   ],
   "new_files": [],
-  "selected": 161,
+  "selected": 203,
   "tests": 971,
-  "time_share": 0.099,
+  "time_share": 0.091,
   "failing": [],
   "missed": []
  },
@@ -255,15 +245,12 @@
   "edited_funcs": 3,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/dialects/spark.py",
-   "sqlglot/dialects/spark2.py",
-   "sqlglot/generators/hive.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 951,
+  "selected": 980,
   "tests": 980,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -275,14 +262,12 @@
   "edited_funcs": 3,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generator.py",
-   "sqlglot/generators/hive.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 951,
+  "selected": 980,
   "tests": 980,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -295,9 +280,9 @@
   "class_rules": 1,
   "file_rules": [],
   "new_files": [],
-  "selected": 16,
+  "selected": 17,
   "tests": 1032,
-  "time_share": 0.035,
+  "time_share": 0.032,
   "failing": [],
   "missed": []
  },
@@ -310,9 +295,9 @@
   "class_rules": 1,
   "file_rules": [],
   "new_files": [],
-  "selected": 14,
+  "selected": 16,
   "tests": 1032,
-  "time_share": 0.022,
+  "time_share": 0.032,
   "failing": [],
   "missed": []
  },
@@ -325,9 +310,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 202,
+  "selected": 214,
   "tests": 1104,
-  "time_share": 0.106,
+  "time_share": 0.104,
   "failing": [
    "tests/dialects/test_starrocks.py::TestStarrocks::test_starrocks"
   ],
@@ -342,9 +327,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 202,
+  "selected": 214,
   "tests": 1104,
-  "time_share": 0.106,
+  "time_share": 0.104,
   "failing": [
    "tests/dialects/test_starrocks.py::TestStarrocks::test_starrocks"
   ],
@@ -362,9 +347,9 @@
    "sqlglot/generators/sqlite.py"
   ],
   "new_files": [],
-  "selected": 881,
+  "selected": 882,
   "tests": 1056,
-  "time_share": 0.248,
+  "time_share": 0.236,
   "failing": [],
   "missed": []
  },
@@ -382,9 +367,9 @@
    "sqlglot/generators/tsql.py"
   ],
   "new_files": [],
-  "selected": 881,
+  "selected": 882,
   "tests": 1056,
-  "time_share": 0.248,
+  "time_share": 0.236,
   "failing": [],
   "missed": []
  },
@@ -400,9 +385,9 @@
    "sqlglot/generators/presto.py"
   ],
   "new_files": [],
-  "selected": 197,
+  "selected": 290,
   "tests": 1100,
-  "time_share": 0.124,
+  "time_share": 0.125,
   "failing": [],
   "missed": []
  },
@@ -418,9 +403,9 @@
    "sqlglot/generators/presto.py"
   ],
   "new_files": [],
-  "selected": 197,
+  "selected": 290,
   "tests": 1100,
-  "time_share": 0.124,
+  "time_share": 0.125,
   "failing": [],
   "missed": []
  },
@@ -432,13 +417,12 @@
   "edited_funcs": 7,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/parser.py",
-   "sqlglot/parsers/postgres.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 923,
+  "selected": 981,
   "tests": 981,
-  "time_share": 0.995,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -450,13 +434,12 @@
   "edited_funcs": 8,
   "class_rules": 4,
   "file_rules": [
-   "sqlglot/parser.py",
-   "sqlglot/parsers/postgres.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 923,
+  "selected": 981,
   "tests": 981,
-  "time_share": 0.995,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -471,9 +454,9 @@
    "sqlglot/generators/postgres.py"
   ],
   "new_files": [],
-  "selected": 81,
+  "selected": 82,
   "tests": 986,
-  "time_share": 0.089,
+  "time_share": 0.087,
   "failing": [],
   "missed": []
  },
@@ -488,9 +471,9 @@
    "sqlglot/generators/postgres.py"
   ],
   "new_files": [],
-  "selected": 81,
+  "selected": 82,
   "tests": 986,
-  "time_share": 0.089,
+  "time_share": 0.087,
   "failing": [],
   "missed": []
  },
@@ -507,9 +490,9 @@
    "sqlglot/generators/hive.py"
   ],
   "new_files": [],
-  "selected": 832,
+  "selected": 837,
   "tests": 971,
-  "time_share": 0.241,
+  "time_share": 0.219,
   "failing": [],
   "missed": []
  },
@@ -521,12 +504,12 @@
   "edited_funcs": 8,
   "class_rules": 4,
   "file_rules": [
-   "sqlglot/generators/hive.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 170,
+  "selected": 971,
   "tests": 971,
-  "time_share": 0.103,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -544,7 +527,7 @@
    "sqlglot/generators/hive.py"
   ],
   "new_files": [],
-  "selected": 951,
+  "selected": 952,
   "tests": 980,
   "time_share": 0.999,
   "failing": [],
@@ -563,7 +546,7 @@
    "sqlglot/generators/hive.py"
   ],
   "new_files": [],
-  "selected": 951,
+  "selected": 952,
   "tests": 980,
   "time_share": 0.999,
   "failing": [],
@@ -578,9 +561,9 @@
   "class_rules": 1,
   "file_rules": [],
   "new_files": [],
-  "selected": 16,
+  "selected": 17,
   "tests": 1032,
-  "time_share": 0.035,
+  "time_share": 0.032,
   "failing": [],
   "missed": []
  },
@@ -593,9 +576,9 @@
   "class_rules": 1,
   "file_rules": [],
   "new_files": [],
-  "selected": 14,
+  "selected": 16,
   "tests": 1032,
-  "time_share": 0.022,
+  "time_share": 0.032,
   "failing": [],
   "missed": []
  },
@@ -608,9 +591,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 202,
+  "selected": 214,
   "tests": 1104,
-  "time_share": 0.106,
+  "time_share": 0.104,
   "failing": [
    "tests/dialects/test_starrocks.py::TestStarrocks::test_starrocks"
   ],
@@ -623,11 +606,13 @@
   "rep": 2,
   "edited_funcs": 3,
   "class_rules": 2,
-  "file_rules": [],
+  "file_rules": [
+   "sqlglot/parser.py code you changed also runs at import time"
+  ],
   "new_files": [],
-  "selected": 341,
+  "selected": 1104,
   "tests": 1104,
-  "time_share": 0.144,
+  "time_share": 1.0,
   "failing": [
    "tests/dialects/test_starrocks.py::TestStarrocks::test_starrocks"
   ],
@@ -647,9 +632,9 @@
    "sqlglot/generators/tsql.py"
   ],
   "new_files": [],
-  "selected": 881,
+  "selected": 882,
   "tests": 1056,
-  "time_share": 0.248,
+  "time_share": 0.236,
   "failing": [],
   "missed": []
  },
@@ -667,9 +652,9 @@
    "sqlglot/generators/tsql.py"
   ],
   "new_files": [],
-  "selected": 881,
+  "selected": 882,
   "tests": 1056,
-  "time_share": 0.248,
+  "time_share": 0.236,
   "failing": [],
   "missed": []
  },
@@ -684,9 +669,9 @@
    "sqlglot/generators/presto.py"
   ],
   "new_files": [],
-  "selected": 191,
+  "selected": 289,
   "tests": 1100,
-  "time_share": 0.123,
+  "time_share": 0.124,
   "failing": [],
   "missed": []
  },
@@ -702,9 +687,9 @@
    "sqlglot/generators/presto.py"
   ],
   "new_files": [],
-  "selected": 197,
+  "selected": 290,
   "tests": 1100,
-  "time_share": 0.124,
+  "time_share": 0.125,
   "failing": [],
   "missed": []
  },
@@ -716,14 +701,12 @@
   "edited_funcs": 4,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/oracle.py",
-   "sqlglot/tokenizer_core.py",
-   "sqlglot/tokens.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -735,14 +718,12 @@
   "edited_funcs": 4,
   "class_rules": 4,
   "file_rules": [
-   "sqlglot/dialects/oracle.py",
-   "sqlglot/tokenizer_core.py",
-   "sqlglot/tokens.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -757,9 +738,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -774,9 +755,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -788,14 +769,12 @@
   "edited_funcs": 1,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -807,14 +786,12 @@
   "edited_funcs": 1,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -829,9 +806,9 @@
    "sqlglot/generators/duckdb.py"
   ],
   "new_files": [],
-  "selected": 203,
+  "selected": 284,
   "tests": 1098,
-  "time_share": 0.109,
+  "time_share": 0.11,
   "failing": [],
   "missed": []
  },
@@ -844,9 +821,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 14,
+  "selected": 148,
   "tests": 1098,
-  "time_share": 0.021,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -858,12 +835,12 @@
   "edited_funcs": 6,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/oracle.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1085,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -875,13 +852,12 @@
   "edited_funcs": 2,
   "class_rules": 5,
   "file_rules": [
-   "sqlglot/anonymize.py",
-   "sqlglot/dialects/oracle.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -893,13 +869,12 @@
   "edited_funcs": 3,
   "class_rules": 2,
   "file_rules": [
-   "sqlglot/expressions/query.py",
-   "sqlglot/parser.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1019,
+  "selected": 1107,
   "tests": 1107,
-  "time_share": 0.994,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -910,11 +885,13 @@
   "rep": 2,
   "edited_funcs": 4,
   "class_rules": 3,
-  "file_rules": [],
+  "file_rules": [
+   "sqlglot/parser.py code you changed also runs at import time"
+  ],
   "new_files": [],
-  "selected": 1019,
+  "selected": 1107,
   "tests": 1107,
-  "time_share": 0.994,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -929,9 +906,9 @@
    "sqlglot/generators/presto.py"
   ],
   "new_files": [],
-  "selected": 121,
+  "selected": 169,
   "tests": 1105,
-  "time_share": 0.093,
+  "time_share": 0.103,
   "failing": [],
   "missed": []
  },
@@ -946,9 +923,9 @@
    "sqlglot/generators/presto.py"
   ],
   "new_files": [],
-  "selected": 121,
+  "selected": 169,
   "tests": 1105,
-  "time_share": 0.093,
+  "time_share": 0.103,
   "failing": [],
   "missed": []
  },
@@ -960,13 +937,12 @@
   "edited_funcs": 3,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/generator.py",
-   "sqlglot/parser.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1016,
+  "selected": 1095,
   "tests": 1095,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -978,14 +954,12 @@
   "edited_funcs": 3,
   "class_rules": 2,
   "file_rules": [
-   "sqlglot/generator.py",
-   "sqlglot/generators/hive.py",
-   "sqlglot/parser.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1016,
+  "selected": 1095,
   "tests": 1095,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1000,9 +974,9 @@
    "sqlglot/dialects/mysql.py"
   ],
   "new_files": [],
-  "selected": 24,
+  "selected": 34,
   "tests": 1082,
-  "time_share": 0.006,
+  "time_share": 0.028,
   "failing": [],
   "missed": []
  },
@@ -1018,9 +992,9 @@
    "sqlglot/dialects/mysql.py"
   ],
   "new_files": [],
-  "selected": 1052,
+  "selected": 1053,
   "tests": 1082,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1037,9 +1011,9 @@
    "sqlglot/parsers/starrocks.py"
   ],
   "new_files": [],
-  "selected": 951,
+  "selected": 952,
   "tests": 1131,
-  "time_share": 0.264,
+  "time_share": 0.254,
   "failing": [],
   "missed": []
  },
@@ -1054,9 +1028,9 @@
    "sqlglot/generators/starrocks.py"
   ],
   "new_files": [],
-  "selected": 17,
+  "selected": 18,
   "tests": 1131,
-  "time_share": 0.029,
+  "time_share": 0.025,
   "failing": [],
   "missed": []
  },
@@ -1073,9 +1047,9 @@
    "sqlglot/parsers/mysql.py"
   ],
   "new_files": [],
-  "selected": 184,
+  "selected": 196,
   "tests": 1097,
-  "time_share": 0.089,
+  "time_share": 0.079,
   "failing": [],
   "missed": []
  },
@@ -1092,9 +1066,9 @@
    "sqlglot/parsers/mysql.py"
   ],
   "new_files": [],
-  "selected": 184,
+  "selected": 200,
   "tests": 1097,
-  "time_share": 0.089,
+  "time_share": 0.083,
   "failing": [],
   "missed": []
  },
@@ -1111,9 +1085,9 @@
    "sqlglot/parsers/snowflake.py"
   ],
   "new_files": [],
-  "selected": 627,
+  "selected": 631,
   "tests": 1089,
-  "time_share": 0.233,
+  "time_share": 0.222,
   "failing": [],
   "missed": []
  },
@@ -1130,9 +1104,9 @@
    "sqlglot/parsers/snowflake.py"
   ],
   "new_files": [],
-  "selected": 627,
+  "selected": 631,
   "tests": 1089,
-  "time_share": 0.233,
+  "time_share": 0.222,
   "failing": [],
   "missed": []
  },
@@ -1149,9 +1123,9 @@
    "sqlglot/transforms.py"
   ],
   "new_files": [],
-  "selected": 531,
+  "selected": 573,
   "tests": 1124,
-  "time_share": 0.172,
+  "time_share": 0.175,
   "failing": [],
   "missed": []
  },
@@ -1168,9 +1142,9 @@
    "sqlglot/transforms.py"
   ],
   "new_files": [],
-  "selected": 571,
+  "selected": 612,
   "tests": 1124,
-  "time_share": 0.177,
+  "time_share": 0.18,
   "failing": [],
   "missed": []
  },
@@ -1185,9 +1159,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -1202,9 +1176,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -1217,9 +1191,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 27,
+  "selected": 28,
   "tests": 1082,
-  "time_share": 0.042,
+  "time_share": 0.04,
   "failing": [],
   "missed": []
  },
@@ -1232,9 +1206,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 27,
+  "selected": 28,
   "tests": 1082,
-  "time_share": 0.042,
+  "time_share": 0.04,
   "failing": [],
   "missed": []
  },
@@ -1251,9 +1225,9 @@
    "sqlglot/parsers/doris.py"
   ],
   "new_files": [],
-  "selected": 19,
+  "selected": 40,
   "tests": 1115,
-  "time_share": 0.018,
+  "time_share": 0.03,
   "failing": [],
   "missed": []
  },
@@ -1270,9 +1244,9 @@
    "sqlglot/parsers/doris.py"
   ],
   "new_files": [],
-  "selected": 19,
+  "selected": 40,
   "tests": 1115,
-  "time_share": 0.018,
+  "time_share": 0.03,
   "failing": [],
   "missed": []
  },
@@ -1287,9 +1261,9 @@
    "sqlglot/parser.py"
   ],
   "new_files": [],
-  "selected": 996,
+  "selected": 997,
   "tests": 1084,
-  "time_share": 0.996,
+  "time_share": 0.997,
   "failing": [],
   "missed": []
  },
@@ -1304,9 +1278,9 @@
    "sqlglot/parser.py"
   ],
   "new_files": [],
-  "selected": 996,
+  "selected": 997,
   "tests": 1084,
-  "time_share": 0.996,
+  "time_share": 0.997,
   "failing": [],
   "missed": []
  },
@@ -1321,9 +1295,9 @@
    "sqlglot/generators/duckdb.py"
   ],
   "new_files": [],
-  "selected": 203,
+  "selected": 284,
   "tests": 1098,
-  "time_share": 0.109,
+  "time_share": 0.11,
   "failing": [],
   "missed": []
  },
@@ -1338,9 +1312,9 @@
    "sqlglot/generators/duckdb.py"
   ],
   "new_files": [],
-  "selected": 205,
+  "selected": 337,
   "tests": 1098,
-  "time_share": 0.11,
+  "time_share": 0.116,
   "failing": [],
   "missed": []
  },
@@ -1357,9 +1331,9 @@
    "sqlglot/parsers/spark2.py"
   ],
   "new_files": [],
-  "selected": 114,
+  "selected": 171,
   "tests": 1078,
-  "time_share": 0.08,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -1377,9 +1351,9 @@
    "sqlglot/parsers/spark2.py"
   ],
   "new_files": [],
-  "selected": 117,
+  "selected": 171,
   "tests": 1078,
-  "time_share": 0.08,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -1394,9 +1368,9 @@
    "sqlglot/parser.py"
   ],
   "new_files": [],
-  "selected": 997,
+  "selected": 998,
   "tests": 1085,
-  "time_share": 0.995,
+  "time_share": 0.997,
   "failing": [],
   "missed": []
  },
@@ -1412,9 +1386,9 @@
    "sqlglot/parsers/mysql.py"
   ],
   "new_files": [],
-  "selected": 998,
+  "selected": 999,
   "tests": 1085,
-  "time_share": 0.996,
+  "time_share": 0.998,
   "failing": [],
   "missed": []
  },
@@ -1426,14 +1400,12 @@
   "edited_funcs": 4,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/oracle.py",
-   "sqlglot/tokenizer_core.py",
-   "sqlglot/tokens.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1445,14 +1417,12 @@
   "edited_funcs": 4,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/oracle.py",
-   "sqlglot/tokenizer_core.py",
-   "sqlglot/tokens.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1467,9 +1437,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -1484,9 +1454,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -1503,9 +1473,9 @@
    "sqlglot/generators/spark2.py"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1095,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1517,14 +1487,12 @@
   "edited_funcs": 1,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1537,9 +1505,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 14,
+  "selected": 148,
   "tests": 1098,
-  "time_share": 0.021,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -1552,9 +1520,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 14,
+  "selected": 148,
   "tests": 1098,
-  "time_share": 0.021,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -1566,12 +1534,12 @@
   "edited_funcs": 2,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/oracle.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1085,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1583,12 +1551,12 @@
   "edited_funcs": 4,
   "class_rules": 4,
   "file_rules": [
-   "sqlglot/dialects/oracle.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1085,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1600,14 +1568,12 @@
   "edited_funcs": 5,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/oracle.py",
-   "sqlglot/tokenizer_core.py",
-   "sqlglot/tokens.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1619,14 +1585,12 @@
   "edited_funcs": 4,
   "class_rules": 2,
   "file_rules": [
-   "sqlglot/dialects/oracle.py",
-   "sqlglot/tokenizer_core.py",
-   "sqlglot/tokens.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1641,9 +1605,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -1658,9 +1622,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -1675,9 +1639,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -1692,9 +1656,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -1712,9 +1676,9 @@
    "sqlglot/parsers/duckdb.py"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1095,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1726,14 +1690,12 @@
   "edited_funcs": 1,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1745,14 +1707,12 @@
   "edited_funcs": 1,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1764,14 +1724,12 @@
   "edited_funcs": 1,
   "class_rules": 4,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1784,9 +1742,9 @@
   "class_rules": 3,
   "file_rules": [],
   "new_files": [],
-  "selected": 62,
+  "selected": 236,
   "tests": 1098,
-  "time_share": 0.071,
+  "time_share": 0.108,
   "failing": [],
   "missed": []
  },
@@ -1799,9 +1757,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 14,
+  "selected": 148,
   "tests": 1098,
-  "time_share": 0.021,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -1814,9 +1772,9 @@
   "class_rules": 2,
   "file_rules": [],
   "new_files": [],
-  "selected": 14,
+  "selected": 148,
   "tests": 1098,
-  "time_share": 0.021,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -1831,9 +1789,9 @@
    "sqlglot/generators/spark2.py"
   ],
   "new_files": [],
-  "selected": 113,
+  "selected": 236,
   "tests": 1098,
-  "time_share": 0.092,
+  "time_share": 0.108,
   "failing": [],
   "missed": []
  },
@@ -1848,9 +1806,9 @@
    "sqlglot/parser.py"
   ],
   "new_files": [],
-  "selected": 1019,
+  "selected": 1020,
   "tests": 1107,
-  "time_share": 0.995,
+  "time_share": 0.997,
   "failing": [],
   "missed": []
  },
@@ -1863,9 +1821,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 47,
+  "selected": 48,
   "tests": 1107,
-  "time_share": 0.073,
+  "time_share": 0.07,
   "failing": [],
   "missed": []
  },
@@ -1876,11 +1834,13 @@
   "rep": 1,
   "edited_funcs": 3,
   "class_rules": 0,
-  "file_rules": [],
+  "file_rules": [
+   "sqlglot/parser.py code you changed also runs at import time"
+  ],
   "new_files": [],
-  "selected": 264,
+  "selected": 1104,
   "tests": 1104,
-  "time_share": 0.154,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1892,12 +1852,12 @@
   "edited_funcs": 4,
   "class_rules": 0,
   "file_rules": [
-   "sqlglot/parser.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1019,
+  "selected": 1104,
   "tests": 1104,
-  "time_share": 0.995,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1910,9 +1870,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 762,
+  "selected": 763,
   "tests": 1097,
-  "time_share": 0.222,
+  "time_share": 0.207,
   "failing": [],
   "missed": []
  },
@@ -1925,9 +1885,9 @@
   "class_rules": 1,
   "file_rules": [],
   "new_files": [],
-  "selected": 916,
+  "selected": 917,
   "tests": 1097,
-  "time_share": 0.26,
+  "time_share": 0.244,
   "failing": [],
   "missed": []
  },
@@ -1942,9 +1902,9 @@
    "sqlglot/dialects/dialect.py"
   ],
   "new_files": [],
-  "selected": 1055,
+  "selected": 1056,
   "tests": 1085,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1959,9 +1919,9 @@
    "sqlglot/dialects/dialect.py"
   ],
   "new_files": [],
-  "selected": 1055,
+  "selected": 1056,
   "tests": 1085,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -1974,9 +1934,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 275,
+  "selected": 276,
   "tests": 1073,
-  "time_share": 0.131,
+  "time_share": 0.126,
   "failing": [],
   "missed": []
  },
@@ -1989,9 +1949,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 275,
+  "selected": 276,
   "tests": 1073,
-  "time_share": 0.131,
+  "time_share": 0.126,
   "failing": [],
   "missed": []
  },
@@ -2004,9 +1964,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 30,
+  "selected": 31,
   "tests": 1095,
-  "time_share": 0.066,
+  "time_share": 0.057,
   "failing": [],
   "missed": []
  },
@@ -2019,9 +1979,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 30,
+  "selected": 31,
   "tests": 1095,
-  "time_share": 0.066,
+  "time_share": 0.057,
   "failing": [],
   "missed": []
  },
@@ -2038,9 +1998,9 @@
    "sqlglot/dialects/spark2.py"
   ],
   "new_files": [],
-  "selected": 1,
+  "selected": 175,
   "tests": 1083,
-  "time_share": 0.006,
+  "time_share": 0.086,
   "failing": [],
   "missed": []
  },
@@ -2057,9 +2017,9 @@
    "sqlglot/dialects/spark2.py"
   ],
   "new_files": [],
-  "selected": 1,
+  "selected": 175,
   "tests": 1083,
-  "time_share": 0.006,
+  "time_share": 0.086,
   "failing": [],
   "missed": []
  },
@@ -2072,7 +2032,7 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 7,
+  "selected": 8,
   "tests": 1095,
   "time_share": 0.011,
   "failing": [],
@@ -2087,7 +2047,7 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 7,
+  "selected": 8,
   "tests": 1095,
   "time_share": 0.011,
   "failing": [],
@@ -2102,7 +2062,7 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 20,
+  "selected": 21,
   "tests": 1080,
   "time_share": 0.025,
   "failing": [],
@@ -2117,7 +2077,7 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 20,
+  "selected": 21,
   "tests": 1080,
   "time_share": 0.025,
   "failing": [],
@@ -2138,9 +2098,9 @@
    "sqlglot/expressions/query.py"
   ],
   "new_files": [],
-  "selected": 1048,
+  "selected": 1049,
   "tests": 1122,
-  "time_share": 0.997,
+  "time_share": 0.999,
   "failing": [],
   "missed": []
  },
@@ -2158,9 +2118,9 @@
    "sqlglot/expressions/query.py"
   ],
   "new_files": [],
-  "selected": 1048,
+  "selected": 1049,
   "tests": 1122,
-  "time_share": 0.997,
+  "time_share": 0.999,
   "failing": [],
   "missed": []
  },
@@ -2172,14 +2132,12 @@
   "edited_funcs": 4,
   "class_rules": 2,
   "file_rules": [
-   "sqlglot/dialects/oracle.py",
-   "sqlglot/tokenizer_core.py",
-   "sqlglot/tokens.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -2191,13 +2149,12 @@
   "edited_funcs": 3,
   "class_rules": 5,
   "file_rules": [
-   "sqlglot/anonymize.py",
-   "sqlglot/dialects/oracle.py"
+   "sqlglot/tokenizer_core.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1086,
+  "selected": 1128,
   "tests": 1128,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -2209,12 +2166,12 @@
   "edited_funcs": 4,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/parser.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1019,
+  "selected": 1107,
   "tests": 1107,
-  "time_share": 0.994,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -2226,12 +2183,12 @@
   "edited_funcs": 4,
   "class_rules": 2,
   "file_rules": [
-   "sqlglot/parser.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1019,
+  "selected": 1107,
   "tests": 1107,
-  "time_share": 0.994,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -2246,9 +2203,9 @@
    "sqlglot/generators/presto.py"
   ],
   "new_files": [],
-  "selected": 121,
+  "selected": 169,
   "tests": 1105,
-  "time_share": 0.093,
+  "time_share": 0.103,
   "failing": [],
   "missed": []
  },
@@ -2263,9 +2220,9 @@
    "sqlglot/generators/presto.py"
   ],
   "new_files": [],
-  "selected": 121,
+  "selected": 169,
   "tests": 1105,
-  "time_share": 0.093,
+  "time_share": 0.103,
   "failing": [],
   "missed": []
  },
@@ -2277,13 +2234,12 @@
   "edited_funcs": 3,
   "class_rules": 2,
   "file_rules": [
-   "sqlglot/generator.py",
-   "sqlglot/parser.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1016,
+  "selected": 1095,
   "tests": 1095,
-  "time_share": 0.998,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -2295,12 +2251,12 @@
   "edited_funcs": 2,
   "class_rules": 2,
   "file_rules": [
-   "sqlglot/generator.py"
+   "sqlglot/parser.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 977,
+  "selected": 1095,
   "tests": 1095,
-  "time_share": 0.997,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -2315,9 +2271,9 @@
    "sqlglot/dialects/mysql.py"
   ],
   "new_files": [],
-  "selected": 24,
+  "selected": 34,
   "tests": 1082,
-  "time_share": 0.006,
+  "time_share": 0.028,
   "failing": [],
   "missed": []
  },
@@ -2332,9 +2288,9 @@
    "sqlglot/dialects/mysql.py"
   ],
   "new_files": [],
-  "selected": 24,
+  "selected": 34,
   "tests": 1082,
-  "time_share": 0.006,
+  "time_share": 0.028,
   "failing": [],
   "missed": []
  },
@@ -2351,7 +2307,7 @@
    "sqlglot/parser.py"
   ],
   "new_files": [],
-  "selected": 1052,
+  "selected": 1053,
   "tests": 1131,
   "time_share": 0.998,
   "failing": [],
@@ -2370,9 +2326,9 @@
    "sqlglot/parsers/starrocks.py"
   ],
   "new_files": [],
-  "selected": 951,
+  "selected": 952,
   "tests": 1131,
-  "time_share": 0.264,
+  "time_share": 0.254,
   "failing": [],
   "missed": []
  },
@@ -2389,9 +2345,9 @@
    "sqlglot/parsers/mysql.py"
   ],
   "new_files": [],
-  "selected": 921,
+  "selected": 922,
   "tests": 1097,
-  "time_share": 0.258,
+  "time_share": 0.244,
   "failing": [],
   "missed": []
  },
@@ -2408,9 +2364,9 @@
    "sqlglot/parsers/mysql.py"
   ],
   "new_files": [],
-  "selected": 921,
+  "selected": 922,
   "tests": 1097,
-  "time_share": 0.258,
+  "time_share": 0.244,
   "failing": [],
   "missed": []
  },
@@ -2427,9 +2383,9 @@
    "sqlglot/parsers/snowflake.py"
   ],
   "new_files": [],
-  "selected": 954,
+  "selected": 958,
   "tests": 1089,
-  "time_share": 0.26,
+  "time_share": 0.244,
   "failing": [],
   "missed": []
  },
@@ -2446,9 +2402,9 @@
    "sqlglot/parsers/snowflake.py"
   ],
   "new_files": [],
-  "selected": 954,
+  "selected": 955,
   "tests": 1089,
-  "time_share": 0.26,
+  "time_share": 0.244,
   "failing": [],
   "missed": []
  },
@@ -2460,14 +2416,12 @@
   "edited_funcs": 1,
   "class_rules": 4,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -2479,14 +2433,12 @@
   "edited_funcs": 1,
   "class_rules": 3,
   "file_rules": [
-   "sqlglot/dialects/dialect.py",
-   "sqlglot/generators/presto.py",
-   "sqlglot/generators/spark2.py"
+   "sqlglot/dialects/dialect.py code you changed also runs at import time"
   ],
   "new_files": [],
-  "selected": 1094,
+  "selected": 1124,
   "tests": 1124,
-  "time_share": 0.999,
+  "time_share": 1.0,
   "failing": [],
   "missed": []
  },
@@ -2501,9 +2453,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -2518,9 +2470,9 @@
    "sqlglot/parsers/athena.py"
   ],
   "new_files": [],
-  "selected": 18,
+  "selected": 19,
   "tests": 1120,
-  "time_share": 0.007,
+  "time_share": 0.006,
   "failing": [],
   "missed": []
  },
@@ -2533,9 +2485,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 27,
+  "selected": 28,
   "tests": 1082,
-  "time_share": 0.042,
+  "time_share": 0.04,
   "failing": [],
   "missed": []
  },
@@ -2548,9 +2500,9 @@
   "class_rules": 0,
   "file_rules": [],
   "new_files": [],
-  "selected": 27,
+  "selected": 28,
   "tests": 1082,
-  "time_share": 0.042,
+  "time_share": 0.04,
   "failing": [],
   "missed": []
  },
@@ -2567,9 +2519,9 @@
    "sqlglot/parsers/doris.py"
   ],
   "new_files": [],
-  "selected": 19,
+  "selected": 40,
   "tests": 1115,
-  "time_share": 0.018,
+  "time_share": 0.03,
   "failing": [],
   "missed": []
  },
@@ -2586,9 +2538,9 @@
    "sqlglot/parsers/doris.py"
   ],
   "new_files": [],
-  "selected": 19,
+  "selected": 40,
   "tests": 1115,
-  "time_share": 0.018,
+  "time_share": 0.03,
   "failing": [],
   "missed": []
  },
@@ -2604,9 +2556,9 @@
    "sqlglot/parsers/snowflake.py"
   ],
   "new_files": [],
-  "selected": 996,
+  "selected": 997,
   "tests": 1084,
-  "time_share": 0.996,
+  "time_share": 0.997,
   "failing": [],
   "missed": []
  },
@@ -2622,9 +2574,9 @@
    "sqlglot/parsers/snowflake.py"
   ],
   "new_files": [],
-  "selected": 996,
+  "selected": 997,
   "tests": 1084,
-  "time_share": 0.996,
+  "time_share": 0.997,
   "failing": [],
   "missed": []
  },
@@ -2639,9 +2591,9 @@
    "sqlglot/parsers/spark2.py"
   ],
   "new_files": [],
-  "selected": 16,
+  "selected": 148,
   "tests": 1098,
-  "time_share": 0.028,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -2656,9 +2608,9 @@
    "sqlglot/generators/spark2.py"
   ],
   "new_files": [],
-  "selected": 113,
+  "selected": 236,
   "tests": 1098,
-  "time_share": 0.092,
+  "time_share": 0.108,
   "failing": [],
   "missed": []
  },
@@ -2675,9 +2627,9 @@
    "sqlglot/parsers/spark2.py"
   ],
   "new_files": [],
-  "selected": 117,
+  "selected": 171,
   "tests": 1078,
-  "time_share": 0.08,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -2694,9 +2646,9 @@
    "sqlglot/parsers/spark2.py"
   ],
   "new_files": [],
-  "selected": 114,
+  "selected": 171,
   "tests": 1078,
-  "time_share": 0.08,
+  "time_share": 0.078,
   "failing": [],
   "missed": []
  },
@@ -2712,9 +2664,9 @@
    "sqlglot/parsers/mysql.py"
   ],
   "new_files": [],
-  "selected": 998,
+  "selected": 999,
   "tests": 1085,
-  "time_share": 0.996,
+  "time_share": 0.998,
   "failing": [],
   "missed": []
  },
@@ -2730,9 +2682,9 @@
    "sqlglot/parsers/mysql.py"
   ],
   "new_files": [],
-  "selected": 998,
+  "selected": 999,
   "tests": 1085,
-  "time_share": 0.996,
+  "time_share": 0.998,
   "failing": [],
   "missed": []
  },
@@ -2749,9 +2701,9 @@
    "sqlglot/parsers/snowflake.py"
   ],
   "new_files": [],
-  "selected": 627,
+  "selected": 631,
   "tests": 1089,
-  "time_share": 0.233,
+  "time_share": 0.222,
   "failing": [],
   "missed": []
  },
@@ -2768,9 +2720,9 @@
    "sqlglot/parsers/snowflake.py"
   ],
   "new_files": [],
-  "selected": 627,
+  "selected": 631,
   "tests": 1089,
-  "time_share": 0.233,
+  "time_share": 0.222,
   "failing": [],
   "missed": []
  },
@@ -2787,9 +2739,9 @@
    "sqlglot/parsers/snowflake.py"
   ],
   "new_files": [],
-  "selected": 627,
+  "selected": 631,
   "tests": 1089,
-  "time_share": 0.233,
+  "time_share": 0.222,
   "failing": [],
   "missed": []
  }
