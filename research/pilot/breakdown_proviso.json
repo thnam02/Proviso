@@ -1,0 +1,26 @@
+{
+ "arm": "proviso",
+ "runs": 8,
+ "kinds": {
+  "explore": {
+   "token_share": 0.42,
+   "requests": 6
+  },
+  "probe": {
+   "token_share": 0.045,
+   "requests": 0.62
+  },
+  "edit(+run)": {
+   "token_share": 0.308,
+   "requests": 3.38
+  },
+  "test-only": {
+   "token_share": 0.089,
+   "requests": 0.88
+  },
+  "final/text": {
+   "token_share": 0.137,
+   "requests": 1.38
+  }
+ }
+}
