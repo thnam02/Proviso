@@ -1,0 +1,94 @@
+{
+ "f5dd70bff7": {
+  "base": [
+   "SELECT CAST(CAST(x AS DOUBLE) / y AS INTEGER)",
+   "CAST(x / 1 AS INT)",
+   "SELECT TRUNCATE(3.14159)"
+  ],
+  "fix": [
+   "SELECT CAST(TRUNCATE(CAST(x AS DOUBLE) / y) AS BIGINT)",
+   "CAST(x / 1 AS BIGINT)",
+   "SELECT TRUNCATE(3.14159, 0)"
+  ]
+ },
+ "eeece5a564": {
+  "base": [
+   "SELECT 1 AS x ORDER BY x NULLS FIRST LIMIT 1 UNION ALL SELECT 2 AS x",
+   "SELECT 1 AS x ORDER BY x OFFSET 0 ROWS FETCH FIRST 1 ROWS ONLY UNION ALL SELECT 2 AS x",
+   "SELECT 1 AS x ORDER BY x LIMIT 1 UNION ALL SELECT 2 AS x",
+   "SELECT * FROM a UNION DISTINCT SELECT * FROM b OFFSET 1"
+  ],
+  "fix": [
+   "(SELECT 1 AS x ORDER BY x NULLS FIRST LIMIT 1) UNION ALL SELECT 2 AS x",
+   "SELECT * FROM (SELECT 1 AS x ORDER BY x OFFSET 0 ROWS FETCH FIRST 1 ROWS ONLY) AS _l_0 UNION ALL SELECT 2 AS x",
+   "SELECT * FROM (SELECT 1 AS x ORDER BY x LIMIT 1) UNION ALL SELECT 2 AS x",
+   "SELECT * FROM (SELECT * FROM a UNION DISTINCT SELECT * FROM b) AS _l_0 OFFSET 1"
+  ]
+ },
+ "6581f8c38b": {
+  "base": [
+   "SELECT TO_TIMESTAMP('2016-1-1', 'yyyy-MM-dd')",
+   "SELECT TO_DATE('04/05/2013', 'MM/dd/yyyy')"
+  ],
+  "fix": [
+   "SELECT TO_TIMESTAMP('2016-1-1', 'yyyy-M-d')",
+   "SELECT TO_DATE('04/05/2013', 'M/d/yyyy')"
+  ]
+ },
+ "66316e335f": {
+  "base": [
+   "SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d HH:mm:ss')",
+   "SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy HH:mm:ss')",
+   "SELECT TO_TIMESTAMP(x, 'yyyy-M-d HH:mm:ss')"
+  ],
+  "fix": [
+   "SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d H:m:s')",
+   "SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy H:m:s')",
+   "SELECT TO_TIMESTAMP(x, 'yyyy-M-d H:m:s')"
+  ]
+ },
+ "2aae7f7605": {
+  "base": [
+   "SELECT NOT r IS NULL FROM t",
+   "None",
+   "SELECT NOT r IS NULL FROM t"
+  ],
+  "fix": [
+   "SELECT r IS NOT NULL FROM t",
+   "True",
+   "SELECT r IS NOT NULL FROM t"
+  ]
+ },
+ "646295528c": {
+  "base": [
+   "SELECT DAY(x), MONTH(x), YEAR(x)"
+  ],
+  "fix": [
+   "SELECT EXTRACT(DAY FROM CAST(x AS DATE)), EXTRACT(MONTH FROM CAST(x AS DATE)), EXTRACT(YEAR FROM CAST(x AS DATE))"
+  ]
+ },
+ "7f1cf60c88": {
+  "base": [
+   "Command",
+   "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+   "ALTER TABLE t COMMENT='hi', ADD COLUMN c INT"
+  ],
+  "fix": [
+   "Alter",
+   "ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8",
+   "ALTER TABLE t ADD COLUMN c INT, COMMENT='hi'"
+  ]
+ },
+ "66ecca3397": {
+  "base": [
+   "ALTER TABLE t MODIFY COLUMN c Int64",
+   "KeyError: 'actions'",
+   "ALTER TABLE t MODIFY COLUMN IF EXISTS c Int64"
+  ],
+  "fix": [
+   "ALTER TABLE t ALTER COLUMN c TYPE Int64",
+   "AlterColumn",
+   "ALTER TABLE t ALTER COLUMN IF EXISTS c TYPE Int64"
+  ]
+ }
+}

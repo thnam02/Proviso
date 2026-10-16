@@ -1,0 +1,248 @@
+{
+ "f5dd70bff7": {
+  "fix": "f5dd70bff7ebce048d6bdd3f782328104c6c119d",
+  "base": "e1e0d2e52f45247bfa0ab815eb8a7388ea50a0e8",
+  "test_files": [
+   "tests/dialects/test_hive.py",
+   "tests/dialects/test_oracle.py",
+   "tests/dialects/test_snowflake.py",
+   "tests/test_build.py",
+   "tests/test_executor.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_hive.py::TestHive::test_hive",
+   "tests/dialects/test_oracle.py::TestOracle::test_trunc",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_trunc",
+   "tests/test_build.py::TestBuild::test_build"
+  ],
+  "n_fix_tests": 151,
+  "fix_failing": [
+   ".py::::tests.test_executor"
+  ],
+  "n_fix_failing": 1,
+  "tail_fix": "...... [ 22%]\n..................................................................................................................... [100%]\n=========================== short test summary info ============================\nERROR tests/test_executor.py\n150 passed, 1 error, 2586 subtests passed in 3.18s\n"
+ },
+ "7f1cf60c88": {
+  "fix": "7f1cf60c884868a295f76dfd42745b931dd9cfbb",
+  "base": "1b7cd178775e500427664be053daefa7609f6758",
+  "test_files": [
+   "tests/dialects/test_mysql.py",
+   "tests/dialects/test_starrocks.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_alter_mixed_actions",
+   "tests/dialects/test_mysql.py::TestMySQL::test_ddl"
+  ],
+  "n_fix_tests": 78,
+  "fix_failing": [],
+  "n_fix_failing": 0,
+  "tail_fix": "....................... [ 29%]\n.............. [ 47%]\n.................. [ 70%]\n....................... [100%]\n78 passed, 654 subtests passed in 1.48s\n"
+ },
+ "eeece5a564": {
+  "fix": "eeece5a564e2d5c37b73d172843e7cd437406c42",
+  "base": "8b6ff9386ddf4f6f8e3120a21f1991a384e60abd",
+  "test_files": [
+   "tests/dialects/test_clickhouse.py",
+   "tests/dialects/test_dialect.py",
+   "tests/dialects/test_mysql.py",
+   "tests/dialects/test_snowflake.py",
+   "tests/dialects/test_tsql.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse",
+   "tests/dialects/test_dialect.py::TestDialect::test_set_operators",
+   "tests/dialects/test_mysql.py::TestMySQL::test_mysql",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_set_operation_top",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_branch_limits",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_order",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_pagination",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_trailing_clauses",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_unordered_pagination"
+  ],
+  "n_fix_tests": 349,
+  "fix_failing": [],
+  "n_fix_failing": 0,
+  "tail_fix": "........................................................................................................................................................ [ 81%]\n................. [ 85%]\n.................................................                 [100%]\n349 passed, 6115 subtests passed in 5.40s\n"
+ },
+ "f7dfbacd3b": {
+  "fix": "f7dfbacd3b245aca169abb52f0b515230e9b6715",
+  "base": "66ecca33975e06fc862d3b159f8c4c1418fc04e9",
+  "test_files": [],
+  "hidden": [],
+  "n_fix_tests": 1035,
+  "fix_failing": [
+   ".py::::tests.dialects.test_bigquery",
+   ".py::::tests.test_executor",
+   ".py::::tests.test_optimizer",
+   "tests/test_expressions.py::TestExprs::test_convert"
+  ],
+  "n_fix_failing": 4,
+  "tail_fix": "=== short test summary info ============================\nFAILED tests/test_expressions.py::TestExprs::test_convert - ModuleNotFoundErr...\nERROR tests/dialects/test_bigquery.py\nERROR tests/test_executor.py\nERROR tests/test_optimizer.py\n1 failed, 1031 passed, 3 errors, 13275 subtests passed in 44.74s\n"
+ },
+ "66ecca3397": {
+  "fix": "66ecca33975e06fc862d3b159f8c4c1418fc04e9",
+  "base": "515083ca63a4bc6a85549a10e1c5651215d9a01f",
+  "test_files": [
+   "tests/dialects/test_clickhouse.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse"
+  ],
+  "n_fix_tests": 33,
+  "fix_failing": [],
+  "n_fix_failing": 0,
+  "tail_fix": ".................................                                    [100%]\n33 passed, 292 subtests passed in 0.96s\n"
+ },
+ "50bf93d568": {
+  "fix": "50bf93d568827f305cae5de7e0b4fc673b7cb842",
+  "base": "ad54217900e03452313d24199ac56cc7e91c7c4d",
+  "test_files": [
+   "tests/dialects/test_bigquery.py"
+  ],
+  "hidden": [],
+  "n_fix_tests": 1,
+  "fix_failing": [
+   ".py::::tests.dialects.test_bigquery"
+  ],
+  "n_fix_failing": 1,
+  "tail_fix": "\n=========================== short test summary info ============================\nERROR tests/dialects/test_bigquery.py\n1 error in 0.12s\n"
+ },
+ "c1475e7997": {
+  "fix": "c1475e7997ac1561d073cf5816e39b61eada70bc",
+  "base": "8ef659e414117628f59cb7cd4948a4d6ab7767df",
+  "test_files": [
+   "tests/dialects/test_trino.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_trino.py::TestTrino::test_inline_udf"
+  ],
+  "n_fix_tests": 8,
+  "fix_failing": [],
+  "n_fix_failing": 0,
+  "tail_fix": "........                                                      [100%]\n8 passed, 11 subtests passed in 0.57s\n"
+ },
+ "2aae7f7605": {
+  "fix": "2aae7f7605ed38fe0950d004cb9defc1dd9621e5",
+  "base": "ba0bff3d9164217f06cfcf9fadbdfd35ae84eefe",
+  "test_files": [
+   "tests/dialects/test_dialect.py",
+   "tests/dialects/test_postgres.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_dialect.py::TestDialect::test_is_unknown",
+   "tests/dialects/test_dialect.py::TestDialect::test_is_with_dcolon",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres",
+   "tests/dialects/test_postgres.py::TestPostgres::test_preserve_is_not_null"
+  ],
+  "n_fix_tests": 128,
+  "fix_failing": [],
+  "n_fix_failing": 0,
+  "tail_fix": "............................. [ 22%]\n..................................................... [ 64%]\n..............................................                                                                       [100%]\n128 passed, 3258 subtests passed in 2.81s\n"
+ },
+ "24d6d735c1": {
+  "fix": "24d6d735c1ae3607ee3a0f29fe87f41e1ea64d74",
+  "base": "bbb376d26d68a27d047774516d00d2ab65eb0397",
+  "test_files": [
+   "tests/dialects/test_bigquery.py",
+   "tests/dialects/test_mysql.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_mysql_time"
+  ],
+  "n_fix_tests": 52,
+  "fix_failing": [
+   ".py::::tests.dialects.test_bigquery"
+  ],
+  "n_fix_failing": 1,
+  "tail_fix": "...................................................                                       [100%]\n=========================== short test summary info ============================\nERROR tests/dialects/test_bigquery.py\n51 passed, 1 error, 487 subtests passed in 1.14s\n"
+ },
+ "646295528c": {
+  "fix": "646295528c953311540fe2175999ac0231a25b71",
+  "base": "728d11c3af5c07b5eccbfb03ffc91dc28729c1f2",
+  "test_files": [
+   "tests/dialects/test_databricks.py",
+   "tests/dialects/test_postgres.py",
+   "tests/dialects/test_tsql.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_databricks.py::TestDatabricks::test_databricks",
+   "tests/dialects/test_postgres.py::TestPostgres::test_extract_date_parts",
+   "tests/dialects/test_tsql.py::TestTSQL::test_day_month_year"
+  ],
+  "n_fix_tests": 104,
+  "fix_failing": [],
+  "n_fix_failing": 0,
+  "tail_fix": "...... [  5%]\n............................................................................... [ 81%]\n...................                            [100%]\n104 passed, 1165 subtests passed in 1.72s\n"
+ },
+ "d10d7eef5e": {
+  "fix": "d10d7eef5ef3c7723c36502aa4498720156d63ae",
+  "base": "9815ccb32f1e5d17c31f4a1bdd868508b39f63dc",
+  "test_files": [
+   "tests/dialects/test_clickhouse.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_refreshable_materialized_view"
+  ],
+  "n_fix_tests": 33,
+  "fix_failing": [],
+  "n_fix_failing": 0,
+  "tail_fix": ".................................                                    [100%]\n33 passed, 292 subtests passed in 0.88s\n"
+ },
+ "66316e335f": {
+  "fix": "66316e335fd617d2f3ab8c412ae7a87356431c97",
+  "base": "3c7892f22cacdfa9acc30784c1006d63fd02d274",
+  "test_files": [
+   "tests/dialects/test_dialect.py",
+   "tests/dialects/test_duckdb.py",
+   "tests/dialects/test_hive.py",
+   "tests/dialects/test_presto.py",
+   "tests/dialects/test_singlestore.py",
+   "tests/dialects/test_snowflake.py",
+   "tests/dialects/test_spark.py",
+   "tests/dialects/test_tsql.py",
+   "tests/test_time.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_dialect.py::TestDialect::test_time",
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_time",
+   "tests/dialects/test_hive.py::TestHive::test_time",
+   "tests/dialects/test_presto.py::TestPresto::test_time",
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_unix_functions",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake",
+   "tests/dialects/test_spark.py::TestSpark::test_spark",
+   "tests/dialects/test_tsql.py::TestTSQL::test_convert"
+  ],
+  "n_fix_tests": 382,
+  "fix_failing": [],
+  "n_fix_failing": 0,
+  "tail_fix": "..................................................................... [ 66%]\n............................................................................................................. [ 95%]\n..................                                       [100%]\n382 passed, 7428 subtests passed in 5.92s\n"
+ },
+ "6581f8c38b": {
+  "fix": "6581f8c38b8d4812b6a4287b51aa971f81458470",
+  "base": "592e7af106c5b88d0c4fae7ae9fc0f47c195db66",
+  "test_files": [
+   "tests/dialects/test_dialect.py",
+   "tests/dialects/test_exasol.py",
+   "tests/dialects/test_hive.py",
+   "tests/dialects/test_presto.py",
+   "tests/dialects/test_snowflake.py",
+   "tests/dialects/test_spark.py",
+   "tests/dialects/test_teradata.py",
+   "tests/dialects/test_tsql.py"
+  ],
+  "hidden": [
+   "tests/dialects/test_dialect.py::TestDialect::test_time",
+   "tests/dialects/test_exasol.py::TestExasol::test_datetime_functions",
+   "tests/dialects/test_hive.py::TestHive::test_time",
+   "tests/dialects/test_presto.py::TestPresto::test_time",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake",
+   "tests/dialects/test_spark.py::TestSpark::test_spark",
+   "tests/dialects/test_teradata.py::TestTeradata::test_cast",
+   "tests/dialects/test_tsql.py::TestTSQL::test_convert"
+  ],
+  "n_fix_tests": 342,
+  "fix_failing": [],
+  "n_fix_failing": 0,
+  "tail_fix": "........................................................................................................................................................................................ [ 84%]\n.....................................................      [100%]\n342 passed, 7213 subtests passed in 5.60s\n"
+ }
+}
