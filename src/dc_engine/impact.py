@@ -203,7 +203,7 @@ def rewrite(command: str, hook_python: str, test_python: str) -> str | None:
         if _is_broad_test(head):
             runner = f"{shlex.quote(hook_python)} -m dc_engine.impact run --python {shlex.quote(test_python)}"
             lead = re.match(r"^\s*", head).group(0)
-            parts[i] = lead + runner + (" " + sep + tail if sep else "")
+            parts[i] = lead + runner  # the agent's filters (grep/tail) would hide the summary
             changed = True
     return "".join(parts) if changed else None
 
@@ -227,6 +227,10 @@ def _junit(xml: str) -> dict[str, bool]:
     res = {}
     try:
         for c in ET.parse(xml).iter("testcase"):
+            if not c.get("classname"):  # a test module that failed to load
+                node = (c.get("name") or "").replace(".", "/") + ".py"
+                res[node] = not any(ch.tag in ("failure", "error") for ch in c)
+                continue
             parts = (c.get("classname") or "").split(".")
             node = f"{'/'.join(parts[:-1])}.py::{parts[-1]}::{c.get('name')}"
             res[node] = not any(ch.tag in ("failure", "error") for ch in c)
@@ -265,10 +269,14 @@ def run_selected(root: str, python: str) -> str:
     secs = time.time() - t0
     failing = sorted(n for n, ok in res.items() if not ok)
     new = [n for n in failing if n not in base_fail and n.split("::")[0] not in base_fail]
+    failing_modules_known = {n for n in failing if "::" not in n and n in base_fail}
+    new = [n for n in new if n not in failing_modules_known]
     old = [n for n in failing if n not in new]
-    scope = (f"the {len(res)} existing tests whose code your changes reach (of {n_suite})" if sel is not None
-             else f"the full suite ({why.get('reason', 'change could not be placed')})")
-    lines = [f"[Proviso] Ran {scope} in {secs:.0f}s instead of the full suite."]
+    if sel is not None:
+        lines = [f"[Proviso] Ran the {len(res)} existing tests whose code your changes reach (of {n_suite}) in "
+                 f"{secs:.0f}s instead of the full suite."]
+    else:
+        lines = [f"[Proviso] Ran the full suite ({why.get('reason', 'change could not be placed')}) in {secs:.0f}s."]
     if new:
         lines.append(f"NEW failures ({len(new)}), not failing before your change:")
         lines += [f"  - {n}" for n in new[:15]]
@@ -279,7 +287,8 @@ def run_selected(root: str, python: str) -> str:
         lines.append("No new failures: every selected test that passed before your change still passes.")
     if old:
         lines.append(f"{len(old)} failure(s) that already fail at the original commit (not caused by you).")
-    lines.append(f"{sum(res.values())} passed.")
+    lines.append(f"===== {sum(res.values())} passed, {len(new)} new failed, {len(old)} pre-existing failures "
+                 f"(not caused by you) in {secs:.0f}s =====")
     _log_run(root, len(res), n_suite, secs, new, why)
     return "\n".join(lines)
 
