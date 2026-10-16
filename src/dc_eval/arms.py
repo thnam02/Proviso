@@ -52,6 +52,16 @@ ARM_CONFIG: dict[str, dict[str, Any]] = {
     },
     # Pre-fetch ceiling: a per-task brief (eval_dir/briefs/<task id>.md) built from what baseline
     # agents read before their first edit, pushed at prompt time. No replay, no test check.
+    # Change impact: broad test runs rewritten to affected tests (PreToolUse) + ripple replay at Stop.
+    # Assets per task in eval_dir/impact/<task id>/ (covmap, base failures, probes, base outputs, replay runner).
+    "impact": {
+        "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
+        "proviso": {"context": False, "trajectory": False, "tests": False, "impact": True, "ripple": True},
+    },
+    "intercept-only": {
+        "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
+        "proviso": {"context": False, "trajectory": False, "tests": False, "impact": True, "ripple": False},
+    },
     "oracle": {
         "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
         "proviso": {"context": False, "trajectory": False, "tests": False, "brief": True},
@@ -204,20 +214,24 @@ def proviso_settings(python: str | None = None, probe_python: str | None = None,
         if matcher:
             g["matcher"] = matcher
         return g
+    flags = flags or None
     prompt_hooks = [group("hook proviso-context")]
     if flags and flags.get("brief"):
         from dc_engine.proviso import BRIEF_PARTS
         prompt_hooks += [group(f"hook proviso-brief-{i}") for i in range(1, BRIEF_PARTS + 1)]
     hooks: dict[str, Any] = {"UserPromptSubmit": prompt_hooks}
-    if flags is None or flags.get("trajectory") or flags.get("tests"):
+    if flags is None or flags.get("trajectory"):
         hooks["PostToolUse"] = [group("hook proviso-capture", "Bash")]
+    if flags is None or flags.get("trajectory") or flags.get("tests") or flags.get("ripple"):
         hooks["Stop"] = [group("hook proviso-verify", timeout=600)]
+    if flags and flags.get("impact"):
+        hooks["PreToolUse"] = [group("hook proviso-pretool", "Bash", timeout=60)]
     return {"hooks": hooks}
 
 
 def write_proviso_files(
     harness_dir: str, repo_dir: str, probe_python: str | None, flags: dict[str, Any],
-    python: str | None = None, brief: str | None = None,
+    python: str | None = None, brief: str | None = None, assets: str | None = None,
 ) -> str:
     os.makedirs(harness_dir, exist_ok=True)
     settings_path = os.path.join(harness_dir, "settings.json")
@@ -235,6 +249,11 @@ def write_proviso_files(
         if not brief or not os.path.isfile(brief):
             raise FileNotFoundError(f"arm needs a brief file and none was found: {brief}")
         shutil.copyfile(brief, os.path.join(folder, "brief.md"))
+    if flags.get("impact") or flags.get("ripple"):
+        if not assets or not os.path.isdir(assets):
+            raise FileNotFoundError(f"arm needs change-impact assets and none were found: {assets}")
+        for name in os.listdir(assets):
+            shutil.copyfile(os.path.join(assets, name), os.path.join(folder, name))
     return settings_path
 
 
