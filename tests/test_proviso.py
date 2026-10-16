@@ -213,23 +213,33 @@ class Brief(RepoCase):
             json.dump(dict(self.cfg, context=False, trajectory=False, tests=False, brief=True), fh)
         with open(os.path.join(self.root, ".dc-engine", "brief.md"), "w") as fh:
             fh.write("$ sed -n 1,2p shapes/calc.py\ndef area(w, h):\n")
-        text = P.handle_event("proviso-context", {"prompt": "x"}, self.root)[
+        text = P.handle_event("proviso-brief-1", {"prompt": "x"}, self.root)[
             "hookSpecificOutput"]["additionalContext"]
         self.assertIn("pre-fetched", text)
         self.assertIn("def area(w, h):", text)
-        self.assertNotIn("Proviso is active", text)
+        self.assertEqual(P.handle_event("proviso-brief-2", {}, self.root), {})
+        self.assertEqual(P.handle_event("proviso-context", {"prompt": "x"}, self.root), {})
+
+    def test_brief_split_into_parts_under_hook_limit(self):
+        blocks = [f"$ cmd {i}\n" + "x" * 3000 for i in range(9)]
+        parts = P.brief_parts("\n\n".join(blocks))
+        self.assertGreater(len(parts), 1)
+        self.assertTrue(all(len(p) <= P.BRIEF_PART_CHARS for p in parts))
+        self.assertEqual(sum(p.count("$ cmd") for p in parts), 9)
 
     def test_no_brief_file_is_silent(self):
         with open(os.path.join(self.root, ".dc-engine", "proviso.json"), "w") as fh:
             json.dump(dict(self.cfg, context=False, trajectory=False, tests=False, brief=True), fh)
-        self.assertEqual(P.handle_event("proviso-context", {"prompt": "x"}, self.root), {})
+        self.assertEqual(P.handle_event("proviso-brief-1", {"prompt": "x"}, self.root), {})
 
 
 class Arms(unittest.TestCase):
     def test_oracle_arm_prompt_hook_only_and_needs_brief(self):
         from dc_eval.arms import arm_config, proviso_settings, write_proviso_files
         flags = arm_config("oracle")["proviso"]
-        self.assertEqual(set(proviso_settings("/py", "/probe", flags)["hooks"]), {"UserPromptSubmit"})
+        hooks = proviso_settings("/py", "/probe", flags)["hooks"]
+        self.assertEqual(set(hooks), {"UserPromptSubmit"})
+        self.assertEqual(len(hooks["UserPromptSubmit"]), 6)
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d, True)
         with self.assertRaises(FileNotFoundError):
