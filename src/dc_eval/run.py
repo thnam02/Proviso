@@ -1214,7 +1214,8 @@ def execute_run(
             if cfg.get("proviso"):
                 settings_path = write_proviso_files(
                     slot, repo_dir, probe_py, cfg["proviso"],
-                    brief=os.path.join(eval_dir, "briefs", task.id + ".md"))
+                    brief=os.path.join(eval_dir, "briefs", task.id + ".md"),
+                    assets=os.path.join(eval_dir, "impact", task.id))
             if cfg["mcp"]:
                 mcp_path, settings_path = write_layer_files(
                     slot, probe_python=probe_py,

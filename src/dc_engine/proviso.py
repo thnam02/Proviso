@@ -541,8 +541,26 @@ def verify(payload: dict[str, Any], root: str, cfg: dict[str, Any]) -> dict[str,
                 cls, name = k.split("::", 1)
                 hard.append(f"existing test `{cls.rsplit('.', 1)[-1]}.{name}` passed before your change and fails now")
 
+    ripple_items: list[str] = []
+    if cfg.get("ripple"):
+        from .impact import ripple
+        ripple_items, rstats = ripple(root, cfg)
+        stats.update(rstats)
+
     ms = int((time.perf_counter() - t0) * 1000)
     st = load_state(root) | {"base_tests": st.get("base_tests", {})}
+    if ripple_items and not hard:
+        shown = ripple_items[:5]
+        text = ("Proviso replayed inputs from the existing tests through your changed code. These outputs changed in "
+                "components that inherit from code you edited, which the task did not ask for:\n"
+                + "\n".join(f"- {i}" for i in shown)
+                + (f"\n- …and {len(ripple_items) - len(shown)} more" if len(ripple_items) > len(shown) else "")
+                + "\nIf these changes are intended, just finish; otherwise fix them.")
+        st["blocks"] = st.get("blocks", 0) + 1
+        save_state(root, st)
+        log_event(root, {"event": "verify", "result": "block", "hard": 0, "soft": 0, "ripple": len(ripple_items),
+                         "ms": ms, "report_chars": len(text), **stats})
+        return {"decision": "block", "reason": text}
     blocks = st.get("blocks", 0)
     if not hard and (not soft or blocks >= 1):
         log_event(root, {"event": "verify", "result": "silent", "hard": 0, "soft": len(soft), "ms": ms, **stats})
@@ -717,6 +735,9 @@ def handle_event(event: str, payload: dict[str, Any], root: str) -> dict[str, An
         return brief_event(int(event.rsplit("-", 1)[1]), root, cfg)
     if event == "proviso-capture":
         return capture(payload, root, cfg)
+    if event == "proviso-pretool":
+        from .impact import pretool
+        return pretool(payload, root, cfg)
     if event == "proviso-verify":
         return verify(payload, root, cfg)
     return {}
@@ -726,7 +747,9 @@ def summarize_log(root: str) -> dict[str, Any]:
     """Counts for eval metrics."""
     out = {"proviso_captures": 0, "proviso_probes_captured": 0, "proviso_verifies": 0,
            "proviso_blocks": 0, "proviso_hard": 0, "proviso_soft": 0, "proviso_verify_ms": 0,
-           "proviso_context_chars": 0, "proviso_test_regressions": 0, "proviso_flaky": 0}
+           "proviso_context_chars": 0, "proviso_test_regressions": 0, "proviso_flaky": 0,
+           "proviso_intercepts": 0, "proviso_impact_tests_run": 0, "proviso_impact_suite": 0,
+           "proviso_impact_secs": 0.0, "proviso_ripple_reported": 0}
     try:
         with open(os.path.join(root, STATE_DIR, "proviso.log"), encoding="utf-8") as fh:
             for line in fh:
@@ -747,6 +770,13 @@ def summarize_log(root: str) -> dict[str, Any]:
                     out["proviso_flaky"] += int(r.get("flaky") or 0)
                     if r.get("result") == "block":
                         out["proviso_blocks"] += 1
+                    out["proviso_ripple_reported"] += int(r.get("ripple") or 0)
+                elif ev == "intercept":
+                    out["proviso_intercepts"] += 1
+                elif ev == "impact_run":
+                    out["proviso_impact_tests_run"] += int(r.get("ran") or 0)
+                    out["proviso_impact_suite"] += int(r.get("total") or 0)
+                    out["proviso_impact_secs"] += float(r.get("secs") or 0)
                 elif ev == "context":
                     out["proviso_context_chars"] = int(r.get("chars") or 0)
     except OSError:
