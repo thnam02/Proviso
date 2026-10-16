@@ -1,0 +1,2796 @@
+[
+ {
+  "eval_dir": "eval-compact-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-compact-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-compact-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-compact-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-compact-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-compact-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-compact-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 14,
+  "tests": 1098,
+  "time_share": 0.021,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-compact-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 14,
+  "tests": 1098,
+  "time_share": 0.021,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-a",
+  "task": "2aae7f7605-feat-postgres-preserve-x-is-not-null-ins",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 6,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/postgres.py"
+  ],
+  "new_files": [],
+  "selected": 923,
+  "tests": 981,
+  "time_share": 0.995,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-a",
+  "task": "2aae7f7605-feat-postgres-preserve-x-is-not-null-ins",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 7,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/postgres.py"
+  ],
+  "new_files": [],
+  "selected": 923,
+  "tests": 981,
+  "time_share": 0.995,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-a",
+  "task": "646295528c-fix-postgres-transpile-day-month-year-to",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/generators/postgres.py"
+  ],
+  "new_files": [],
+  "selected": 81,
+  "tests": 986,
+  "time_share": 0.089,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-a",
+  "task": "646295528c-fix-postgres-transpile-day-month-year-to",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/generators/postgres.py"
+  ],
+  "new_files": [],
+  "selected": 81,
+  "tests": 986,
+  "time_share": 0.089,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-a",
+  "task": "6581f8c38b-fix-hive-parse-month-day-without-leading",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 7,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/generators/hive.py",
+   "sqlglot/parsers/hive.py",
+   "sqlglot/parsers/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 161,
+  "tests": 971,
+  "time_share": 0.099,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-a",
+  "task": "6581f8c38b-fix-hive-parse-month-day-without-leading",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 7,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generators/hive.py",
+   "sqlglot/parsers/hive.py",
+   "sqlglot/parsers/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 161,
+  "tests": 971,
+  "time_share": 0.099,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-a",
+  "task": "66316e335f-fix-hive-parse-single-digit-hour-minute",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/spark.py",
+   "sqlglot/dialects/spark2.py",
+   "sqlglot/generators/hive.py"
+  ],
+  "new_files": [],
+  "selected": 951,
+  "tests": 980,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-a",
+  "task": "66316e335f-fix-hive-parse-single-digit-hour-minute",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 3,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/hive.py"
+  ],
+  "new_files": [],
+  "selected": 951,
+  "tests": 980,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-b",
+  "task": "66ecca3397-fix-clickhouse-parse-modify-column-as-al",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 1,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 16,
+  "tests": 1032,
+  "time_share": 0.035,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-b",
+  "task": "66ecca3397-fix-clickhouse-parse-modify-column-as-al",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 1,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 14,
+  "tests": 1032,
+  "time_share": 0.022,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-b",
+  "task": "7f1cf60c88-feat-parser-make-alter-actions-optional",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 202,
+  "tests": 1104,
+  "time_share": 0.106,
+  "failing": [
+   "tests/dialects/test_starrocks.py::TestStarrocks::test_starrocks"
+  ],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-b",
+  "task": "7f1cf60c88-feat-parser-make-alter-actions-optional",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 202,
+  "tests": 1104,
+  "time_share": 0.106,
+  "failing": [
+   "tests/dialects/test_starrocks.py::TestStarrocks::test_starrocks"
+  ],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-b",
+  "task": "eeece5a564-fix-preserve-pagination-scope-in-set-ope",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/sqlite.py"
+  ],
+  "new_files": [],
+  "selected": 881,
+  "tests": 1056,
+  "time_share": 0.248,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-b",
+  "task": "eeece5a564-fix-preserve-pagination-scope-in-set-ope",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/generators/sqlite.py",
+   "sqlglot/generators/tsql.py"
+  ],
+  "new_files": [],
+  "selected": 881,
+  "tests": 1056,
+  "time_share": 0.248,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-b",
+  "task": "f5dd70bff7-fix-truncate-integer-division-towards-ze",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/generators/mysql.py",
+   "sqlglot/generators/presto.py"
+  ],
+  "new_files": [],
+  "selected": 197,
+  "tests": 1100,
+  "time_share": 0.124,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-base-b",
+  "task": "f5dd70bff7-fix-truncate-integer-division-towards-ze",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 3,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/generators/mysql.py",
+   "sqlglot/generators/presto.py"
+  ],
+  "new_files": [],
+  "selected": 197,
+  "tests": 1100,
+  "time_share": 0.124,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-a",
+  "task": "2aae7f7605-feat-postgres-preserve-x-is-not-null-ins",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 7,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/postgres.py"
+  ],
+  "new_files": [],
+  "selected": 923,
+  "tests": 981,
+  "time_share": 0.995,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-a",
+  "task": "2aae7f7605-feat-postgres-preserve-x-is-not-null-ins",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 8,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/postgres.py"
+  ],
+  "new_files": [],
+  "selected": 923,
+  "tests": 981,
+  "time_share": 0.995,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-a",
+  "task": "646295528c-fix-postgres-transpile-day-month-year-to",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/generators/postgres.py"
+  ],
+  "new_files": [],
+  "selected": 81,
+  "tests": 986,
+  "time_share": 0.089,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-a",
+  "task": "646295528c-fix-postgres-transpile-day-month-year-to",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/generators/postgres.py"
+  ],
+  "new_files": [],
+  "selected": 81,
+  "tests": 986,
+  "time_share": 0.089,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-a",
+  "task": "6581f8c38b-fix-hive-parse-month-day-without-leading",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/dialects/hive.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/hive.py"
+  ],
+  "new_files": [],
+  "selected": 832,
+  "tests": 971,
+  "time_share": 0.241,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-a",
+  "task": "6581f8c38b-fix-hive-parse-month-day-without-leading",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 8,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/generators/hive.py"
+  ],
+  "new_files": [],
+  "selected": 170,
+  "tests": 971,
+  "time_share": 0.103,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-a",
+  "task": "66316e335f-fix-hive-parse-single-digit-hour-minute",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/spark.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/hive.py"
+  ],
+  "new_files": [],
+  "selected": 951,
+  "tests": 980,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-a",
+  "task": "66316e335f-fix-hive-parse-single-digit-hour-minute",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/hive.py"
+  ],
+  "new_files": [],
+  "selected": 951,
+  "tests": 980,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-b",
+  "task": "66ecca3397-fix-clickhouse-parse-modify-column-as-al",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 1,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 16,
+  "tests": 1032,
+  "time_share": 0.035,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-b",
+  "task": "66ecca3397-fix-clickhouse-parse-modify-column-as-al",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 1,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 14,
+  "tests": 1032,
+  "time_share": 0.022,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-b",
+  "task": "7f1cf60c88-feat-parser-make-alter-actions-optional",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 202,
+  "tests": 1104,
+  "time_share": 0.106,
+  "failing": [
+   "tests/dialects/test_starrocks.py::TestStarrocks::test_starrocks"
+  ],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-b",
+  "task": "7f1cf60c88-feat-parser-make-alter-actions-optional",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 3,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 341,
+  "tests": 1104,
+  "time_share": 0.144,
+  "failing": [
+   "tests/dialects/test_starrocks.py::TestStarrocks::test_starrocks"
+  ],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-b",
+  "task": "eeece5a564-fix-preserve-pagination-scope-in-set-ope",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/postgres.py",
+   "sqlglot/generators/sqlite.py",
+   "sqlglot/generators/tsql.py"
+  ],
+  "new_files": [],
+  "selected": 881,
+  "tests": 1056,
+  "time_share": 0.248,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-b",
+  "task": "eeece5a564-fix-preserve-pagination-scope-in-set-ope",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 5,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/generators/sqlite.py",
+   "sqlglot/generators/tsql.py"
+  ],
+  "new_files": [],
+  "selected": 881,
+  "tests": 1056,
+  "time_share": 0.248,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-b",
+  "task": "f5dd70bff7-fix-truncate-integer-division-towards-ze",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/generators/presto.py"
+  ],
+  "new_files": [],
+  "selected": 191,
+  "tests": 1100,
+  "time_share": 0.123,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-cx-real-b",
+  "task": "f5dd70bff7-fix-truncate-integer-division-towards-ze",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 3,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/generators/mysql.py",
+   "sqlglot/generators/presto.py"
+  ],
+  "new_files": [],
+  "selected": 197,
+  "tests": 1100,
+  "time_share": 0.124,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-failonly-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 4,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-failonly-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-failonly-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-failonly-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-failonly-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-failonly-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-failonly-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generators/duckdb.py"
+  ],
+  "new_files": [],
+  "selected": 203,
+  "tests": 1098,
+  "time_share": 0.109,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-failonly-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 14,
+  "tests": 1098,
+  "time_share": 0.021,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h1",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 6,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py"
+  ],
+  "new_files": [],
+  "selected": 1085,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h1",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 5,
+  "file_rules": [
+   "sqlglot/anonymize.py",
+   "sqlglot/dialects/oracle.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h1",
+  "task": "361b23b87b-fix-parser-allow-search-cycle-and-cycle-",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 1019,
+  "tests": 1107,
+  "time_share": 0.994,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h1",
+  "task": "361b23b87b-fix-parser-allow-search-cycle-and-cycle-",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 3,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 1019,
+  "tests": 1107,
+  "time_share": 0.994,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h1",
+  "task": "862fd55467-fix-trino-preserve-precision-for-all-tem",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generators/presto.py"
+  ],
+  "new_files": [],
+  "selected": 121,
+  "tests": 1105,
+  "time_share": 0.093,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h1",
+  "task": "862fd55467-fix-trino-preserve-precision-for-all-tem",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generators/presto.py"
+  ],
+  "new_files": [],
+  "selected": 121,
+  "tests": 1105,
+  "time_share": 0.093,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h1",
+  "task": "e3ed74860f-feat-hive-support-from-first-multi-table",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 1016,
+  "tests": 1095,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h1",
+  "task": "e3ed74860f-feat-hive-support-from-first-multi-table",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 3,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/hive.py",
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 1016,
+  "tests": 1095,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h2",
+  "task": "15a77f1d89-fix-mysql-decode-backslash-string-escape",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 0,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/dialects/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 24,
+  "tests": 1082,
+  "time_share": 0.006,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h2",
+  "task": "15a77f1d89-fix-mysql-decode-backslash-string-escape",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 0,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 1052,
+  "tests": 1082,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h2",
+  "task": "59a96d868a-feat-starrocks-support-refresh-materiali",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/starrocks.py",
+   "sqlglot/parsers/starrocks.py"
+  ],
+  "new_files": [],
+  "selected": 951,
+  "tests": 1131,
+  "time_share": 0.264,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h2",
+  "task": "59a96d868a-feat-starrocks-support-refresh-materiali",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 3,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/generators/starrocks.py"
+  ],
+  "new_files": [],
+  "selected": 17,
+  "tests": 1131,
+  "time_share": 0.029,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h2",
+  "task": "af9915fa4c-fix-mysql-parse-the-as-clause-of-weight-",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/expressions/string.py",
+   "sqlglot/generators/mysql.py",
+   "sqlglot/parsers/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 184,
+  "tests": 1097,
+  "time_share": 0.089,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h2",
+  "task": "af9915fa4c-fix-mysql-parse-the-as-clause-of-weight-",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/expressions/string.py",
+   "sqlglot/generators/mysql.py",
+   "sqlglot/parsers/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 184,
+  "tests": 1097,
+  "time_share": 0.089,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h2",
+  "task": "f337c70ee4-fix-snowflake-parse-list-and-ls-stage-co",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "new_files": [],
+  "selected": 627,
+  "tests": 1089,
+  "time_share": 0.233,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h2",
+  "task": "f337c70ee4-fix-snowflake-parse-list-and-ls-stage-co",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "new_files": [],
+  "selected": 627,
+  "tests": 1089,
+  "time_share": 0.233,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h3",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py",
+   "sqlglot/transforms.py"
+  ],
+  "new_files": [],
+  "selected": 531,
+  "tests": 1124,
+  "time_share": 0.172,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h3",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 3,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py",
+   "sqlglot/transforms.py"
+  ],
+  "new_files": [],
+  "selected": 571,
+  "tests": 1124,
+  "time_share": 0.177,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h3",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h3",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h3",
+  "task": "c7778cf56d-fix-parser-bare-alter-drop-refactor-and-",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 27,
+  "tests": 1082,
+  "time_share": 0.042,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h3",
+  "task": "c7778cf56d-fix-parser-bare-alter-drop-refactor-and-",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 27,
+  "tests": 1082,
+  "time_share": 0.042,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h3",
+  "task": "f3a6eb95e4-feat-doris-parse-full-text-search-operat",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/doris.py",
+   "sqlglot/generators/doris.py",
+   "sqlglot/parsers/doris.py"
+  ],
+  "new_files": [],
+  "selected": 19,
+  "tests": 1115,
+  "time_share": 0.018,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h3",
+  "task": "f3a6eb95e4-feat-doris-parse-full-text-search-operat",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/dialects/doris.py",
+   "sqlglot/generators/doris.py",
+   "sqlglot/parsers/doris.py"
+  ],
+  "new_files": [],
+  "selected": 19,
+  "tests": 1115,
+  "time_share": 0.018,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h4",
+  "task": "268ad021b8-fix-parser-parse-alter-table-drop-with-m",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 996,
+  "tests": 1084,
+  "time_share": 0.996,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h4",
+  "task": "268ad021b8-fix-parser-parse-alter-table-drop-with-m",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 996,
+  "tests": 1084,
+  "time_share": 0.996,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h4",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generators/duckdb.py"
+  ],
+  "new_files": [],
+  "selected": 203,
+  "tests": 1098,
+  "time_share": 0.109,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h4",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/generators/duckdb.py"
+  ],
+  "new_files": [],
+  "selected": 205,
+  "tests": 1098,
+  "time_share": 0.11,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h4",
+  "task": "d84f7f3ee1-fix-preserve-bd-literal-semantics-in-hiv",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/parsers/hive.py",
+   "sqlglot/parsers/spark.py",
+   "sqlglot/parsers/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 114,
+  "tests": 1078,
+  "time_share": 0.08,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h4",
+  "task": "d84f7f3ee1-fix-preserve-bd-literal-semantics-in-hiv",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/parsers/databricks.py",
+   "sqlglot/parsers/hive.py",
+   "sqlglot/parsers/spark.py",
+   "sqlglot/parsers/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 117,
+  "tests": 1078,
+  "time_share": 0.08,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h4",
+  "task": "fc4964bbe8-feat-parser-support-mixed-operation-alte",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 4,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 997,
+  "tests": 1085,
+  "time_share": 0.995,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-haiku-h4",
+  "task": "fc4964bbe8-feat-parser-support-mixed-operation-alte",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 6,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 998,
+  "tests": 1085,
+  "time_share": 0.996,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-oracle-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 4,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-oracle-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-oracle-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-oracle-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-oracle-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-oracle-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-oracle-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "oracle",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 14,
+  "tests": 1098,
+  "time_share": 0.021,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-oracle-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "oracle",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 14,
+  "tests": 1098,
+  "time_share": 0.021,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py"
+  ],
+  "new_files": [],
+  "selected": 1085,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "proviso",
+  "rep": 1,
+  "edited_funcs": 4,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py"
+  ],
+  "new_files": [],
+  "selected": 1085,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 5,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-a",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "proviso",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "proviso",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-a",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "proviso",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py",
+   "sqlglot/parsers/duckdb.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "proviso",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-b",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "proviso",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "proviso",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 62,
+  "tests": 1098,
+  "time_share": 0.071,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 14,
+  "tests": 1098,
+  "time_share": 0.021,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 14,
+  "tests": 1098,
+  "time_share": 0.021,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-pilot-b",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "proviso",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 113,
+  "tests": 1098,
+  "time_share": 0.092,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h1",
+  "task": "1a0fc4299a-fix-parser-alter-actions-options-in-any-",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 1019,
+  "tests": 1107,
+  "time_share": 0.995,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h1",
+  "task": "1a0fc4299a-fix-parser-alter-actions-options-in-any-",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 47,
+  "tests": 1107,
+  "time_share": 0.073,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h1",
+  "task": "93aa16deb9-fix-mysql-keep-the-char-length-in-charac",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 264,
+  "tests": 1104,
+  "time_share": 0.154,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h1",
+  "task": "93aa16deb9-fix-mysql-keep-the-char-length-in-charac",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 1019,
+  "tests": 1104,
+  "time_share": 0.995,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h1",
+  "task": "d5d436bc32-fix-generator-escape-identifier-escape-c",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 762,
+  "tests": 1097,
+  "time_share": 0.222,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h1",
+  "task": "d5d436bc32-fix-generator-escape-identifier-escape-c",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 1,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 916,
+  "tests": 1097,
+  "time_share": 0.26,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h2",
+  "task": "1d2a99b9cc-fix-parser-alter-drop-alter-column-clean",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 4,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "new_files": [],
+  "selected": 1055,
+  "tests": 1085,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h2",
+  "task": "1d2a99b9cc-fix-parser-alter-drop-alter-column-clean",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py"
+  ],
+  "new_files": [],
+  "selected": 1055,
+  "tests": 1085,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h2",
+  "task": "b3b6c57cea-fix-transforms-avoid-projecting-window-o",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 275,
+  "tests": 1073,
+  "time_share": 0.131,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h2",
+  "task": "b3b6c57cea-fix-transforms-avoid-projecting-window-o",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 275,
+  "tests": 1073,
+  "time_share": 0.131,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h2",
+  "task": "fc8178edd3-fix-parser-drop-index-accepts-db-t-synta",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 30,
+  "tests": 1095,
+  "time_share": 0.066,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h2",
+  "task": "fc8178edd3-fix-parser-drop-index-accepts-db-t-synta",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 30,
+  "tests": 1095,
+  "time_share": 0.066,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h3",
+  "task": "49d6ed4366-fix-hive-decode-backslash-string-escapes",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 0,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/hive.py",
+   "sqlglot/dialects/spark.py",
+   "sqlglot/dialects/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1,
+  "tests": 1083,
+  "time_share": 0.006,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h3",
+  "task": "49d6ed4366-fix-hive-decode-backslash-string-escapes",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 0,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/hive.py",
+   "sqlglot/dialects/spark.py",
+   "sqlglot/dialects/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1,
+  "tests": 1083,
+  "time_share": 0.006,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h3",
+  "task": "c7957e8c86-fix-generator-only-resolve-a-query-s-own",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 7,
+  "tests": 1095,
+  "time_share": 0.011,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h3",
+  "task": "c7957e8c86-fix-generator-only-resolve-a-query-s-own",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 7,
+  "tests": 1095,
+  "time_share": 0.011,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h4",
+  "task": "840b4823e6-fix-postgres-keep-with-ordinality-alias-",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 20,
+  "tests": 1080,
+  "time_share": 0.025,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h4",
+  "task": "840b4823e6-fix-postgres-keep-with-ordinality-alias-",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 20,
+  "tests": 1080,
+  "time_share": 0.025,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h4",
+  "task": "cf39265a3e-fix-expressions-hash-flag-for-case-sensi",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 10,
+  "file_rules": [
+   "sqlglot/expressions/core.py",
+   "sqlglot/expressions/ddl.py",
+   "sqlglot/expressions/json.py",
+   "sqlglot/expressions/properties.py",
+   "sqlglot/expressions/query.py"
+  ],
+  "new_files": [],
+  "selected": 1048,
+  "tests": 1122,
+  "time_share": 0.997,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-regr-h4",
+  "task": "cf39265a3e-fix-expressions-hash-flag-for-case-sensi",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 9,
+  "file_rules": [
+   "sqlglot/expressions/core.py",
+   "sqlglot/expressions/json.py",
+   "sqlglot/expressions/properties.py",
+   "sqlglot/expressions/query.py"
+  ],
+  "new_files": [],
+  "selected": 1048,
+  "tests": 1122,
+  "time_share": 0.997,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w1",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 4,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/dialects/oracle.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w1",
+  "task": "08f2405cfd-fix-oracle-expand-alternative-quoting-an",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 3,
+  "class_rules": 5,
+  "file_rules": [
+   "sqlglot/anonymize.py",
+   "sqlglot/dialects/oracle.py"
+  ],
+  "new_files": [],
+  "selected": 1086,
+  "tests": 1128,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w1",
+  "task": "361b23b87b-fix-parser-allow-search-cycle-and-cycle-",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 4,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 1019,
+  "tests": 1107,
+  "time_share": 0.994,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w1",
+  "task": "361b23b87b-fix-parser-allow-search-cycle-and-cycle-",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 1019,
+  "tests": 1107,
+  "time_share": 0.994,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w1",
+  "task": "862fd55467-fix-trino-preserve-precision-for-all-tem",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generators/presto.py"
+  ],
+  "new_files": [],
+  "selected": 121,
+  "tests": 1105,
+  "time_share": 0.093,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w1",
+  "task": "862fd55467-fix-trino-preserve-precision-for-all-tem",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generators/presto.py"
+  ],
+  "new_files": [],
+  "selected": 121,
+  "tests": 1105,
+  "time_share": 0.093,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w1",
+  "task": "e3ed74860f-feat-hive-support-from-first-multi-table",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 1016,
+  "tests": 1095,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w1",
+  "task": "e3ed74860f-feat-hive-support-from-first-multi-table",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/generator.py"
+  ],
+  "new_files": [],
+  "selected": 977,
+  "tests": 1095,
+  "time_share": 0.997,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w2",
+  "task": "15a77f1d89-fix-mysql-decode-backslash-string-escape",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 0,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/dialects/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 24,
+  "tests": 1082,
+  "time_share": 0.006,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w2",
+  "task": "15a77f1d89-fix-mysql-decode-backslash-string-escape",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 0,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/dialects/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 24,
+  "tests": 1082,
+  "time_share": 0.006,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w2",
+  "task": "59a96d868a-feat-starrocks-support-refresh-materiali",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 4,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/starrocks.py",
+   "sqlglot/parser.py"
+  ],
+  "new_files": [],
+  "selected": 1052,
+  "tests": 1131,
+  "time_share": 0.998,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w2",
+  "task": "59a96d868a-feat-starrocks-support-refresh-materiali",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 4,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/starrocks.py",
+   "sqlglot/parsers/starrocks.py"
+  ],
+  "new_files": [],
+  "selected": 951,
+  "tests": 1131,
+  "time_share": 0.264,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w2",
+  "task": "af9915fa4c-fix-mysql-parse-the-as-clause-of-weight-",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/expressions/string.py",
+   "sqlglot/generator.py",
+   "sqlglot/parsers/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 921,
+  "tests": 1097,
+  "time_share": 0.258,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w2",
+  "task": "af9915fa4c-fix-mysql-parse-the-as-clause-of-weight-",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/expressions/string.py",
+   "sqlglot/generator.py",
+   "sqlglot/parsers/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 921,
+  "tests": 1097,
+  "time_share": 0.258,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w2",
+  "task": "f337c70ee4-fix-snowflake-parse-list-and-ls-stage-co",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "new_files": [],
+  "selected": 954,
+  "tests": 1089,
+  "time_share": 0.26,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w2",
+  "task": "f337c70ee4-fix-snowflake-parse-list-and-ls-stage-co",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "new_files": [],
+  "selected": 954,
+  "tests": 1089,
+  "time_share": 0.26,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w3",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w3",
+  "task": "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 1094,
+  "tests": 1124,
+  "time_share": 0.999,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w3",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w3",
+  "task": "7d9a6cd599-fix-allow-external-function-in-athena-ct",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parsers/athena.py"
+  ],
+  "new_files": [],
+  "selected": 18,
+  "tests": 1120,
+  "time_share": 0.007,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w3",
+  "task": "c7778cf56d-fix-parser-bare-alter-drop-refactor-and-",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 27,
+  "tests": 1082,
+  "time_share": 0.042,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w3",
+  "task": "c7778cf56d-fix-parser-bare-alter-drop-refactor-and-",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 0,
+  "file_rules": [],
+  "new_files": [],
+  "selected": 27,
+  "tests": 1082,
+  "time_share": 0.042,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w3",
+  "task": "f3a6eb95e4-feat-doris-parse-full-text-search-operat",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/dialects/doris.py",
+   "sqlglot/generators/doris.py",
+   "sqlglot/parsers/doris.py"
+  ],
+  "new_files": [],
+  "selected": 19,
+  "tests": 1115,
+  "time_share": 0.018,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w3",
+  "task": "f3a6eb95e4-feat-doris-parse-full-text-search-operat",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/dialects/doris.py",
+   "sqlglot/generators/doris.py",
+   "sqlglot/parsers/doris.py"
+  ],
+  "new_files": [],
+  "selected": 19,
+  "tests": 1115,
+  "time_share": 0.018,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w4",
+  "task": "268ad021b8-fix-parser-parse-alter-table-drop-with-m",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "new_files": [],
+  "selected": 996,
+  "tests": 1084,
+  "time_share": 0.996,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w4",
+  "task": "268ad021b8-fix-parser-parse-alter-table-drop-with-m",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 1,
+  "class_rules": 1,
+  "file_rules": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "new_files": [],
+  "selected": 996,
+  "tests": 1084,
+  "time_share": 0.996,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w4",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 1,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/parsers/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 16,
+  "tests": 1098,
+  "time_share": 0.028,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w4",
+  "task": "818483464b-fix-duckdb-preserve-spark-array-slice-le",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 2,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/generators/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 113,
+  "tests": 1098,
+  "time_share": 0.092,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w4",
+  "task": "d84f7f3ee1-fix-preserve-bd-literal-semantics-in-hiv",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 0,
+  "class_rules": 4,
+  "file_rules": [
+   "sqlglot/parsers/hive.py",
+   "sqlglot/parsers/spark.py",
+   "sqlglot/parsers/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 117,
+  "tests": 1078,
+  "time_share": 0.08,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w4",
+  "task": "d84f7f3ee1-fix-preserve-bd-literal-semantics-in-hiv",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 0,
+  "class_rules": 3,
+  "file_rules": [
+   "sqlglot/parsers/hive.py",
+   "sqlglot/parsers/spark.py",
+   "sqlglot/parsers/spark2.py"
+  ],
+  "new_files": [],
+  "selected": 114,
+  "tests": 1078,
+  "time_share": 0.08,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w4",
+  "task": "fc4964bbe8-feat-parser-support-mixed-operation-alte",
+  "arm": "baseline",
+  "rep": 1,
+  "edited_funcs": 3,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 998,
+  "tests": 1085,
+  "time_share": 0.996,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-screen-w4",
+  "task": "fc4964bbe8-feat-parser-support-mixed-operation-alte",
+  "arm": "baseline",
+  "rep": 2,
+  "edited_funcs": 7,
+  "class_rules": 0,
+  "file_rules": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/mysql.py"
+  ],
+  "new_files": [],
+  "selected": 998,
+  "tests": 1085,
+  "time_share": 0.996,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-smoke3-proviso",
+  "task": "f337c70ee4-fix-snowflake-parse-list-and-ls-stage-co",
+  "arm": "proviso",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "new_files": [],
+  "selected": 627,
+  "tests": 1089,
+  "time_share": 0.233,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-smoke3-replay-only",
+  "task": "f337c70ee4-fix-snowflake-parse-list-and-ls-stage-co",
+  "arm": "replay-only",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "new_files": [],
+  "selected": 627,
+  "tests": 1089,
+  "time_share": 0.233,
+  "failing": [],
+  "missed": []
+ },
+ {
+  "eval_dir": "eval-smoke3-tests-only",
+  "task": "f337c70ee4-fix-snowflake-parse-list-and-ls-stage-co",
+  "arm": "tests-only",
+  "rep": 1,
+  "edited_funcs": 2,
+  "class_rules": 2,
+  "file_rules": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/parsers/snowflake.py"
+  ],
+  "new_files": [],
+  "selected": 627,
+  "tests": 1089,
+  "time_share": 0.233,
+  "failing": [],
+  "missed": []
+ }
+]
