@@ -23,6 +23,8 @@ import xml.etree.ElementTree as ET
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "prefetch"))
 import coverage as C  # noqa: E402  (units_of, changed_old_lines)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "src"))
+from dc_engine import impact as IMP  # noqa: E402
 
 W = "/tmp/claude-0/-home-claude/ba1d6daa-9321-5797-910e-8a169f93d9bd/scratchpad/ripple"
 
@@ -74,7 +76,7 @@ def main():
             repo = os.path.join(r.get("run_dir") or "", "repo")
             xml = os.path.join(repo, ".dc-eval-regr.xml")
             tid = r["task"][:10]
-            cov_path = os.path.join(W, f"cov_{tid}.json")
+            cov_path = os.path.join(W, f"cov2_{tid}.json")
             if not (os.path.isfile(xml) and os.path.isfile(cov_path)):
                 continue
             if tid not in cache:
@@ -106,12 +108,11 @@ def main():
                         files_all.add(f)
                     else:
                         funcs.add((f, best["start"]))
-            sel = set()
-            for node, v in cov.items():
-                fs = {tuple(x) for x in v["funcs"]}
-                if (new_files or fs & funcs or any(x[0] in files_all for x in fs)
-                        or any(x[0] == c[0] and c[1] <= x[1] <= c[2] for x in fs for c in classes)):
-                    sel.add(node)
+            psel, pwhy = IMP.selection(repo, cov)
+            tests_only = {k: v for k, v in cov.items() if k != "__global__"}
+            sel = set(tests_only) if psel is None else set(psel) & set(tests_only)
+            files_all = sorted(pwhy.get("files", [])) + ([pwhy["reason"]] if psel is None else [])
+            cov = tests_only
             total_t = sum(v["time"] for v in cov.values()) or 1
             sel_t = sum(cov[n]["time"] for n in sel)
             bad = failing(xml)
