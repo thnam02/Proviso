@@ -1,0 +1,30 @@
+{
+ "08f2405cfd-fix-oracle-expand-alternative-quoting-an": [
+  "tests.test_expressions.TestExprs.test_convert \u2014 error inside the test",
+  "tests.dialects.test_bigquery \u2014 test module fails to import",
+  "tests.test_executor \u2014 test module fails to import",
+  "tests.test_optimizer \u2014 test module fails to import",
+  "Cause: pytz is not installed in this environment. All 4 errors exist before any change and are not caused by your work."
+ ],
+ "1f8d15bbd6-fix-convert-duckdb-array-slice-endpoints": [
+  "tests.test_expressions.TestExprs.test_convert \u2014 error inside the test",
+  "tests.dialects.test_bigquery \u2014 test module fails to import",
+  "tests.test_executor \u2014 test module fails to import",
+  "tests.test_optimizer \u2014 test module fails to import",
+  "Cause: pytz is not installed in this environment. All 4 errors exist before any change and are not caused by your work."
+ ],
+ "7d9a6cd599-fix-allow-external-function-in-athena-ct": [
+  "tests.test_expressions.TestExprs.test_convert \u2014 error inside the test",
+  "tests.dialects.test_bigquery \u2014 test module fails to import",
+  "tests.test_executor \u2014 test module fails to import",
+  "tests.test_optimizer \u2014 test module fails to import",
+  "Cause: pytz is not installed in this environment. All 4 errors exist before any change and are not caused by your work."
+ ],
+ "818483464b-fix-duckdb-preserve-spark-array-slice-le": [
+  "tests.test_expressions.TestExprs.test_convert \u2014 error inside the test",
+  "tests.dialects.test_bigquery \u2014 test module fails to import",
+  "tests.test_executor \u2014 test module fails to import",
+  "tests.test_optimizer \u2014 test module fails to import",
+  "Cause: pytz is not installed in this environment. All 4 errors exist before any change and are not caused by your work."
+ ]
+}

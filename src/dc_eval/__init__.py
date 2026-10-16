@@ -13,7 +13,7 @@ SAFETY_WARNING = (
 )
 
 ARMS = ("baseline", "layer")
-ALL_ARMS = ("baseline", "tools", "contracts", "layer", "proviso", "replay-only", "tests-only")
+ALL_ARMS = ("baseline", "tools", "contracts", "layer", "proviso", "replay-only", "tests-only", "oracle")
 DEFAULT_ARMS = "baseline,layer"
 DEFAULT_ARM_SEED = 0
 DEFAULT_REPS = 3
