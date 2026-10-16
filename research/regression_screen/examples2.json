@@ -1,0 +1,106 @@
+{
+ "c7957e8c86": {
+  "base": [
+   "SELECT x AS v, GROUP_CONCAT(v ORDER BY CASE WHEN x IS NULL THEN 1 ELSE 0 END, x) AS w FROM t GROUP BY x",
+   "WITH c AS (SELECT a AS v, b AS x FROM t UNION ALL SELECT a, b FROM u ORDER BY CASE WHEN x IS NULL THEN 1 ELSE 0 END, x LIMIT 1) SELECT x AS v FROM c"
+  ],
+  "fix": [
+   "SELECT x AS v, GROUP_CONCAT(v ORDER BY CASE WHEN v IS NULL THEN 1 ELSE 0 END, v) AS w FROM t GROUP BY x",
+   "WITH c AS (SELECT a AS v, b AS x FROM t UNION ALL SELECT a, b FROM u ORDER BY CASE WHEN v IS NULL THEN 1 ELSE 0 END, v LIMIT 1) SELECT x AS v FROM c"
+  ]
+ },
+ "d5d436bc32": {
+  "base": [
+   "SELECT \"a\\\"",
+   "SELECT \"a\\b\""
+  ],
+  "fix": [
+   "SELECT \"a\\\\\"",
+   "SELECT \"a\\\\b\""
+  ]
+ },
+ "cf39265a3e": {
+  "base": [
+   "True",
+   "True",
+   "True"
+  ],
+  "fix": [
+   "False",
+   "False",
+   "False"
+  ]
+ },
+ "840b4823e6": {
+  "base": [
+   "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+   "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)"
+  ],
+  "fix": [
+   "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+   "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+  ]
+ },
+ "1a0fc4299a": {
+  "base": [
+   "ALTER TABLE t ADD c INT, AUTO_INCREMENT=5, ADD d INT",
+   "0"
+  ],
+  "fix": [
+   "ALTER TABLE t ADD COLUMN c INT, ADD COLUMN d INT, AUTO_INCREMENT=5",
+   "2"
+  ]
+ },
+ "b3b6c57cea": {
+  "base": [
+   "SELECT d, c, t FROM (SELECT d, c, SUM(s) AS t, RANK() OVER (PARTITION BY d ORDER BY SUM(s) DESC) AS _w, s FROM x GROUP BY d, c) AS _t WHERE _w <= 3",
+   "SELECT a, b FROM (SELECT a, b, ROW_NUMBER() OVER (PARTITION BY d ORDER BY e) AS _w, f, d, e FROM t) AS _t WHERE _w = 1 AND f > 0"
+  ],
+  "fix": [
+   "SELECT d, c, t FROM (SELECT d, c, SUM(s) AS t, RANK() OVER (PARTITION BY d ORDER BY SUM(s) DESC) AS _w FROM x GROUP BY d, c) AS _t WHERE _w <= 3",
+   "SELECT a, b FROM (SELECT a, b, ROW_NUMBER() OVER (PARTITION BY d ORDER BY e) AS _w, f FROM t) AS _t WHERE _w = 1 AND f > 0"
+  ]
+ },
+ "93aa16deb9": {
+  "base": [
+   "SELECT CAST('ab' AS CHAR CHARACTER SET utf8mb4)",
+   "ParseError: Invalid expression / Unexpected token. Line 1, Col: 43."
+  ],
+  "fix": [
+   "SELECT CAST('ab' AS CHAR(4) CHARACTER SET utf8mb4)",
+   "SELECT CAST('abc' AS CHAR(2) CHARACTER SET latin1)"
+  ]
+ },
+ "1d2a99b9cc": {
+  "base": [
+   "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+   "ParseError: Required keyword: 'this' missing for <class 'sqlglot.expressions.properties.PartitionedByProperty'>. Line 1, Col: 40.",
+   "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE"
+  ],
+  "fix": [
+   "ALTER TABLE t RENAME INDEX any TO b",
+   "ALTER TABLE t DROP COLUMN partitioned_by",
+   "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+  ]
+ },
+ "49d6ed4366": {
+  "base": [
+   "'\\\\001'",
+   "'\\\\U0001F600'"
+  ],
+  "fix": [
+   "'\\x01'",
+   "'\ud83d\ude00'"
+  ]
+ },
+ "fc8178edd3": {
+  "base": [
+   "ParseError: Invalid expression / Unexpected token. Line 1, Col: 19.",
+   "ParseError: Invalid expression / Unexpected token. Line 1, Col: 30."
+  ],
+  "fix": [
+   "DROP INDEX i ON db.t",
+   "DROP INDEX IF EXISTS i ON dbo.t"
+  ]
+ }
+}
