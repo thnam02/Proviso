@@ -9,9 +9,10 @@ def build(out_dir, tid):
     k = tid[:10]
     dest = os.path.join(out_dir, "impact", tid)
     os.makedirs(dest, exist_ok=True)
-    cov = json.load(open(os.path.join(W, f"cov_{k}.json")))
-    json.dump({n: {"funcs": v["funcs"], "time": v["time"]} for n, v in cov.items()}, open(os.path.join(dest, "covmap.json"), "w"))
-    fails = sorted(n for n, v in cov.items() if not v["ok"]) + COLLECTION_ERRORS
+    cov = json.load(open(os.path.join(W, f"cov2_{k}.json")))
+    json.dump({n: {kk: vv for kk, vv in v.items() if kk != "ok"} for n, v in cov.items()},
+              open(os.path.join(dest, "covmap.json"), "w"))
+    fails = sorted(n for n, v in cov.items() if n != "__global__" and not v["ok"]) + COLLECTION_ERRORS
     json.dump(fails, open(os.path.join(dest, "base_failures.json"), "w"))
     shutil.copyfile(os.path.join(W, "trees", k, "probes.json"), os.path.join(dest, "probes.json"))
     shutil.copyfile(os.path.join(W, "trees", k, "base_out.json"), os.path.join(dest, "ripple_base.json"))
