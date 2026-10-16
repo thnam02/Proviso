@@ -93,6 +93,7 @@ def main(argv: list[str] | None = None) -> None:
     hk = sub.add_parser("hook")
     hk.add_argument("event", choices=[
         "pre-edit", "post-edit", "stop",
+        "proviso-context", "proviso-capture", "proviso-verify",
         "preToolUse", "beforeShellExecution", "beforeMCPExecution", "afterFileEdit",
     ])
     hk.add_argument("--format", choices=["claude", "cursor"], default="claude",

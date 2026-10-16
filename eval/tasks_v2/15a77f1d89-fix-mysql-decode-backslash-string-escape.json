@@ -130,5 +130,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix(mysql): decode backslash string escapes (#8471)\n\n* fix(mysql): decode backslash string escapes\n\n* fix(ci): filter integration workflow runs by branch\n\n* transpile is_ascii to rlike",
   "fix_commit": "15a77f1d89c3c6baac93230173e48b626497027d",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

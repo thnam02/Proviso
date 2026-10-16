@@ -24,5 +24,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "feat(doris): parse full-text search operators [CLAUDE] (#8585)",
   "fix_commit": "f3a6eb95e424ef03bf20fca05a0431a666946e90",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

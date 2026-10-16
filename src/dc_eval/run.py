@@ -26,6 +26,7 @@ from . import (
 from datetime import datetime, timezone
 
 from .arms import (
+    write_proviso_files,
     arm_config, arm_extras_note, claude_argv, cursor_argv,
     hook_command, server_mcp_args, write_layer_files, write_layer_repo_config,
 )
@@ -87,7 +88,7 @@ class SetupError(RuntimeError):
 
 
 def _arm_tracks_contracts(arm: str) -> bool:
-    return (arm or "").strip().lower() not in ("", "baseline")
+    return (arm or "").strip().lower() in ("tools", "contracts", "layer")
 
 
 def _apply_arm_meta(
@@ -1185,12 +1186,14 @@ def execute_run(
             py = venv_python(venv)
             install_test_env(py, repo_dir, env=run_env)
             run_setup(repo_dir, task.setup, env=run_env)
-            probe_py = py if cfg["mcp"] else None
+            probe_py = py if (cfg["mcp"] or cfg.get("proviso")) else None
         else:
             py = sys.executable
-            probe_py = py if cfg["mcp"] else None
+            probe_py = py if (cfg["mcp"] or cfg.get("proviso")) else None
             if task.setup:
                 run_setup(repo_dir, task.setup, env=run_env)
+        if runner == "cursor" and cfg.get("proviso"):
+            raise SafetyError(f"arm {arm!r} needs Claude Code hooks; use --runner claude")
         if runner == "cursor":
             argv = cursor_argv(
                 task.prompt, model=model, workspace=repo_dir, agent_bin=agent_bin,
@@ -1208,6 +1211,8 @@ def execute_run(
             preflight_cursor_cli(repo_dir, agent_bin=agent_bin)
             agent_ver = _agent_version(agent_bin)
         else:
+            if cfg.get("proviso"):
+                settings_path = write_proviso_files(slot, repo_dir, probe_py, cfg["proviso"])
             if cfg["mcp"]:
                 mcp_path, settings_path = write_layer_files(
                     slot, probe_python=probe_py,
@@ -1272,6 +1277,17 @@ def execute_run(
     except subprocess.TimeoutExpired:
         timed_out = True
         returncode = -9
+    except (OSError, ValueError) as exc:
+        # The agent never started (bad binary, a NUL byte in the prompt, ...): an agent
+        # error, not a grading error.
+        row = {
+            "task": task.id, "arm": arm, "rep": rep, "runner": runner, "model": model,
+            "run_dir": slot, "repo": src_repo, "commit": task.commit, "resolved": False,
+            **pin.as_metrics(),
+        }
+        row = _agent_error_row(row, f"agent did not start: {type(exc).__name__}: {exc}")
+        _write_metrics(slot, row)
+        return row
     wall = time.monotonic() - t0
     ended_at = utc_now_iso()
     stream_text = ""
@@ -1319,6 +1335,14 @@ def execute_run(
         metrics = metrics_from_stream(stream_text, wall_time_s=wall)
         metrics["hooks_active"] = None
         metrics["cost_estimated"] = False
+        if cfg.get("proviso"):
+            from dc_engine.proviso import summarize_log as _proviso_summary
+            metrics.update(_proviso_summary(repo_dir))
+            hook_sum = summarize_hooks_log(_hooks_log_text(repo_dir))
+            metrics["hooks_active"] = bool(hook_sum.get("hooks_active"))
+            metrics["hook_calls"] = hook_sum.get("hook_calls") or 0
+            metrics["hook_calls_by_event"] = hook_sum.get("hook_calls_by_event") or {}
+            metrics["hook_errors"] = hook_sum.get("hook_errors") or 0
         if cfg["hooks"]:
             hook_sum = summarize_hooks_log(_hooks_log_text(repo_dir))
             metrics["hooks_active"] = bool(hook_sum.get("hooks_active"))

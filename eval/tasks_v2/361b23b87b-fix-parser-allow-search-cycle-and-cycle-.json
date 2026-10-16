@@ -71,5 +71,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix(parser): allow SEARCH + CYCLE and CYCLE TO ... DEFAULT [CLAUDE] (#8574)\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
   "fix_commit": "361b23b87b5ee3a3a301c07daaf02d703aad21fe",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

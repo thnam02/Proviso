@@ -52,5 +52,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "feat(hive)!: support FROM-first multi-table INSERT [CLAUDE] (#8527)\n\nParse Hive/Spark `FROM x INSERT ... SELECT ... [INSERT ... SELECT ...]`\ninto exp.MultitableInserts with no kind, including a leading CTE, and\ngenerate it back in that form; other dialects get an unsupported warning.\nLATERAL VIEWs after a leading FROM are now parsed once for every\nFROM-first statement, so `FROM x LATERAL VIEW ... SELECT ...` parses too.",
   "fix_commit": "e3ed74860fd5a44d31347b2e2cf62cf5030e9222",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

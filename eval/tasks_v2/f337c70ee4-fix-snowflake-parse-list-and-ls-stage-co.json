@@ -5,8 +5,10 @@
   "prompt": "Snowflake's LIST command (and its alias LS) for stages is not modelled. LIST <location> [PATTERN = '<regex>'] should parse into exp.ListStage whose `this` is the location as exp.var(<location text>) and whose `pattern` is the string literal, and be generated as LIST <location> [PATTERN = '<regex>'] (LS becomes LIST, pattern keyword upper-cased), for table stages (@%t), the user stage (@~), named and qualified stages, quoted stage names and paths.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ls @named_stage\", read=\"snowflake\").sql(\"snowflake\")\n# currently: ls AS $named_stage\n# expected:  LIST @named_stage\n\nparse_one(\"LIST @named_stage/analysis/ pattern='.*data_0.*'\", read=\"snowflake\").sql(\"snowflake\")\n# currently: ParseError: Invalid expression / Unexpected token. Line 1, Col: 18.\n# expected:  LIST @named_stage/analysis/ PATTERN = '.*data_0.*'\n\ntype(parse_one(\"LIST @~\", read=\"snowflake\")).__name__\n# currently: ParseError: Required keyword: 'this' missing for <class 'sqlglot.expressions.core.Parameter'>. Line 1, Col: 7.\n# expected:  ListStage\n```\n\nOther forms of the same constructs described above should work as well.",
   "hidden_tests": [
     "tests/dialects/test_snowflake.py::TestSnowflake::test_list_stage",
-    "tests/dialects/test_snowflake.py::TestSnowflake::test_list_stage_pattern",
-    "tests/dialects/test_snowflake.py::TestSnowflake::test_list_stage_alias"
+    "tests/dialects/test_snowflake.py::TestSnowflake::test_list_stage_alias",
+    "tests/dialects/test_snowflake.py::TestSnowflake::test_list_stage_identifiers",
+    "tests/dialects/test_snowflake.py::TestSnowflake::test_list_stage_invalid_pattern",
+    "tests/dialects/test_snowflake.py::TestSnowflake::test_list_stage_pattern"
   ],
   "test_patch": "diff --git a/tests/dialects/test_snowflake.py b/tests/dialects/test_snowflake.py\nindex c18f0c7aa..0c0e97728 100644\n--- a/tests/dialects/test_snowflake.py\n+++ b/tests/dialects/test_snowflake.py\n@@ -3582,6 +3582,59 @@ class TestSnowflake(Validator):\n             },\n         )\n \n+    def test_list_stage(self):\n+        for location in (\n+            \"@%table1\",\n+            \"@schema1.%table1\",\n+            \"@db1.schema1.%table1\",\n+            \"@named_stage\",\n+            \"@schema1.named_stage\",\n+            \"@db1.schema1.named_stage\",\n+            \"@~\",\n+            \"@named_stage/path1\",\n+            \"@%table1/path1\",\n+            \"@~/path1\",\n+            '@\"my_DB\".\"schEMA1\".\"MYstage\"/CaseSensitivePath',\n+            \"'@\\\"my stage\\\"/my path'\",\n+            \"@my_repo/branches/main/\",\n+        ):\n+            with self.subTest(location=location):\n+                expression = self.validate_identity(f\"LIST {location}\").assert_is(exp.ListStage)\n+                self.assertEqual(expression.this, exp.var(location))\n+\n+    def test_list_stage_pattern(self):\n+        for location, pattern in (\n+            (\"@%table1\", \".*data_0.*\"),\n+            (\"@named_stage/analysis/\", \".*data_0.*\"),\n+            (\"'@\\\"my stage\\\"/my path'\", \".*[.]csv\"),\n+            (\"@~\", \"\"),\n+        ):\n+            with self.subTest(location=location, pattern=pattern):\n+                expression = self.validate_identity(\n+                    f\"LIST {location} pattern='{pattern}'\",\n+                    f\"LIST {location} PATTERN = '{pattern}'\",\n+                ).assert_is(exp.ListStage)\n+                self.assertEqual(expression.this, exp.var(location))\n+                self.assertEqual(expression.args[\"pattern\"], exp.Literal.string(pattern))\n+\n+    def test_list_stage_alias(self):\n+        self.validate_identity(\"LS @~\", \"LIST @~\").assert_is(exp.ListStage)\n+        self.validate_identity(\"ls @named_stage\", \"LIST @named_stage\").assert_is(exp.ListStage)\n+\n+    def test_list_stage_invalid_pattern(self):\n+        for sql in (\n+            \"LIST @stage PATTERN\",\n+            \"LIST @stage PATTERN '.*'\",\n+            \"LIST @stage PATTERN =\",\n+            \"LIST @stage PATTERN = 123\",\n+        ):\n+            with self.subTest(sql=sql), self.assertRaises(ParseError):\n+                self.parse_one(sql)\n+\n+    def test_list_stage_identifiers(self):\n+        self.validate_identity(\"SELECT list, ls FROM list\").assert_is(exp.Select)\n+        self.validate_identity(\"SELECT x AS list, y AS ls FROM t\").assert_is(exp.Select)\n+\n     def test_staged_files(self):\n         # Ensure we don't treat staged file paths as identifiers (i.e. they're not normalized)\n         staged_file = parse_one(\"SELECT * FROM @foo\", read=\"snowflake\")\n",
   "regression_tests": [
@@ -45,8 +47,6 @@
     "tests/dialects/test_snowflake.py::TestSnowflake::test_grant",
     "tests/dialects/test_snowflake.py::TestSnowflake::test_historical_data",
     "tests/dialects/test_snowflake.py::TestSnowflake::test_join_marker",
-    "tests/dialects/test_snowflake.py::TestSnowflake::test_list_stage_identifiers",
-    "tests/dialects/test_snowflake.py::TestSnowflake::test_list_stage_invalid_pattern",
     "tests/dialects/test_snowflake.py::TestSnowflake::test_listagg",
     "tests/dialects/test_snowflake.py::TestSnowflake::test_match_recognize",
     "tests/dialects/test_snowflake.py::TestSnowflake::test_max_by_min_by",
@@ -118,5 +118,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix(snowflake): parse LIST and LS stage commands [GPT-6.1] (#8502)\n\n* fix(snowflake): preserve LIST and LS stage commands [GPT-6.1]\n\n* fix(snowflake): model LIST and LS as stage expressions [GPT-6.1]",
   "fix_commit": "f337c70ee42614bb3224fe8c54b7af5be286eb85",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

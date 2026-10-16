@@ -147,5 +147,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix(oracle): expand alternative quoting and support national literals (#8606)",
   "fix_commit": "08f2405cfddc874f4366cbcca9e25233fcb11281",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

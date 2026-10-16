@@ -4,7 +4,8 @@
   "commit": "7ee6201688a8184a27177aec66569c4d84cdfba1",
   "prompt": "Transpiling DuckDB's ARRAY_SLICE(arr, start, end) to Spark, Spark 2, Databricks, Presto and Trino SLICE gives the wrong elements: DuckDB's third argument is an inclusive end position and a start of 0 means the first element, while SLICE takes a length. The generated SLICE must select the same elements, including when the end is before the start and when the start is negative; DuckDB output itself must stay unchanged.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT ARRAY_SLICE([1, 2, 3, 4], 2, 3)\", read=\"duckdb\", write=\"spark\")[0]\n# currently: SELECT SLICE(ARRAY(1, 2, 3, 4), 2, 3)\n# expected:  SELECT SLICE(ARRAY(1, 2, 3, 4), 2, 2)\n\ntranspile(\"ARRAY_SLICE(x, 0, 2)\", read=\"duckdb\", write=\"presto\")[0]\n# currently: SLICE(x, 0, 2)\n# expected:  SLICE(x, 1, 2)\n\ntranspile(\"ARRAY_SLICE(x, 3, 2)\", read=\"duckdb\", write=\"spark\")[0]\n# currently: SLICE(x, 3, 2)\n# expected:  SLICE(x, 3, 0)\n```\n\nOther forms of the same constructs described above should work as well.",
   "hidden_tests": [
-    "tests/dialects/test_duckdb.py::TestDuckDB::test_array_slice_to_length"
+    "tests/dialects/test_duckdb.py::TestDuckDB::test_array_slice_to_length",
+    "tests/dialects/test_spark.py::TestSpark::test_array_slice"
   ],
   "test_patch": "diff --git a/tests/dialects/test_duckdb.py b/tests/dialects/test_duckdb.py\nindex 2780eb647..d86e13746 100644\n--- a/tests/dialects/test_duckdb.py\n+++ b/tests/dialects/test_duckdb.py\n@@ -1793,6 +1793,34 @@ class TestDuckDB(Validator):\n                     read={\"spark2\": source, \"spark\": source, \"databricks\": source},\n                 )\n \n+    def test_array_slice_to_length(self):\n+        self.validate_all(\n+            \"SELECT ARRAY_SLICE([1, 2, 3, 4], 2, 3)\",\n+            write={\n+                \"duckdb\": \"SELECT ARRAY_SLICE([1, 2, 3, 4], 2, 3)\",\n+                \"spark2\": \"SELECT SLICE(ARRAY(1, 2, 3, 4), 2, 2)\",\n+                \"spark\": \"SELECT SLICE(ARRAY(1, 2, 3, 4), 2, 2)\",\n+                \"databricks\": \"SELECT SLICE(ARRAY(1, 2, 3, 4), 2, 2)\",\n+                \"presto\": \"SELECT SLICE(ARRAY[1, 2, 3, 4], 2, 2)\",\n+                \"trino\": \"SELECT SLICE(ARRAY[1, 2, 3, 4], 2, 2)\",\n+            },\n+        )\n+        self.validate_all(\n+            \"ARRAY_SLICE(x, 0, 2)\",\n+            write={\"spark\": \"SLICE(x, 1, 2)\", \"presto\": \"SLICE(x, 1, 2)\"},\n+        )\n+        self.validate_all(\n+            \"ARRAY_SLICE(x, 3, 2)\",\n+            write={\"spark\": \"SLICE(x, 3, 0)\", \"presto\": \"SLICE(x, 3, 0)\"},\n+        )\n+        self.validate_all(\n+            \"ARRAY_SLICE(CASE WHEN RANDOM() < 0.5 THEN [1] ELSE [1, 2] END, -1, 2)\",\n+            write={\n+                \"spark\": \"SLICE(CASE WHEN RAND() < 0.5 THEN ARRAY(1) ELSE ARRAY(1, 2) END, -1, 2)\",\n+                \"presto\": \"SLICE(CASE WHEN RAND() < 0.5 THEN ARRAY[1] ELSE ARRAY[1, 2] END, -1, 2)\",\n+            },\n+        )\n+\n     def test_array_insert(self):\n         # Test ARRAY_INSERT inserts at beginning\n         self.validate_all(\ndiff --git a/tests/dialects/test_spark.py b/tests/dialects/test_spark.py\nindex 1922f8ca4..a445b5721 100644\n--- a/tests/dialects/test_spark.py\n+++ b/tests/dialects/test_spark.py\n@@ -1585,6 +1585,16 @@ TBLPROPERTIES (\n             },\n         )\n \n+    def test_array_slice(self):\n+        self.validate_all(\n+            \"SLICE(x, 2, 3)\",\n+            read={\n+                \"clickhouse\": \"arraySlice(x, 2, 3)\",\n+                \"presto\": \"SLICE(x, 2, 3)\",\n+                \"spark\": \"SLICE(x, 2, 3)\",\n+            },\n+        )\n+\n     def test_declare(self):\n         self.validate_identity(\"DECLARE VAR x INT\", \"DECLARE x INT\")\n         self.validate_identity(\"DECLARE x INT\")\n",
   "regression_tests": [
@@ -84,7 +85,6 @@
     "tests/dialects/test_spark.py::TestSpark::test_analyze",
     "tests/dialects/test_spark.py::TestSpark::test_approx_percentile",
     "tests/dialects/test_spark.py::TestSpark::test_array_insert",
-    "tests/dialects/test_spark.py::TestSpark::test_array_slice",
     "tests/dialects/test_spark.py::TestSpark::test_binary_string",
     "tests/dialects/test_spark.py::TestSpark::test_bool_or",
     "tests/dialects/test_spark.py::TestSpark::test_current_user",
@@ -112,5 +112,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix: convert DuckDB ARRAY_SLICE endpoints to SLICE lengths (#8609)",
   "fix_commit": "1f8d15bbd68586704666533b21a5b35d710d68f0",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }

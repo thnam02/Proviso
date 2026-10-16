@@ -70,5 +70,6 @@
   "setup": "python -m pip install -e . -q",
   "prompt_original": "fix(mysql): parse the AS clause of WEIGHT_STRING [CLAUDE] (#8544)\n\nWEIGHT_STRING(str AS CHAR(N)) and WEIGHT_STRING(str AS BINARY(N)) failed\nwith \"Expecting )\". Parse them into a new WeightString expression that\nkeeps the type in `to`. Calls with any other number of arguments, such as\nthe undocumented WEIGHT_STRING(str, n, n, n) form that MySQL also accepts,\nstay Anonymous with the name as written.\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
   "fix_commit": "af9915fa4cc1f20fcae8b09058be5b96b2cbc8b0",
-  "verified": true
+  "verified": true,
+  "hidden_tests_note": "hidden tests = every test the fix commit adds or changes; regression tests = tests that already existed at the base commit and pass at both commits"
 }
