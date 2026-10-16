@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import shlex
 import sys
 from typing import Any
@@ -48,6 +49,12 @@ ARM_CONFIG: dict[str, dict[str, Any]] = {
     "tests-only": {
         "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
         "proviso": {"context": False, "trajectory": False, "tests": True},
+    },
+    # Pre-fetch ceiling: a per-task brief (eval_dir/briefs/<task id>.md) built from what baseline
+    # agents read before their first edit, pushed at prompt time. No replay, no test check.
+    "oracle": {
+        "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
+        "proviso": {"context": False, "trajectory": False, "tests": False, "brief": True},
     },
 }
 
@@ -184,8 +191,12 @@ def layer_settings(
     }
 
 
-def proviso_settings(python: str | None = None, probe_python: str | None = None) -> dict[str, Any]:
-    """Claude Code hooks for the proviso arms (prompt context, Bash capture, Stop verify)."""
+def proviso_settings(python: str | None = None, probe_python: str | None = None,
+                     flags: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Claude Code hooks for the proviso arms (prompt context, Bash capture, Stop verify).
+
+    Arms with neither trajectory replay nor test checks (the pre-fetch arms) get only the prompt hook.
+    """
     def group(args: str, matcher: str | None = None, timeout: int = 120) -> dict[str, Any]:
         g: dict[str, Any] = {"hooks": [{"type": "command",
                                         "command": hook_command(args, python, probe_python),
@@ -193,23 +204,21 @@ def proviso_settings(python: str | None = None, probe_python: str | None = None)
         if matcher:
             g["matcher"] = matcher
         return g
-    return {
-        "hooks": {
-            "UserPromptSubmit": [group("hook proviso-context")],
-            "PostToolUse": [group("hook proviso-capture", "Bash")],
-            "Stop": [group("hook proviso-verify", timeout=600)],
-        }
-    }
+    hooks: dict[str, Any] = {"UserPromptSubmit": [group("hook proviso-context")]}
+    if flags is None or flags.get("trajectory") or flags.get("tests"):
+        hooks["PostToolUse"] = [group("hook proviso-capture", "Bash")]
+        hooks["Stop"] = [group("hook proviso-verify", timeout=600)]
+    return {"hooks": hooks}
 
 
 def write_proviso_files(
     harness_dir: str, repo_dir: str, probe_python: str | None, flags: dict[str, Any],
-    python: str | None = None,
+    python: str | None = None, brief: str | None = None,
 ) -> str:
     os.makedirs(harness_dir, exist_ok=True)
     settings_path = os.path.join(harness_dir, "settings.json")
     with open(settings_path, "w", encoding="utf-8") as fh:
-        json.dump(proviso_settings(python, probe_python), fh, indent=2)
+        json.dump(proviso_settings(python, probe_python, flags), fh, indent=2)
         fh.write("\n")
     folder = os.path.join(repo_dir, ".dc-engine")
     os.makedirs(folder, exist_ok=True)
@@ -218,6 +227,10 @@ def write_proviso_files(
     with open(os.path.join(folder, "proviso.json"), "w", encoding="utf-8") as fh:
         json.dump({**flags, "python": os.path.abspath(probe_python) if probe_python else ""}, fh, indent=2)
         fh.write("\n")
+    if flags.get("brief"):
+        if not brief or not os.path.isfile(brief):
+            raise FileNotFoundError(f"arm needs a brief file and none was found: {brief}")
+        shutil.copyfile(brief, os.path.join(folder, "brief.md"))
     return settings_path
 
 

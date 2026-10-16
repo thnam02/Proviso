@@ -207,7 +207,39 @@ class Context(RepoCase):
         self.assertNotIn("shapes/calc.py", text)
 
 
+class Brief(RepoCase):
+    def test_brief_pushed_at_prompt(self):
+        with open(os.path.join(self.root, ".dc-engine", "proviso.json"), "w") as fh:
+            json.dump(dict(self.cfg, context=False, trajectory=False, tests=False, brief=True), fh)
+        with open(os.path.join(self.root, ".dc-engine", "brief.md"), "w") as fh:
+            fh.write("$ sed -n 1,2p shapes/calc.py\ndef area(w, h):\n")
+        text = P.handle_event("proviso-context", {"prompt": "x"}, self.root)[
+            "hookSpecificOutput"]["additionalContext"]
+        self.assertIn("pre-fetched", text)
+        self.assertIn("def area(w, h):", text)
+        self.assertNotIn("Proviso is active", text)
+
+    def test_no_brief_file_is_silent(self):
+        with open(os.path.join(self.root, ".dc-engine", "proviso.json"), "w") as fh:
+            json.dump(dict(self.cfg, context=False, trajectory=False, tests=False, brief=True), fh)
+        self.assertEqual(P.handle_event("proviso-context", {"prompt": "x"}, self.root), {})
+
+
 class Arms(unittest.TestCase):
+    def test_oracle_arm_prompt_hook_only_and_needs_brief(self):
+        from dc_eval.arms import arm_config, proviso_settings, write_proviso_files
+        flags = arm_config("oracle")["proviso"]
+        self.assertEqual(set(proviso_settings("/py", "/probe", flags)["hooks"]), {"UserPromptSubmit"})
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        with self.assertRaises(FileNotFoundError):
+            write_proviso_files(os.path.join(d, "s"), os.path.join(d, "r"), "/p", flags,
+                                brief=os.path.join(d, "missing.md"))
+        b = os.path.join(d, "b.md")
+        open(b, "w").write("brief")
+        write_proviso_files(os.path.join(d, "s"), os.path.join(d, "r"), "/p", flags, brief=b)
+        self.assertEqual(open(os.path.join(d, "r", ".dc-engine", "brief.md")).read(), "brief")
+
     def test_proviso_arms(self):
         from dc_eval.arms import arm_config, claude_argv, proviso_settings, write_proviso_files
         for arm, flags in (("proviso", (True, True, True)), ("replay-only", (False, True, True)),

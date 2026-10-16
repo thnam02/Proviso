@@ -1212,7 +1212,9 @@ def execute_run(
             agent_ver = _agent_version(agent_bin)
         else:
             if cfg.get("proviso"):
-                settings_path = write_proviso_files(slot, repo_dir, probe_py, cfg["proviso"])
+                settings_path = write_proviso_files(
+                    slot, repo_dir, probe_py, cfg["proviso"],
+                    brief=os.path.join(eval_dir, "briefs", task.id + ".md"))
             if cfg["mcp"]:
                 mcp_path, settings_path = write_layer_files(
                     slot, probe_python=probe_py,

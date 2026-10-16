@@ -633,6 +633,23 @@ def build_context(prompt: str, root: str) -> str:
     return "\n".join(parts)
 
 
+BRIEF_HEADER = (
+    "Proviso pre-fetched what is relevant to this task. Everything below was read or run in this "
+    "repository at its current commit, before any change. Rely on it instead of re-reading these "
+    "files or re-running these commands; read further only for what it does not cover."
+)
+BRIEF_CHARS = 40000  # hard cap on a pre-fetched brief (~10k tokens)
+
+
+def load_brief(root: str) -> str:
+    """A pre-built brief at .dc-engine/brief.md (oracle and pre-fetch arms)."""
+    try:
+        with open(os.path.join(root, STATE_DIR, "brief.md"), encoding="utf-8") as fh:
+            return fh.read()[:BRIEF_CHARS].strip()
+    except OSError:
+        return ""
+
+
 def context(payload: dict[str, Any], root: str, cfg: dict[str, Any]) -> dict[str, Any]:
     ensure_session(root)
     what = []
@@ -645,6 +662,10 @@ def context(payload: dict[str, Any], root: str, cfg: dict[str, Any]) -> dict[str
         text = INSTRUCTION.format(what=" and ".join(what))
     t0 = time.perf_counter()
     ctx = ""
+    if cfg.get("brief"):
+        ctx = load_brief(root)
+        if ctx:
+            text = (text + "\n\n" if text else "") + BRIEF_HEADER + "\n\n" + ctx
     if cfg.get("context"):
         ctx = build_context(str(payload.get("prompt") or ""), root)
         if ctx:
