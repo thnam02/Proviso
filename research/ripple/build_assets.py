@@ -28,7 +28,8 @@ def _import_state(base_tree, cov, python, out):
     import subprocess, tempfile
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "src"))
     from dc_engine import importstate
-    files = sorted({f for v in cov.values() for f, _ in v["funcs"]})
+    from dc_engine.impact import _is_test_path
+    files = sorted({f for v in cov.values() for f, _ in v["funcs"] if not _is_test_path(f)})  # as selection does
     tmp = tempfile.mkdtemp(prefix="assets-")
     try:
         for top in sorted({f.split("/", 1)[0] for f in files}):
