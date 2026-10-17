@@ -8,10 +8,10 @@ istest = lambda p: "/tests/" in p or p.rsplit("/", 1)[-1].startswith("test_")
 PLUGIN = '''import json, os, signal
 _r = {}
 def _alarm(signum, frame):
-    raise TimeoutError("test took longer than 300 s")
+    raise TimeoutError("test took too long")
 signal.signal(signal.SIGALRM, _alarm)
 def pytest_runtest_setup(item):
-    signal.alarm(300)
+    signal.alarm(int(os.environ.get("VPLUG_ALARM", "300")))
 def pytest_runtest_teardown(item):
     signal.alarm(0)
 def pytest_runtest_logreport(report):

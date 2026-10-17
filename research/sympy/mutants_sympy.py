@@ -22,9 +22,12 @@ def suite():
     if os.path.exists(out):
         os.remove(out)
     env = {"PATH": "/usr/bin:/bin:/usr/local/bin", "PYTHONPATH": f"{WORK}:{PLUG}", "HOME": "/tmp",
-           "PYTHONDONTWRITEBYTECODE": "1", "OUT": out}
-    subprocess.run(["python3", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "vplug", "--tb=no",
-                    "--continue-on-collection-errors", TARGET], cwd=WORK, env=env, capture_output=True, timeout=7200)
+           "PYTHONDONTWRITEBYTECODE": "1", "OUT": out, "VPLUG_ALARM": "60"}  # a hang counts as a failure
+    try:
+        subprocess.run(["python3", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "vplug", "--tb=no",
+                        "--continue-on-collection-errors", TARGET], cwd=WORK, env=env, capture_output=True, timeout=1200)
+    except subprocess.TimeoutExpired:
+        return None  # the bug breaks the suite so badly that it does not finish: ground truth unknown
     try:
         return json.load(open(out))
     except (OSError, ValueError):
@@ -49,8 +52,16 @@ def main(n, seed, out_path):
         text = M.apply(WORK, rel, ln, op)
         sel, why = I.selection(WORK, cov, sys.executable)
         res = suite()
-        failing = sorted(k for k, ok in res.items() if not ok and k not in base_fail)
         selected = (set(cov) - {"__global__"}) if sel is None else set(sel)
+        if res is None:
+            full = sel is None or len(selected) >= len(cov) - 1
+            rows.append({"kind": kind, "file": rel, "line": ln, "op": op, "code": text[:120], "killed": None,
+                         "failing": [], "selected": len(selected), "covered": len(cov) - 1, "full": sel is None,
+                         "missed": [], "timeout": True, "safe_by_full_selection": full, "reason": why.get("reason", "")})
+            print(kind, rel, ln, "suite timed out; selected", len(selected), "of", len(cov) - 1, flush=True)
+            json.dump(rows, open(out_path, "w"), indent=1)
+            continue
+        failing = sorted(k for k, ok in res.items() if not ok and k not in base_fail)
         missed = [f for f in failing if f not in selected and not ("::" not in f and any(s.startswith(f) for s in selected))]
         rows.append({"kind": kind, "file": rel, "line": ln, "op": op, "code": text[:120], "killed": bool(failing),
                      "failing": failing, "selected": len(selected), "covered": len(cov) - 1, "full": sel is None,
