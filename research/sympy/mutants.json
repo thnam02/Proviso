@@ -102,5 +102,21 @@
   "full": false,
   "missed": [],
   "reason": ""
+ },
+ {
+  "kind": "function",
+  "file": "sympy/core/numbers.py",
+  "line": 2868,
+  "op": "flip",
+  "code": "return False",
+  "killed": null,
+  "failing": [],
+  "selected": 581,
+  "covered": 581,
+  "full": true,
+  "missed": [],
+  "timeout": true,
+  "safe_by_full_selection": true,
+  "reason": "module sympy.physics no longer imports"
  }
 ]
