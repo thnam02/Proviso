@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import random
@@ -329,8 +330,11 @@ def capture_engine_pin() -> EnginePin:
     dirty = None
     cwd = engine_git_cwd()
     if cwd:
-        commit = git_head(cwd)
-        dirty = git_diff_hash(cwd)
+        # scoped to the package directory: research notes or harness commits elsewhere in the repository do not
+        # change what the agent runs, so they must not abort a batch
+        rel = os.path.relpath(path, cwd) if path and os.path.isabs(path) else None
+        commit = git_head(cwd, rel) or git_head(cwd)
+        dirty = git_diff_hash(cwd, rel)
     return EnginePin(
         git_commit=commit,
         git_dirty=dirty,

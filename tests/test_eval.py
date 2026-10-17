@@ -2324,7 +2324,7 @@ def _fake_engine_git(head="abc123", diff="", root=None):
             return subprocess.CompletedProcess(["git", *a], 0, "true\n", "")
         if a[:2] == ["rev-parse", "--show-toplevel"]:
             return subprocess.CompletedProcess(["git", *a], 0, str(top) + "\n", "")
-        if a[:2] == ["rev-parse", "HEAD"]:
+        if a[:2] == ["rev-parse", "HEAD"] or a[:3] == ["log", "-1", "--format=%H"]:
             return subprocess.CompletedProcess(["git", *a], 0, str(h) + "\n", "")
         if a[:1] == ["diff"]:
             return subprocess.CompletedProcess(["git", *a], 0, d, "")
