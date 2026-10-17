@@ -27,13 +27,21 @@ def build(eval_dir, task):
     d = f"{WORK}/{fix10}"
     if not os.path.isdir(d + "/base"):
         tree(task["commit"], d + "/base")
-    cov = covmap(d + "/base", task["subpackages"], f"{WORK}/cov-{fix10}.json")
+    # the task's subpackages plus sympy/core, whose tests agents also tend to run
+    pkgs = sorted(set(task["subpackages"]) | {"sympy/core"})
+    cov = covmap(d + "/base", pkgs, f"{WORK}/cov2-{fix10}.json")
     dest = os.path.join(eval_dir, "impact", task["id"])
     os.makedirs(dest, exist_ok=True)
     json.dump({n: {k: v for k, v in e.items() if k != "ok"} for n, e in cov.items()},
               open(os.path.join(dest, "covmap.json"), "w"))
-    regb = json.load(open(f"{WORK}/out-{fix10}-regb.json"))  # normal run of the same subpackages at base
-    json.dump(sorted(n for n, ok in regb.items() if not ok), open(os.path.join(dest, "base_failures.json"), "w"))
+    fails = set()
+    regb = json.load(open(f"{WORK}/out-{fix10}-regb.json"))  # normal run of the task's subpackages at base
+    fails |= {n for n, ok in regb.items() if not ok}
+    if "sympy/core" not in task["subpackages"]:
+        from verify import run
+        core = run(d + "/base", ["sympy/core"], fix10 + "-coreb")
+        fails |= {n for n, ok in core.items() if not ok}
+    json.dump(sorted(fails), open(os.path.join(dest, "base_failures.json"), "w"))
     _import_state(d + "/base", cov, "/usr/bin/python3",  # same module list as selection computes at run time
                   os.path.join(dest, "importstate_base.json"))
     print(task["id"], "covered tests", len(cov) - 1, flush=True)
