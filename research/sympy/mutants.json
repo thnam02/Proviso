@@ -964,5 +964,33 @@
   "full": false,
   "missed": [],
   "reason": ""
+ },
+ {
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1493,
+  "op": "delete",
+  "code": "('finite', False): [11, 3, 8, 17, 7],",
+  "killed": false,
+  "failing": [],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1485,
+  "op": "delete",
+  "code": "('extended_nonpositive', False): [11, 8, 5, 29, 25, 18, 7],",
+  "killed": false,
+  "failing": [],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
  }
 ]
