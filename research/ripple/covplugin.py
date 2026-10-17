@@ -15,7 +15,7 @@ import os
 import sys
 
 ROOT = os.getcwd()
-PKG = os.path.join(ROOT, "sqlglot") + os.sep
+PKG = os.path.join(ROOT, os.environ.get("COVMAP_PKG", "sqlglot")) + os.sep
 _cur: set = set()
 _cls: set = set()
 _glob: set = set()
