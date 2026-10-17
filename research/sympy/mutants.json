@@ -1166,5 +1166,68 @@
   "full": false,
   "missed": [],
   "reason": ""
+ },
+ {
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1494,
+  "op": "delete",
+  "code": "('finite', True): [10, 30, 31, 27, 16, 21, 19, 22],",
+  "killed": true,
+  "failing": [
+   "sympy/functions/elementary/tests/test_exponential.py::test_exp_assumptions",
+   "sympy/functions/elementary/tests/test_exponential.py::test_lambertw",
+   "sympy/functions/elementary/tests/test_hyperbolic.py::test_acosh",
+   "sympy/functions/elementary/tests/test_hyperbolic.py::test_asinh"
+  ],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "module",
+  "file": "sympy/core/relational.py",
+  "line": 1583,
+  "op": "delete",
+  "code": "'ge': GreaterThan,",
+  "killed": false,
+  "failing": [],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1472,
+  "op": "delete",
+  "code": "('algebraic', False): [32, 11, 3, 8, 29, 14, 25, 13, 17, 7],",
+  "killed": false,
+  "failing": [],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1498,
+  "op": "delete",
+  "code": "('integer', False): [11, 3, 8, 29, 14, 25, 17, 7],",
+  "killed": true,
+  "failing": [
+   "sympy/functions/special/tests/test_gamma_functions.py::test_multigamma"
+  ],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
  }
 ]
