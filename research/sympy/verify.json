@@ -10,5 +10,39 @@
   ],
   "n_fix_tests": 13,
   "fix_failing": []
+ },
+ "998fbe45fc": {
+  "fix": "998fbe45fcff8947ff4fa4f920cc16548d0c08c1",
+  "base": "5a6e11e5b9ce570c819f146d1fafc83a06e14956",
+  "test_files": [
+   "sympy/integrals/tests/test_manual.py"
+  ],
+  "hidden": [
+   "sympy/integrals/tests/test_manual.py::test_manualintegrate_trig_log_hang"
+  ],
+  "n_fix_tests": 47,
+  "fix_failing": []
+ },
+ "27be5eba66": {
+  "fix": "27be5eba66bd77df08011a42db3ef37263b8d8b8",
+  "base": "32df03c0069c5afc65b46c02a07baa8d4ccc0f8b",
+  "test_files": [
+   "sympy/integrals/tests/test_laplace.py"
+  ],
+  "hidden": [],
+  "n_fix_tests": 0,
+  "fix_failing": []
+ },
+ "9350380769": {
+  "fix": "9350380769d772f6fb320052214afc2d488a41a3",
+  "base": "01c75e920fe969c9cbc4e2723ae7ceef89394a7f",
+  "test_files": [
+   "sympy/functions/elementary/tests/test_exponential.py"
+  ],
+  "hidden": [
+   "sympy/functions/elementary/tests/test_exponential.py::test_log_assumptions"
+  ],
+  "n_fix_tests": 49,
+  "fix_failing": []
  }
 }
