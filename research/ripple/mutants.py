@@ -32,11 +32,14 @@ W = "/tmp/claude-0/-home-claude/ba1d6daa-9321-5797-910e-8a169f93d9bd/scratchpad/
 FLIPS = [(" == ", " != "), (" != ", " == "), (" < ", " >= "), (" >= ", " < "), ("True", "False"), ("False", "True")]
 
 
-def candidates(tree):
+def candidates(tree, pkg="sqlglot", subdirs=None):
     out = {"function": [], "class": [], "module": []}
-    for root, _, files in os.walk(os.path.join(tree, "sqlglot")):
+    roots = [os.path.join(tree, pkg, d) for d in subdirs] if subdirs else [os.path.join(tree, pkg)]
+    for root, _, files in (w for r in roots for w in os.walk(r)):
+        if os.sep + "tests" in root or os.sep + "benchmarks" in root:
+            continue
         for fn in files:
-            if not fn.endswith(".py"):
+            if not fn.endswith(".py") or fn.startswith("test_"):
                 continue
             path = os.path.join(root, fn)
             rel = os.path.relpath(path, tree)
