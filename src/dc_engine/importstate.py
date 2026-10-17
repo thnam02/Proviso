@@ -29,7 +29,7 @@ import tempfile
 
 HERE = os.path.abspath(__file__)
 SNAPSHOT_TIMEOUT = 300
-FORMAT = 4  # bump when fingerprints change; cached base snapshots of another format are rebuilt
+FORMAT = 5  # bump when fingerprints change; cached base snapshots of another format are rebuilt
 # bookkeeping that changes whenever lines move, or that Python fills in itself
 IGNORED_CLASS_KEYS = {"__dict__", "__weakref__", "__doc__", "__module__", "__qualname__", "__annotations__",
                       "__firstlineno__", "__static_attributes__", "__annotate__", "__annotate_func__",
@@ -255,19 +255,19 @@ def snapshot(tree: str, files: list[str], python: str, heap_pad: int = 0) -> dic
                 os.remove(p)
 
 
-def cache_key(root: str, tops: list[str], python: str) -> str:
+def cache_key(root: str, tops: list[str], python: str, files: list[str] | None = None) -> str:
     """Content of the base commit's package directories (git tree hashes, so a copy of the same code in another
     repository matches) and the interpreter (bytecode differs between versions)."""
     trees = [subprocess.run(["git", "-C", root, "rev-parse", f"HEAD:{t}"], capture_output=True, text=True).stdout.strip()
              for t in tops]
     ver = subprocess.run([python, "-c", "import sys; print(sys.version)"], capture_output=True, text=True).stdout.strip()
-    return hashlib.sha1(json.dumps([trees, ver]).encode()).hexdigest()
+    return hashlib.sha1(json.dumps([trees, ver, sorted(files or [])]).encode()).hexdigest()
 
 
 def base_snapshot(root: str, files: list[str], python: str, cache_path: str) -> dict | None:
     """Snapshot of the HEAD commit (exported to a temporary directory), cached per commit."""
     tops = sorted({f.split("/", 1)[0] for f in files})
-    head = cache_key(root, tops, python)
+    head = cache_key(root, tops, python, files)
     try:
         cached = json.load(open(cache_path))
         if cached.get("head") == head and cached.get("format") == FORMAT:

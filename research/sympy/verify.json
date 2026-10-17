@@ -1,0 +1,14 @@
+{
+ "44521b8f6c": {
+  "fix": "44521b8f6cfee37d0bfb3de989fdb41450527ebe",
+  "base": "52a71d9c1d8d6039e42078664cc88323fc2438e8",
+  "test_files": [
+   "sympy/integrals/tests/test_rationaltools.py"
+  ],
+  "hidden": [
+   "sympy/integrals/tests/test_rationaltools.py::test_issue_28186"
+  ],
+  "n_fix_tests": 13,
+  "fix_failing": []
+ }
+}
