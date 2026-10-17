@@ -158,6 +158,17 @@ class Ripple(unittest.TestCase):
         self.assertIn("Fix the unintended ones", text)
         self.assertNotIn("Fix the unintended", I.ripple_report(items[:1]))
 
+    def test_new_input_items_show_parent_and_child_output(self):
+        items = [{"component": "starrocks", "parent": "mysql", "input": "CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))",
+                  "was": "CREATE TABLE t (a INT, PRIMARY KEY (a))", "now": "CREATE TABLE t (a INT)", "same": False,
+                  "error": False, "new": True}]
+        text = I.ripple_report(items)
+        self.assertIn("tests you added", text)
+        self.assertIn("mysql gives `CREATE TABLE t (a INT, PRIMARY KEY (a))`", text)
+        self.assertIn("starrocks gives `CREATE TABLE t (a INT)`", text)
+        self.assertTrue(I._same_modulo_quoting("SELECT `a` FROM t", 'select "a"  from t'))
+        self.assertFalse(I._same_modulo_quoting("ALTER TABLE t KEY_BLOCK_SIZE=8", "ALTER TABLE t 'KEY_BLOCK_SIZE'=9"))
+
     def test_edit_and_window(self):
         self.assertEqual(I._edit("abcXdef", "abcYYdef"), ("X", "YY"))
         w, n = I._window("p" * 100 + "old" + "s" * 100, "p" * 100 + "new" + "s" * 100)
