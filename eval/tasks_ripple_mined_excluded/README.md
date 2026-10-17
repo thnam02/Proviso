@@ -1,0 +1,1 @@
+862fd55467 excluded: Athena and Dune inherit from Trino, whose precision change was deliberate; following it is plausibly correct (not reverted upstream), so its child checks would penalise correct inheritance.
