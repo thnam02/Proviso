@@ -950,5 +950,19 @@
   "full": false,
   "missed": [],
   "reason": ""
+ },
+ {
+  "kind": "module",
+  "file": "sympy/core/relational.py",
+  "line": 1587,
+  "op": "delete",
+  "code": "'gt': StrictGreaterThan,",
+  "killed": false,
+  "failing": [],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
  }
 ]
