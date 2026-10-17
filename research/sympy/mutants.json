@@ -1,0 +1,106 @@
+[
+ {
+  "kind": "function",
+  "file": "sympy/functions/special/beta_functions.py",
+  "line": 108,
+  "op": "flip",
+  "code": "if argindex == 1:",
+  "killed": true,
+  "failing": [
+   "sympy/functions/special/tests/test_beta_functions.py::test_beta"
+  ],
+  "selected": 1,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "function",
+  "file": "sympy/core/random.py",
+  "line": 169,
+  "op": "flip",
+  "code": "if w < 1:",
+  "killed": false,
+  "failing": [],
+  "selected": 0,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "function",
+  "file": "sympy/functions/elementary/trigonometric.py",
+  "line": 3515,
+  "op": "flip",
+  "code": "if n == 0:",
+  "killed": true,
+  "failing": [
+   "sympy/functions/elementary/tests/test_trigonometric.py::test_acsc_series"
+  ],
+  "selected": 1,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "function",
+  "file": "sympy/core/sympify.py",
+  "line": 387,
+  "op": "flip",
+  "code": "If False, then arithmetic and operators will be converted into",
+  "killed": false,
+  "failing": [],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "function",
+  "file": "sympy/core/expr.py",
+  "line": 2783,
+  "op": "flip",
+  "code": "return True",
+  "killed": false,
+  "failing": [],
+  "selected": 7,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "function",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 2338,
+  "op": "flip",
+  "code": "if is_lt(n, S(2)) is True:",
+  "killed": true,
+  "failing": [
+   "sympy/functions/combinatorial/tests/test_comb_numbers.py::test_primepi"
+  ],
+  "selected": 1,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "function",
+  "file": "sympy/functions/elementary/piecewise.py",
+  "line": 1195,
+  "op": "flip",
+  "code": "c = And(a < x, x <= b)",
+  "killed": false,
+  "failing": [],
+  "selected": 4,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ }
+]
