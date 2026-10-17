@@ -68,8 +68,17 @@ def _units(path: str, src: str) -> tuple[list[tuple[str, int, int, bool]], list[
             elif isinstance(node, ast.ClassDef):
                 classes.append((node.lineno, end, prefix + node.name))
                 walk(node.body, prefix + node.name + ".")
-            elif not isinstance(node, (ast.Import, ast.ImportFrom)):
+            else:
+                # imports and other statements run at import time; blocks (if/try/with) may define functions
                 units.append((prefix + f"<stmt@{node.lineno}>", start, end, False))
+                for field in ("body", "orelse", "finalbody", "handlers"):
+                    sub = getattr(node, field, None)
+                    if isinstance(sub, list) and sub and isinstance(sub[0], ast.AST):
+                        if field == "handlers":
+                            for hnd in sub:
+                                walk(hnd.body, prefix)
+                        else:
+                            walk(sub, prefix)
     walk(tree.body, "")
     return units, classes
 
@@ -95,8 +104,161 @@ def packages(covmap: dict) -> list[str]:
     return sorted(tops)
 
 
-def selection(root: str, covmap: dict) -> tuple[list[str] | None, dict]:
-    """Test node ids to run for the current change, or None for the full suite. Second value: why."""
+IMPORT_STATE_MAX_NAMES = 200
+
+
+def _name_index(root: str, files: list[str]) -> dict[tuple[str, int], set[str]]:
+    """(file, first line) of every function and lambda at HEAD -> identifiers it mentions (names, attribute names,
+    string constants that look like identifiers)."""
+    idx: dict[tuple[str, int], set[str]] = {}
+    for f in files:
+        try:
+            tree = ast.parse(_git(root, "show", f"HEAD:{f}"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                start = min([d.lineno for d in getattr(node, "decorator_list", [])] + [node.lineno])
+                names = idx.setdefault((f, start), set())
+                if not isinstance(node, ast.Lambda):
+                    names.add(node.name)  # a test that ran the base `m` on a subclass now runs the subclass's `m`
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Name):
+                        names.add(sub.id)
+                    elif isinstance(sub, ast.Attribute):
+                        names.add(sub.attr)
+                    elif isinstance(sub, ast.Constant) and isinstance(sub.value, str) and sub.value.isidentifier():
+                        names.add(sub.value)
+    return idx
+
+
+def _file_names(path: str) -> set[str]:
+    """Every identifier, attribute name and identifier-like string in a file (empty if it does not parse)."""
+    try:
+        tree = ast.parse(open(path, encoding="utf-8").read())
+    except (OSError, SyntaxError, ValueError):
+        return set()
+    out: set[str] = set()
+    for sub in ast.walk(tree):
+        if isinstance(sub, ast.Name):
+            out.add(sub.id)
+        elif isinstance(sub, ast.Attribute):
+            out.add(sub.attr)
+        elif isinstance(sub, ast.Constant) and isinstance(sub.value, str) and sub.value.isidentifier():
+            out.add(sub.value)
+    return out
+
+
+def _new_top_level_defs(root: str, files: set[str]) -> set[str]:
+    """Names bound by top-level `def` or `import` statements in the working tree that the base did not bind."""
+    def bound(src: str) -> tuple[set[str], set[str]]:
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            return set(), set()
+        defs, other = set(), set()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                defs.add(node.name)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                defs.update((a.asname or a.name).split(".")[0] for a in node.names)
+            else:
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Store):
+                        other.add(sub.id)
+        return defs, other
+    out: set[str] = set()
+    for f in files:
+        old_defs, old_other = bound(_git(root, "show", f"HEAD:{f}"))
+        try:
+            new_defs, _ = bound(open(os.path.join(root, f), encoding="utf-8").read())
+        except OSError:
+            continue
+        out |= new_defs - old_defs - old_other
+    return out
+
+
+def _computed_lookup_patterns(root: str, files: list[str]) -> set[tuple[str, str]]:
+    """(prefix, suffix) of every attribute lookup by computed name (getattr/hasattr/setattr whose name is built
+    from constant parts, e.g. getattr(self, f"{key}_sql") -> ("", "_sql")). A new attribute whose name fits one can
+    be reached without being named, so the classes that gain it are treated like edited classes."""
+    pats: set[tuple[str, str]] = set()
+    for f in files:
+        try:
+            tree = ast.parse(_git(root, "show", f"HEAD:{f}"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and getattr(node.func, "id", None) in ("getattr", "hasattr", "setattr")
+                    and len(node.args) >= 2):
+                continue
+            arg = node.args[1]
+            parts: list = []
+            if isinstance(arg, ast.JoinedStr):
+                parts = [v.value if isinstance(v, ast.Constant) else None for v in arg.values]
+            elif isinstance(arg, ast.BinOp) and isinstance(arg.op, ast.Add):
+                stack, parts = [arg], []
+                while stack:
+                    n = stack.pop()
+                    if isinstance(n, ast.BinOp) and isinstance(n.op, ast.Add):
+                        stack += [n.right, n.left]
+                    else:
+                        parts.append(n.value if isinstance(n, ast.Constant) and isinstance(n.value, str) else None)
+            else:
+                continue
+            if not parts:
+                continue
+            pre = parts[0] if isinstance(parts[0], str) else ""
+            suf = parts[-1] if isinstance(parts[-1], str) and len(parts) > 1 else ""
+            if pre or suf:
+                pats.add((pre, suf))
+    return pats
+
+
+def _key_class(key: str) -> str | None:
+    """'pkg.mod:Cls.Inner.attr' -> 'pkg/mod.py:Cls.Inner' (the covmap's class naming)."""
+    mod, qual = key.split(":", 1)
+    if "." not in qual:
+        return None
+    return f"{mod.replace('.', '/')}.py:{qual.rsplit('.', 1)[0]}"
+
+
+def _import_state_effect(root: str, covmap: dict, python: str, changed_files: set[str]
+                         ) -> tuple[set[str] | None, set[str], dict]:
+    """Keys ('module:Name' or 'module:Class.attr') whose import-time values the working tree changes (empty: no
+    import-time effect; None: unknown), and classes to treat as edited (they gained an attribute that is looked up
+    by computed name, or their bases changed)."""
+    from . import importstate
+    files = sorted({f for k, v in covmap.items() for f, _ in v["funcs"]})
+    base = importstate.base_snapshot(root, files, python, os.path.join(root, STATE_DIR, "importstate_base.json"))
+    cur = importstate.snapshot(root, files, python) if base is not None else None
+    if base is None or cur is None:
+        return None, set(), {"reason": "could not compare import-time state"}
+    d = importstate.diff(base, cur, _new_top_level_defs(root, changed_files))
+    if d["errors"]:
+        return None, set(), {"reason": f"module {d['errors'][0]} no longer imports"}
+    names = set(d["changed"])
+    pats = _computed_lookup_patterns(root, files) if d["added_class_attrs"] else set()
+    reachable = [k for k in d["added_class_attrs"]
+                 if any(k.rsplit(".", 1)[-1].startswith(p) and k.rsplit(".", 1)[-1].endswith(q) for p, q in pats)]
+    # a new base class or metaclass changes behaviour without changing any attribute of the class itself
+    rebased = [k for k in d["changed"] if k.endswith((".__mro__", ".__class__"))]
+    gained = {c for c in (_key_class(k) for k in reachable) if c}
+    gained |= {c for c in (_key_class(k.rsplit(".", 1)[0] + ".x") for k in rebased) if c}
+    gained |= {c.replace("/__init__.py:", ".py:") for c in gained}
+    return names, gained, {"import_state_changed": d["changed"][:20], "import_state_n": len(d["changed"])}
+
+
+def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[str] | None, dict]:
+    """Test node ids to run for the current change, or None for the full suite. Second value: why.
+
+    function edits    tests whose base coverage reaches the function
+    class statements  tests that use the class (directly or through a subclass instance)
+    module statements and edits to functions that also run at import time: the import-time state of the package is
+                      compared with the base commit (importstate); if it is unchanged nothing more is needed, otherwise
+                      tests reaching code that reads a changed name are added
+    """
+    python = python or sys.executable
     pk = packages({k: v for k, v in covmap.items() if k != "__global__"})
     if not pk:
         return None, {"reason": "empty coverage map"}
@@ -107,8 +269,7 @@ def selection(root: str, covmap: dict) -> tuple[list[str] | None, dict]:
     if new_src:
         return None, {"reason": f"new source file {new_src[0]}"}
     funcs: set[tuple[str, int]] = set()
-    whole_files: set[str] = set()
-    classes: set[tuple[str, int, int]] = set()
+    module_level: set[str] = set()
     class_names: set[str] = set()
     for f, lines in _changed_old_lines(diff).items():
         src = _git(root, "show", f"HEAD:{f}")
@@ -119,19 +280,48 @@ def selection(root: str, covmap: dict) -> tuple[list[str] | None, dict]:
             if best is not None and best[3]:
                 funcs.add((f, best[1]))
                 continue
-            enc = [c for c in cls if c[0] <= ln <= c[1]]
-            if best is not None and enc:
-                c = min(enc, key=lambda c: c[1] - c[0])
-                classes.add((f, c[0], c[1]))
-                class_names.add(f"{f}:{c[2]}")
-            else:
-                whole_files.add(f)
+            # statements in a class body or at module level run at import: their effect is read off the
+            # import-time state below
+            module_level.add(f)
     glob_funcs = {tuple(x) for x in (covmap.get("__global__") or {}).get("funcs", [])}
     hit_global = sorted(funcs & glob_funcs)
-    if hit_global:
-        return None, {"reason": f"{hit_global[0][0]} code you changed also runs at import time"}
+    why: dict[str, Any] = {"functions": len(funcs), "files": sorted(module_level)}
+    read_names: set[str] = set()
+    if hit_global or module_level:
+        names, gained, info = _import_state_effect(root, covmap, python, set(_changed_old_lines(diff)))
+        why.update(info)
+        if names is None:
+            return None, why
+        if len({k.rsplit(".", 1)[-1].rsplit(":", 1)[-1] for k in names}) > IMPORT_STATE_MAX_NAMES:
+            return None, {**why, "reason": f"your change alters {len(names)} values computed at import time"}
+        read_names = names
+        class_names |= gained
+    # a changed value is read by code that names it; a class attribute only through that class or a subclass,
+    # so its readers count only in tests that use the class
+    readers_any: set[tuple[str, int]] = set()
+    readers_cls: dict[str, set[tuple[str, int]]] = {}
+    test_attrs_any: set[str] = set()  # the test code itself may read a changed value
+    test_attrs_cls: dict[str, set[str]] = {}
+    test_file_names: dict[str, set[str]] = {}
+    if read_names:
+        idx = _name_index(root, sorted({f for k, v in covmap.items() for f, _ in v["funcs"]}))
+        by_name: dict[str, set[tuple[str, int]]] = {}
+        for fl, ns in idx.items():
+            for n in ns:
+                by_name.setdefault(n, set()).add(fl)
+        for key in read_names:
+            cls = _key_class(key)
+            attr = key.rsplit(":", 1)[1].rsplit(".", 1)[-1]
+            fl = by_name.get(attr, set())
+            if cls is None:
+                readers_any |= fl
+                test_attrs_any.add(attr)
+            else:
+                for c in {cls, cls.replace("/__init__.py:", ".py:")}:
+                    readers_cls.setdefault(c, set()).update(fl)
+                    test_attrs_cls.setdefault(c, set()).add(attr)
     sel = []
-    any_change = bool(funcs or whole_files or classes)
+    any_change = bool(funcs or module_level)
     for node, v in covmap.items():
         if node == "__global__":
             continue
@@ -141,14 +331,25 @@ def selection(root: str, covmap: dict) -> tuple[list[str] | None, dict]:
         if class_names and class_names & set(v.get("classes") or []):
             sel.append(node)
             continue
-        for f, line in v["funcs"]:
-            if (f, line) in funcs or f in whole_files or any(f == c[0] and c[1] <= line <= c[2] for c in classes):
+        tf = {tuple(x) for x in v["funcs"]}
+        if tf & funcs or tf & readers_any:
+            sel.append(node)
+            continue
+        used = set(v.get("classes") or [])
+        if readers_cls and any(tf & readers_cls[c] for c in used & readers_cls.keys()):
+            sel.append(node)
+            continue
+        if test_attrs_any or test_attrs_cls:
+            tfile = node.split("::", 1)[0]
+            if tfile not in test_file_names:
+                test_file_names[tfile] = _file_names(os.path.join(root, tfile))
+            names_here = test_file_names[tfile]
+            if names_here & test_attrs_any or any(names_here & test_attrs_cls[c] for c in used & test_attrs_cls.keys()):
                 sel.append(node)
-                break
     # tests the agent added or edited always run
     touched_tests = [l[3:].strip() for l in status.splitlines() if l[3:].strip().startswith("tests")]
     extra = sorted({t for t in touched_tests if t.endswith(".py")})
-    why = {"functions": len(funcs), "classes": len(classes), "files": sorted(whole_files), "agent_tests": extra}
+    why["agent_tests"] = extra
     return sorted(set(sel)) + extra, why
 
 
@@ -244,7 +445,7 @@ def run_selected(root: str, python: str) -> str:
     n_suite = len([k for k in covmap if k != "__global__"])
     base_fail = set(_asset(root, "base_failures.json") or [])
     t0 = time.time()
-    sel, why = selection(root, covmap) if covmap else (None, {"reason": "no coverage map"})
+    sel, why = selection(root, covmap, python) if covmap else (None, {"reason": "no coverage map"})
     xml = os.path.join(root, STATE_DIR, "impact.xml")
     if os.path.exists(xml):
         os.remove(xml)
@@ -324,8 +525,32 @@ def _log_run(root, ran, total, secs, new, why):
 # --------------------------------------------------------------------------- ripple replay
 
 
-def ripple(root: str, cfg: dict[str, Any]) -> tuple[list[str], dict]:
-    """Changed outputs in inheriting components, not reported before. Items are human-readable lines."""
+def _edit(was: str, now: str) -> tuple[str, str]:
+    """The differing middle of two strings (common prefix and suffix removed)."""
+    i = 0
+    while i < min(len(was), len(now)) and was[i] == now[i]:
+        i += 1
+    j = 0
+    while j < min(len(was), len(now)) - i and was[-1 - j] == now[-1 - j]:
+        j += 1
+    return was[i:len(was) - j], now[i:len(now) - j]
+
+
+def _window(was: str, now: str, ctx: int = 40, span: int = 70) -> tuple[str, str]:
+    """Both strings cut around their first difference, so the change is visible however long they are."""
+    i = 0
+    while i < min(len(was), len(now)) and was[i] == now[i]:
+        i += 1
+    start = max(0, i - ctx)
+
+    def cut(x: str) -> str:
+        return ("…" if start else "") + x[start:i + span] + ("…" if len(x) > i + span else "")
+    return cut(was), cut(now)
+
+
+def ripple(root: str, cfg: dict[str, Any]) -> tuple[list[dict], dict]:
+    """Changed outputs in inheriting components, not reported before. Each item: component, parent, input, was, now,
+    and `same`: the parent's output on the same input changed in exactly the same way (inheritance doing its job)."""
     d = os.path.join(root, STATE_DIR)
     runner, probes_p, base_p = (os.path.join(d, n) for n in ("replay.py", "probes.json", "ripple_base.json"))
     if not (os.path.isfile(runner) and os.path.isfile(probes_p) and os.path.isfile(base_p)):
@@ -343,6 +568,7 @@ def ripple(root: str, cfg: dict[str, Any]) -> tuple[list[str], dict]:
     probes = json.load(open(probes_p))
     base = json.load(open(base_p))
     cur = json.load(open(out))
+    own = {(p[0], p[2]): str(i) for i, p in enumerate(probes) if p[0] == p[1]}
     from .proviso import load_state, save_state
     st = load_state(root)
     seen = set(st.get("ripple_reported", []))
@@ -353,13 +579,50 @@ def ripple(root: str, cfg: dict[str, Any]) -> tuple[list[str], dict]:
     for k in fresh:
         src, dia, sql = probes[int(k)]
         was, now = base.get(k, ""), cur[k]
-        items.append((0 if now.startswith("EXC") else 1, dia,
-                      f"{dia} (inherits from {src}): `{sql[:120]}` was `{was[:120]}`, now `{now[:120]}`"))
-    items.sort()
+        pk = own.get((src, sql))
+        same = pk is not None and pk in cur and _edit(base.get(pk, ""), cur[pk]) == _edit(was, now)
+        items.append({"component": dia, "parent": src, "input": sql, "was": was, "now": now, "same": same,
+                      "error": now.startswith("EXC")})
+    items.sort(key=lambda i: (i["same"], not i["error"], i["component"]))
     st["ripple_reported"] = sorted(seen | set(fresh))
     save_state(root, st)
     stats["ripple_reported"] = len(items)
-    return [i[2] for i in items], stats
+    stats["ripple_same"] = sum(i["same"] for i in items)
+    return items, stats
+
+
+def ripple_report(items: list[dict], max_items: int = RIPPLE_MAX_ITEMS) -> str:
+    """Report for the agent: changes that differ from the parent's in full; identical inherited changes in one line
+    per component, since they are usually intended but the user should still hear about them."""
+    diff = [i for i in items if not i["same"]]
+    same = [i for i in items if i["same"]]
+    parts = ["Proviso replayed inputs from the existing tests through your changed code, in every component that "
+             "inherits from the code you edited."]
+    if diff:
+        parts.append("These outputs changed in an inheriting component, and not in the way the parent's output "
+                     "changed (or the parent's did not change at all), which is how unintended side effects look:")
+        for i in diff[:max_items]:
+            w, n = _window(i["was"], i["now"])
+            parts.append(f"- {i['component']} (inherits from {i['parent']}), input `{i['input'][:100]}`:\n"
+                         f"    was `{w}`\n    now `{n}`")
+        if len(diff) > max_items:
+            parts.append(f"- …and {len(diff) - max_items} more")
+    if same:
+        by = {}
+        for i in same:
+            by.setdefault((i["component"], i["parent"]), []).append(i)
+        lines = []
+        for (comp, par), its in sorted(by.items()):
+            w, n = _window(its[0]["was"], its[0]["now"], ctx=25, span=35)
+            lines.append(f"- {comp} now follows {par}'s change on {len(its)} input(s), e.g. `{w}` → `{n}`")
+        parts.append("These inheriting components changed exactly as their parent did, which is usually intended:\n"
+                     + "\n".join(lines))
+    tail = []
+    if diff:
+        tail.append("Fix the unintended ones; if they are intended, say so.")
+    tail.append("In your final message, tell the user which other components your change affects.")
+    parts.append(" ".join(tail))
+    return "\n".join(parts)
 
 
 def main(argv: list[str] | None = None) -> int:

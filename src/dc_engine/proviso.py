@@ -541,7 +541,7 @@ def verify(payload: dict[str, Any], root: str, cfg: dict[str, Any]) -> dict[str,
                 cls, name = k.split("::", 1)
                 hard.append(f"existing test `{cls.rsplit('.', 1)[-1]}.{name}` passed before your change and fails now")
 
-    ripple_items: list[str] = []
+    ripple_items: list[dict] = []
     if cfg.get("ripple"):
         from .impact import ripple
         ripple_items, rstats = ripple(root, cfg)
@@ -550,12 +550,8 @@ def verify(payload: dict[str, Any], root: str, cfg: dict[str, Any]) -> dict[str,
     ms = int((time.perf_counter() - t0) * 1000)
     st = load_state(root) | {"base_tests": st.get("base_tests", {})}
     if ripple_items and not hard:
-        shown = ripple_items[:5]
-        text = ("Proviso replayed inputs from the existing tests through your changed code. These outputs changed in "
-                "components that inherit from code you edited, which the task did not ask for:\n"
-                + "\n".join(f"- {i}" for i in shown)
-                + (f"\n- …and {len(ripple_items) - len(shown)} more" if len(ripple_items) > len(shown) else "")
-                + "\nIf these changes are intended, just finish; otherwise fix them.")
+        from .impact import ripple_report
+        text = ripple_report(ripple_items)
         st["blocks"] = st.get("blocks", 0) + 1
         save_state(root, st)
         log_event(root, {"event": "verify", "result": "block", "hard": 0, "soft": 0, "ripple": len(ripple_items),
