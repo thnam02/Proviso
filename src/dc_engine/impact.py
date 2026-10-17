@@ -599,9 +599,13 @@ def ripple(root: str, cfg: dict[str, Any]) -> tuple[list[dict], dict]:
         was, now = base.get(k, ""), cur[k]
         pk = own.get((src, sql))
         same = pk is not None and pk in cur and _edit(base.get(pk, ""), cur[pk]) == _edit(was, now)
-        items.append({"component": dia, "parent": src, "input": sql, "was": was, "now": now, "same": same,
+        items.append({"key": k, "component": dia, "parent": src, "input": sql, "was": was, "now": now, "same": same,
                       "error": now.startswith("EXC")})
-    items.sort(key=lambda i: (i["same"], not i["error"], i["component"]))
+    new_items, nstats = _new_input_ripple(root, cfg, probes, env, seen)
+    stats.update(nstats)
+    items += new_items
+    fresh += [i["key"] for i in new_items]
+    items.sort(key=lambda i: (i.get("new", False), i["same"], not i["error"], i["component"]))
     st["ripple_reported"] = sorted(seen | set(fresh))
     save_state(root, st)
     stats["ripple_reported"] = len(items)
@@ -609,13 +613,93 @@ def ripple(root: str, cfg: dict[str, Any]) -> tuple[list[dict], dict]:
     return items, stats
 
 
+_NORM_RE = re.compile(r"[`\"\[\]'\s]")
+
+
+def _same_modulo_quoting(a: str, b: str) -> bool:
+    return _NORM_RE.sub("", a).lower() == _NORM_RE.sub("", b).lower()
+
+
+def _new_input_ripple(root: str, cfg: dict[str, Any], probes: list, env: dict, seen: set[str]
+                      ) -> tuple[list[dict], dict]:
+    """Inputs from tests the agent added, run in their dialect and in every dialect that inherits from it.
+
+    Ripples mostly surface on the new behaviour itself, which no existing test covers (in sqlglot's history, 7 of 9
+    silent child-dialect regressions showed on the inputs the change's own tests added). A child is reported when,
+    on such an input, it fails where its parent works, or its output differs from the parent's (quoting, case and
+    spacing ignored) -- and only if the child's output also differs from what the original code produced, so the
+    difference comes from the agent's change."""
+    import importlib.util
+    d = os.path.join(root, STATE_DIR)
+    spec = importlib.util.spec_from_file_location("dc_replay", os.path.join(d, "replay.py"))
+    if spec is None or spec.loader is None:
+        return [], {}
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+        now_corpus = set(map(tuple, mod.corpus(root)))
+    except Exception:  # noqa: BLE001
+        return [], {"ripple_new": "corpus error"}
+    base_corpus = {(p[0], p[2]) for p in probes if p[0] == p[1]}
+    children: dict[str, set[str]] = {}
+    for src, dia, _ in probes:
+        if src != dia:
+            children.setdefault(src, set()).add(dia)
+    new = sorted(c for c in now_corpus - base_corpus if children.get(c[0]))
+    if not new:
+        return [], {"ripple_new_inputs": 0}
+    nprobes = []
+    for src, sql in new[:200]:
+        nprobes.append([src, src, sql])
+        nprobes += [[src, ch, sql] for ch in sorted(children[src])]
+    pp = os.path.join(d, "ripple_new_probes.json")
+    json.dump(nprobes, open(pp, "w"))
+    py = cfg.get("python") or sys.executable
+    runner = os.path.join(d, "replay.py")
+    cur_p, base_p = os.path.join(d, "ripple_new_cur.json"), os.path.join(d, "ripple_new_base.json")
+    import shutil
+    import tempfile
+    tops = sorted({f.split("/", 1)[0] for v in (_asset(root, "covmap.json") or {}).values() for f, _ in v.get("funcs", [])})
+    tmp = tempfile.mkdtemp(prefix="dc-ripple-base-")
+    try:
+        arch = subprocess.run(["git", "-C", root, "archive", "HEAD", *tops], capture_output=True)
+        subprocess.run(["tar", "-x", "-C", tmp], input=arch.stdout, capture_output=True)
+        r1 = subprocess.run([py, runner, "run", root, pp, cur_p], cwd=root, env=env, capture_output=True, timeout=600)
+        r2 = subprocess.run([py, runner, "run", tmp, pp, base_p], cwd=tmp, env={**env, "PYTHONPATH": tmp},
+                            capture_output=True, timeout=600)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if r1.returncode or r2.returncode:
+        return [], {"ripple_new": "runner error"}
+    cur, base = json.load(open(cur_p)), json.load(open(base_p))
+    own = {(p[0], p[2]): str(i) for i, p in enumerate(nprobes) if p[0] == p[1]}
+    items = []
+    for i, (src, dia, sql) in enumerate(nprobes):
+        if src == dia:
+            continue
+        k = str(i)
+        child, parent, before = cur.get(k, ""), cur.get(own[(src, sql)], ""), base.get(k, "")
+        if child == before or parent.startswith("EXC"):
+            continue
+        crash = child.startswith("EXC")
+        if not crash and _same_modulo_quoting(child, parent):
+            continue
+        key = f"new:{dia}:{sql}:{child}"
+        if key in seen:
+            continue
+        items.append({"key": key, "component": dia, "parent": src, "input": sql, "was": parent, "now": child,
+                      "same": False, "error": crash, "new": True})
+    return items, {"ripple_new_inputs": len(new), "ripple_new_reported": len(items)}
+
+
 def ripple_report(items: list[dict], max_items: int = RIPPLE_MAX_ITEMS) -> str:
     """Report for the agent: changes that differ from the parent's in full; identical inherited changes in one line
     per component, since they are usually intended but the user should still hear about them."""
-    diff = [i for i in items if not i["same"]]
-    same = [i for i in items if i["same"]]
-    parts = ["Proviso replayed inputs from the existing tests through your changed code, in every component that "
-             "inherits from the code you edited."]
+    newi = [i for i in items if i.get("new")]
+    diff = [i for i in items if not i["same"] and not i.get("new")]
+    same = [i for i in items if i["same"] and not i.get("new")]
+    parts = ["Proviso replayed test inputs (from the existing tests and from tests you added) through your changed "
+             "code, in every component that inherits from the code you edited."]
     if diff:
         parts.append("These outputs changed in an inheriting component, and not in the way the parent's output "
                      "changed (or the parent's did not change at all), which is how unintended side effects look:")
@@ -625,6 +709,15 @@ def ripple_report(items: list[dict], max_items: int = RIPPLE_MAX_ITEMS) -> str:
                          f"    was `{w}`\n    now `{n}`")
         if len(diff) > max_items:
             parts.append(f"- …and {len(diff) - max_items} more")
+    if newi:
+        parts.append("On inputs from the tests you added, these inheriting components fail where their parent works, "
+                     "or produce different output from the parent's (quoting and case ignored):")
+        for i in newi[:max_items]:
+            what = "fails" if i["error"] else "gives"
+            parts.append(f"- {i['component']} (inherits from {i['parent']}), input `{i['input'][:100]}`:\n"
+                         f"    {i['parent']} gives `{i['was'][:140]}`\n    {i['component']} {what} `{i['now'][:140]}`")
+        if len(newi) > max_items:
+            parts.append(f"- …and {len(newi) - max_items} more")
     if same:
         by = {}
         for i in same:
@@ -636,8 +729,8 @@ def ripple_report(items: list[dict], max_items: int = RIPPLE_MAX_ITEMS) -> str:
         parts.append("These inheriting components changed exactly as their parent did, which is usually intended:\n"
                      + "\n".join(lines))
     tail = []
-    if diff:
-        tail.append("Fix the unintended ones; if they are intended, say so.")
+    if diff or newi:
+        tail.append("Fix the unintended ones; if a component is meant to differ from its parent here, say so.")
     tail.append("In your final message, tell the user which other components your change affects.")
     parts.append(" ".join(tail))
     return "\n".join(parts)
