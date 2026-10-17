@@ -53,7 +53,7 @@
   "code": "If False, then arithmetic and operators will be converted into",
   "killed": false,
   "failing": [],
-  "selected": 581,
+  "selected": 575,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -127,7 +127,7 @@
   "code": "return self == Dict(other)",
   "killed": false,
   "failing": [],
-  "selected": 581,
+  "selected": 0,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -190,7 +190,7 @@
    "sympy/functions/elementary/tests/test_trigonometric.py::test_cot_expansion",
    "sympy/functions/elementary/tests/test_trigonometric.py::test_sinc"
   ],
-  "selected": 581,
+  "selected": 577,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -267,7 +267,7 @@
    "sympy/functions/special/tests/test_zeta_functions.py::test_polylog_series",
    "sympy/functions/special/tests/test_zeta_functions.py::test_polylog_values"
   ],
-  "selected": 581,
+  "selected": 468,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -283,7 +283,7 @@
   "failing": [
    "sympy/functions/combinatorial/tests/test_comb_numbers.py::test_primenu"
   ],
-  "selected": 581,
+  "selected": 1,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -552,7 +552,7 @@
   "code": "is_comparable = False  # Cannot be evalf'd.",
   "killed": false,
   "failing": [],
-  "selected": 581,
+  "selected": 96,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -568,7 +568,7 @@
   "failing": [
    "sympy/functions/combinatorial/tests/test_comb_numbers.py::test_jacobi_symbol"
   ],
-  "selected": 581,
+  "selected": 2,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -584,7 +584,7 @@
   "failing": [
    "sympy/functions/combinatorial/tests/test_comb_numbers.py::test_primepi"
   ],
-  "selected": 581,
+  "selected": 1,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -732,7 +732,7 @@
    "sympy/functions/special/tests/test_zeta_functions.py::test_polylog_expansion",
    "sympy/functions/special/tests/test_zeta_functions.py::test_rewriting"
   ],
-  "selected": 581,
+  "selected": 571,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -913,7 +913,7 @@
    "sympy/functions/special/tests/test_zeta_functions.py::test_rewriting",
    "sympy/functions/special/tests/test_zeta_functions.py::test_zeta_series"
   ],
-  "selected": 581,
+  "selected": 577,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -929,7 +929,7 @@
   "failing": [
    "sympy/functions/combinatorial/tests/test_comb_numbers.py::test_primeomega"
   ],
-  "selected": 581,
+  "selected": 1,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -945,7 +945,7 @@
   "failing": [
    "sympy/functions/elementary/tests/test_trigonometric.py::test_atan"
   ],
-  "selected": 581,
+  "selected": 578,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -959,7 +959,7 @@
   "code": "'gt': StrictGreaterThan,",
   "killed": false,
   "failing": [],
-  "selected": 581,
+  "selected": 354,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -973,7 +973,7 @@
   "code": "('finite', False): [11, 3, 8, 17, 7],",
   "killed": false,
   "failing": [],
-  "selected": 581,
+  "selected": 578,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -987,7 +987,7 @@
   "code": "('extended_nonpositive', False): [11, 8, 5, 29, 25, 18, 7],",
   "killed": false,
   "failing": [],
-  "selected": 581,
+  "selected": 578,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -1001,7 +1001,7 @@
   "code": "'!=': Unequality,",
   "killed": false,
   "failing": [],
-  "selected": 581,
+  "selected": 354,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -1161,7 +1161,7 @@
    "sympy/functions/special/tests/test_zeta_functions.py::test_riemann_xi_eval",
    "sympy/functions/special/tests/test_zeta_functions.py::test_zeta_eval"
   ],
-  "selected": 581,
+  "selected": 578,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -1180,7 +1180,7 @@
    "sympy/functions/elementary/tests/test_hyperbolic.py::test_acosh",
    "sympy/functions/elementary/tests/test_hyperbolic.py::test_asinh"
   ],
-  "selected": 581,
+  "selected": 578,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -1194,7 +1194,7 @@
   "code": "'ge': GreaterThan,",
   "killed": false,
   "failing": [],
-  "selected": 581,
+  "selected": 354,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -1208,7 +1208,7 @@
   "code": "('algebraic', False): [32, 11, 3, 8, 29, 14, 25, 13, 17, 7],",
   "killed": false,
   "failing": [],
-  "selected": 581,
+  "selected": 578,
   "covered": 581,
   "full": false,
   "missed": [],
@@ -1224,7 +1224,7 @@
   "failing": [
    "sympy/functions/special/tests/test_gamma_functions.py::test_multigamma"
   ],
-  "selected": 581,
+  "selected": 578,
   "covered": 581,
   "full": false,
   "missed": [],

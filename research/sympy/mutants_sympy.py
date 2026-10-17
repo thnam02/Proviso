@@ -86,7 +86,8 @@ def rescore(rows_path):
         sel, why = I.selection(WORK, cov, sys.executable)
         selected = (set(cov) - {"__global__"}) if sel is None else set(sel)
         r["selected"], r["full"], r["reason"] = len(selected), sel is None, why.get("reason", "")
-        r["missed"] = [f for f in r["failing"] if f not in selected]
+        r["missed"] = [f for f in r["failing"] if f not in selected
+                       and not ("::" not in f and any(x.startswith(f) for x in selected))]  # module that fails to load
     g("checkout", "-q", "--", ".")
     json.dump(rows, open(rows_path, "w"), indent=1)
     return rows
