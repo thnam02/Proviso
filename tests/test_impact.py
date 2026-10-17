@@ -185,13 +185,14 @@ class Runner(unittest.TestCase):
         src = open(p).read()
         open(p, "w").write(src.replace("w * h", "w + h"))
         text = I.run_selected(self.root, sys.executable, ["pkg"])
-        self.assertIn("Ran the 2 tests in pkg", text)  # test_area (affected) + test_unknown (no coverage record)
+        self.assertIn("Ran 2 of the 3 tests in pkg", text)  # test_area (affected) + test_unknown (no record)
+        self.assertIn("1 of them because Proviso has no coverage record", text)
         self.assertIn("NEW failures (1)", text)
         self.assertIn("pkg/tests/test_calc.py::test_area", text)
 
     def test_unchanged_code_runs_only_unknown_tests(self):
         text = I.run_selected(self.root, sys.executable, ["pkg"])
-        self.assertIn("Ran the 1 tests in pkg", text)
+        self.assertIn("Ran 1 of the 3 tests in pkg", text)
         self.assertIn("No new failures", text)
 
 

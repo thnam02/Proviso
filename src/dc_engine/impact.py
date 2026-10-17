@@ -558,6 +558,7 @@ def run_selected(root: str, python: str, targets: list[str] | None = None) -> st
         selset = set(sel)
         agent_files = {x for x in sel if "::" not in x}
         run = [n for n in collected if n in selset or n not in covmap or n.split("::", 1)[0] in agent_files]
+        n_unknown = sum(1 for n in run if n not in covmap and n not in selset)
         n_scope = len(collected)
         if not run:
             _log_run(root, 0, n_scope, time.time() - t0, [], why)
@@ -569,8 +570,9 @@ def run_selected(root: str, python: str, targets: list[str] | None = None) -> st
     new = [n for n in failing if n not in base_fail and n.split("::")[0] not in base_fail]
     old = [n for n in failing if n not in new]
     if sel is not None:
-        lines = [f"[Proviso] Ran the {len(res)} tests in {where} whose code your changes reach (of {n_scope}) in "
-                 f"{secs:.0f}s instead of all of them."]
+        unk = (f", {n_unknown} of them because Proviso has no coverage record for them" if n_unknown else "")
+        lines = [f"[Proviso] Ran {len(res)} of the {n_scope} tests in {where} (the ones your changes can affect"
+                 f"{unk}) in {secs:.0f}s."]
     else:
         lines = [f"[Proviso] Ran all {len(res)} tests in {where} ({why.get('reason', 'change could not be placed')}) "
                  f"in {secs:.0f}s."]
