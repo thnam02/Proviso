@@ -1,4 +1,4 @@
-"""Change-impact assets for sympy tasks: coverage map of the task's subpackages at the base commit (sympy's cache off,
+"""Change-impact assets for sympy tasks: coverage map of the task's subpackages at the base commit (sympy's cache cleared before every test,
 so a test records everything it depends on, not only what an earlier test left uncached), base failures (from a
 normal run), and the base import-time snapshot.
 Usage: python assets.py EVAL_DIR [TASK_ID_PREFIX ...]"""
@@ -14,7 +14,8 @@ def covmap(base_tree, pkgs, out):
     if os.path.exists(out):
         return json.load(open(out))
     env = {"PATH": "/usr/bin:/bin:/usr/local/bin", "PYTHONPATH": f"{base_tree}:{os.path.join(ROOT, 'research', 'ripple')}",
-           "HOME": "/tmp", "COVMAP_OUT": out, "COVMAP_PKG": "sympy", "SYMPY_USE_CACHE": "no",
+           "HOME": "/tmp", "COVMAP_OUT": out, "COVMAP_PKG": "sympy",
+           "COVMAP_BEFORE_TEST": "sympy.core.cache:clear_cache",
            "PYTHONDONTWRITEBYTECODE": "1"}
     subprocess.run(["python3", "-m", "pytest", "-q", "-p", "covplugin", "-p", "no:cacheprovider", "--tb=no",
                     "--continue-on-collection-errors", *pkgs], cwd=base_tree, env=env, capture_output=True, timeout=14400)

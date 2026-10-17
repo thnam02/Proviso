@@ -3,7 +3,7 @@
 Bugs (as in research/ripple/mutants.py: comparison/boolean flips in functions, deleted table entries or flipped
 booleans at class and module level) are planted in sympy/functions and sympy/core. Ground truth: the tests of
 sympy/functions run normally (cache on) on the bugged tree; selection: dc_engine.impact.selection with the coverage map
-built at the base with sympy's cache off. A bug is missed if a failing test is not selected.
+built at the base with sympy's cache cleared before each test. A bug is missed if a failing test is not selected.
 Usage: python mutants_sympy.py N_PER_KIND SEED OUT.json"""
 import json, os, random, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
