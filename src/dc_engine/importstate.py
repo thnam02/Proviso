@@ -29,7 +29,7 @@ import tempfile
 
 HERE = os.path.abspath(__file__)
 SNAPSHOT_TIMEOUT = 300
-FORMAT = 5  # bump when fingerprints change; cached base snapshots of another format are rebuilt
+FORMAT = 7  # bump when fingerprints change; cached base snapshots of another format are rebuilt
 # bookkeeping that changes whenever lines move, or that Python fills in itself
 IGNORED_CLASS_KEYS = {"__dict__", "__weakref__", "__doc__", "__module__", "__qualname__", "__annotations__",
                       "__firstlineno__", "__static_attributes__", "__annotate__", "__annotate_func__",
@@ -59,6 +59,15 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
     sys.setrecursionlimit(10000)
     addr = re.compile(r" at 0x[0-9a-fA-F]+")
     files = json.load(open(files_path))
+    # import-time code may draw random numbers (sympy's combinatorics uses randomised algorithms); generators seeded
+    # from the OS would make the state differ on every run, so unseeded generators get a fixed seed here
+    import random
+    _orig_seed = random.Random.seed
+
+    def _fixed_seed(self, a=None, version=2):
+        return _orig_seed(self, 0 if a is None else a, version)
+    random.Random.seed = _fixed_seed
+    random.seed(0)
     # shift the heap so that values whose order depends on memory addresses (tuple(set_of_classes)) come out
     # differently between the base runs and can be recognised as order-unstable
     pad = [object() for _ in range(int(os.environ.get("DC_HEAP_PAD", "0")))]  # noqa: F841
@@ -179,6 +188,13 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             for n in slots:
                 if hasattr(v, n):
                     state["slot:" + n] = getattr(v, n)
+            # a cached hash (e.g. sympy's _mhash) is derived data whose value can depend on memory addresses
+            try:
+                own = hash(v)
+            except Exception:  # noqa: BLE001
+                own = None
+            if own is not None:
+                state = {k: x for k, x in state.items() if not (type(x) is int and x == own)}
             fp(state, h, depth + 1, seen)
             return
         try:
