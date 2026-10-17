@@ -73,3 +73,20 @@ def main(n, seed, out_path):
 
 if __name__ == "__main__":
     main(int(sys.argv[1]), int(sys.argv[2]), sys.argv[3])
+
+
+def rescore(rows_path):
+    """Selection (current dc_engine) against the stored ground truth of each planted bug (no test runs)."""
+    cov = json.load(open(os.path.join(S, "cov_mut_sympy_functions.json")))
+    rows = json.load(open(rows_path))
+    g = lambda *a: subprocess.run(["git", *a], cwd=WORK, capture_output=True)
+    for r in rows:
+        g("checkout", "-q", "--", ".")
+        M.apply(WORK, r["file"], r["line"], r["op"])
+        sel, why = I.selection(WORK, cov, sys.executable)
+        selected = (set(cov) - {"__global__"}) if sel is None else set(sel)
+        r["selected"], r["full"], r["reason"] = len(selected), sel is None, why.get("reason", "")
+        r["missed"] = [f for f in r["failing"] if f not in selected]
+    g("checkout", "-q", "--", ".")
+    json.dump(rows, open(rows_path, "w"), indent=1)
+    return rows
