@@ -109,7 +109,8 @@ IMPORT_STATE_MAX_NAMES = 200
 
 def _name_index(root: str, files: list[str]) -> dict[tuple[str, int], set[str]]:
     """(file, first line) of every function and lambda at HEAD -> identifiers it mentions (names, attribute names,
-    string constants that look like identifiers)."""
+    string constants that look like identifiers). Calls are additionally recorded as 'call:NAME', and each function's
+    own name as 'def:NAME', so callers of a function can be found."""
     idx: dict[tuple[str, int], set[str]] = {}
     for f in files:
         try:
@@ -122,7 +123,13 @@ def _name_index(root: str, files: list[str]) -> dict[tuple[str, int], set[str]]:
                 names = idx.setdefault((f, start), set())
                 if not isinstance(node, ast.Lambda):
                     names.add(node.name)  # a test that ran the base `m` on a subclass now runs the subclass's `m`
+                    names.add("def:" + node.name)
                 for sub in ast.walk(node):
+                    if isinstance(sub, ast.Call):
+                        fn = sub.func
+                        nm = fn.id if isinstance(fn, ast.Name) else fn.attr if isinstance(fn, ast.Attribute) else None
+                        if nm:
+                            names.add("call:" + nm)
                     if isinstance(sub, ast.Name):
                         names.add(sub.id)
                     elif isinstance(sub, ast.Attribute):
@@ -309,10 +316,21 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
         for fl, ns in idx.items():
             for n in ns:
                 by_name.setdefault(n, set()).add(fl)
+        def_name = {fl: n[4:] for fl, ns in idx.items() for n in ns if n.startswith("def:")}
+
+        def readers_of(attr: str) -> set[tuple[str, int]]:
+            # code that names the value, plus the callers of that code: a reader's result is often computed once
+            # and cached (e.g. a dispatch table built from TRANSFORMS on first use), after which only its caller
+            # runs, so the coverage map credits the reader to whichever test happened to run first
+            direct = by_name.get(attr, set())
+            calls = {"call:" + def_name[fl] for fl in direct if fl in def_name}
+            callers = {fl for c in calls for fl in by_name.get(c, set())}
+            return direct | callers
+
         for key in read_names:
             cls = _key_class(key)
             attr = key.rsplit(":", 1)[1].rsplit(".", 1)[-1]
-            fl = by_name.get(attr, set())
+            fl = readers_of(attr)
             if cls is None:
                 readers_any |= fl
                 test_attrs_any.add(attr)
