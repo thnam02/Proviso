@@ -38,27 +38,27 @@
  {
   "task": "5aec828105-radsimp-fix-a-fraction-bug-when-strict-t",
   "scope_tests": 319,
-  "selected": 319,
+  "selected": 227,
   "scope_time": 144.5,
-  "selected_time": 144.5,
+  "selected_time": 143.5,
   "full": false,
   "reason": ""
  },
  {
   "task": "5e60418896-fix-sign-errors-in-li-z-rewrite-shi-chi",
   "scope_tests": 570,
-  "selected": 570,
+  "selected": 2,
   "scope_time": 362.0,
-  "selected_time": 362.0,
+  "selected_time": 0.6,
   "full": false,
   "reason": ""
  },
  {
   "task": "64f6a7cafb-sympy-solve-now-rewrites-max-min-functio",
   "scope_tests": 580,
-  "selected": 580,
+  "selected": 202,
   "scope_time": 1209.8,
-  "selected_time": 1209.8,
+  "selected_time": 762.9,
   "full": false,
   "reason": ""
  },
@@ -92,9 +92,9 @@
  {
   "task": "ca0a14d19a-fix-asech-derivative-for-x-1",
   "scope_tests": 581,
-  "selected": 581,
+  "selected": 3,
   "scope_time": 365.3,
-  "selected_time": 365.3,
+  "selected_time": 14.4,
   "full": false,
   "reason": ""
  },
