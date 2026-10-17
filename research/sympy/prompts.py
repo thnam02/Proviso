@@ -27,11 +27,11 @@ SPEC = {
   "li(z) numerically (for 0 < z < 1 or z > 1), and erfi(z).rewrite(expint) does not equal erfi(z) (e.g. at z = 2). "
   "Rewrites must preserve the value of the function.",
   ['N((li(z).rewrite(Shi) - li(z)).subs(z, 3), 10)', 'N((erfi(z).rewrite(expint) - erfi(z)).subs(z, 2), 10)']),
-'ed2a9bef3b': ("Integrating products of Piecewise functions with symbolic breakpoints gives NaN or wrong results: with "
+'ed2a9bef3b': ("Integrating products of Piecewise functions with symbolic breakpoints gives nan: with "
   "p = [(a1, t < 1), (a2, t < 2), (a3, t < 3)] and f_i = Piecewise(*p).subs(t, t_i), "
-  "integrate(f2*integrate(f3, (t3, 0, t2)), (t2, 0, t1)) contains nan (sympy issue #28469). Piecewise interval "
-  "evaluation must handle these boundaries without producing NaN.",
-  ['(lambda a1, a2, a3, t, t1, t2, t3: integrate(Piecewise((a1, t < 1), (a2, t < 2), (a3, t < 3)).subs(t, t2) * integrate(Piecewise((a1, t < 1), (a2, t < 2), (a3, t < 3)).subs(t, t3), (t3, 0, t2)), (t2, 0, t1)).has(nan))(*symbols("a1 a2 a3 t t1 t2 t3"))']),
+  "integrate(f2*integrate(f3, (t3, 0, t2)), (t2, 0, t1)) is nan for every t1 >= 0 (sympy issue #28469). Piecewise "
+  "interval evaluation must handle these boundaries, so the result is the correct piecewise expression in t1.",
+  ['(lambda a1, a2, a3, t, t1, t2, t3: integrate(Piecewise((a1, t < 1), (a2, t < 2), (a3, t < 3)).subs(t, t2) * integrate(Piecewise((a1, t < 1), (a2, t < 2), (a3, t < 3)).subs(t, t3), (t3, 0, t2)), (t2, 0, t1)).subs({t1: Rational(5, 2), a1: 1, a2: 2, a3: 3}))(*symbols("a1 a2 a3 t t1 t2 t3"))']),
 '1e427cc30a': ("Matrix.eigenvals(rational=True) returns floating-point eigenvalues for matrices with float entries, e.g. "
   "Matrix([[1.0, 0.0], [0.0, 2.0]]).eigenvals(rational=True) gives float keys. With rational=True the entries should be "
   "converted to rationals so the eigenvalues are exact.",
