@@ -181,10 +181,10 @@ class Hooks(unittest.TestCase):
         from dc_eval.arms import arm_config, proviso_settings, write_proviso_files
         flags = arm_config("impact")["proviso"]
         hooks = proviso_settings("/py", "/probe", flags)["hooks"]
-        self.assertEqual(set(hooks), {"UserPromptSubmit", "PreToolUse", "Stop"})
+        self.assertEqual(set(hooks), {"UserPromptSubmit", "PreToolUse"})  # selection only
         self.assertIn("proviso-pretool", hooks["PreToolUse"][0]["hooks"][0]["command"])
-        self.assertEqual(set(proviso_settings("/py", "/probe", arm_config("intercept-only")["proviso"])["hooks"]),
-                         {"UserPromptSubmit", "PreToolUse"})
+        self.assertEqual(set(proviso_settings("/py", "/probe", arm_config("impact-ripple")["proviso"])["hooks"]),
+                         {"UserPromptSubmit", "PreToolUse", "Stop"})
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d, True)
         with self.assertRaises(FileNotFoundError):
