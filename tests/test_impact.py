@@ -18,7 +18,7 @@ from dc_engine import impact as I  # noqa: E402
 class Rewrite(unittest.TestCase):
     def test_broad_runs_rewritten_targeted_left_alone(self):
         r = I.rewrite("cd /x && python -m pytest tests -q 2>&1 | tail -5; python -m pytest tests/a.py", "/h", "/v")
-        self.assertIn("/h -m dc_engine.impact run --python /v;", r)
+        self.assertIn("/h -m dc_engine.impact run --python /v -- tests;", r)
         self.assertNotIn("tail -5", r)
         self.assertIn("python -m pytest tests/a.py", r)
         self.assertIsNotNone(I.rewrite("python -m unittest discover -s tests", "/h", "/v"))
@@ -26,6 +26,15 @@ class Rewrite(unittest.TestCase):
         self.assertIsNone(I.rewrite("python -m pytest tests -k foo", "/h", "/v"))
         self.assertIsNone(I.rewrite("python -m unittest tests.dialects.test_mysql", "/h", "/v"))
         self.assertIsNone(I.rewrite("ls tests", "/h", "/v"))
+        # any directory counts, in any layout; files and test ids are already narrow
+        self.assertTrue(I.rewrite("python -m pytest sympy/solvers -q", "/h", "/v").endswith("-- sympy/solvers"))
+        self.assertTrue(I.rewrite("pytest sympy/solvers/tests/ sympy/core", "/h", "/v").endswith(
+            "-- sympy/solvers/tests/ sympy/core"))
+        self.assertIsNotNone(I.rewrite("bin/test sympy/printing", "/h", "/v"))
+        self.assertIsNone(I.rewrite("bin/test test_latex", "/h", "/v"))
+        self.assertIsNone(I.rewrite("pytest sympy/solvers/tests/test_solvers.py", "/h", "/v"))
+        self.assertIsNone(I.rewrite("pytest 'sympy/core/tests/test_basic.py::test_x'", "/h", "/v"))
+        self.assertTrue(I.rewrite("python -m pytest -q", "/h", "/v").endswith("--python /v"))
 
 
 SRC = textwrap.dedent('''\
@@ -141,6 +150,55 @@ class Selection(unittest.TestCase):
 
     def test_no_change_selects_nothing(self):
         self.assertEqual(self.sel()[0], [])
+
+
+class Runner(unittest.TestCase):
+    """run_selected end to end with real pytest, tests living inside the package (sympy layout)."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="impact-run-")
+        os.makedirs(os.path.join(self.root, "pkg", "tests"))
+        os.makedirs(os.path.join(self.root, ".dc-engine"))
+        open(os.path.join(self.root, "pkg", "__init__.py"), "w").write("")
+        open(os.path.join(self.root, "pkg", "tests", "__init__.py"), "w").write("")
+        open(os.path.join(self.root, "pkg", "calc.py"), "w").write(
+            "def area(w, h):\n    return w * h\n\n\ndef label(x):\n    return str(x)\n")
+        open(os.path.join(self.root, "pkg", "tests", "test_calc.py"), "w").write(
+            "from pkg.calc import area, label\n\n\ndef test_area():\n    assert area(2, 3) == 6\n\n\n"
+            "def test_label():\n    assert label(1) == '1'\n\n\ndef test_unknown():\n    assert True\n")
+        g = lambda *a: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *a], cwd=self.root,
+                                      capture_output=True)
+        open(os.path.join(self.root, ".gitignore"), "w").write(".dc-engine/\n__pycache__/\n")
+        g("init", "-q"); g("add", "-A"); g("commit", "-qm", "b")
+        t = "pkg/tests/test_calc.py::"
+        json.dump({t + "test_area": {"funcs": [["pkg/calc.py", 1]]}, t + "test_label": {"funcs": [["pkg/calc.py", 5]]}},
+                  open(os.path.join(self.root, ".dc-engine", "covmap.json"), "w"))
+        json.dump([], open(os.path.join(self.root, ".dc-engine", "base_failures.json"), "w"))
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_runs_affected_and_unknown_tests_only(self):
+        p = os.path.join(self.root, "pkg", "calc.py")
+        src = open(p).read()
+        open(p, "w").write(src.replace("w * h", "w + h"))
+        text = I.run_selected(self.root, sys.executable, ["pkg"])
+        self.assertIn("Ran the 2 tests in pkg", text)  # test_area (affected) + test_unknown (no coverage record)
+        self.assertIn("NEW failures (1)", text)
+        self.assertIn("pkg/tests/test_calc.py::test_area", text)
+
+    def test_unchanged_code_runs_only_unknown_tests(self):
+        text = I.run_selected(self.root, sys.executable, ["pkg"])
+        self.assertIn("Ran the 1 tests in pkg", text)
+        self.assertIn("No new failures", text)
+
+
+class TestPaths(unittest.TestCase):
+    def test_test_files_anywhere(self):
+        for p in ("tests/a.py", "sympy/core/tests/test_basic.py", "pkg/test_x.py", "sympy/conftest.py"):
+            self.assertTrue(I._is_test_path(p), p)
+        for p in ("sympy/core/basic.py", "sympy/testing/runtests.py", "pkg/contest.py"):
+            self.assertFalse(I._is_test_path(p), p)
 
 
 class Ripple(unittest.TestCase):

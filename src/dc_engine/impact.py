@@ -236,7 +236,7 @@ def _import_state_effect(root: str, covmap: dict, python: str, changed_files: se
     import-time effect; None: unknown), and classes to treat as edited (they gained an attribute that is looked up
     by computed name, or their bases changed)."""
     from . import importstate
-    files = sorted({f for k, v in covmap.items() for f, _ in v["funcs"]})
+    files = sorted({f for k, v in covmap.items() for f, _ in v["funcs"] if not _is_test_path(f)})
     base = importstate.base_snapshot(root, files, python, os.path.join(root, STATE_DIR, "importstate_base.json"))
     cur = importstate.snapshot(root, files, python) if base is not None else None
     if base is None or cur is None:
@@ -270,8 +270,9 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
     if not pk:
         return None, {"reason": "empty coverage map"}
     diff = _git(root, "diff", "-U0", "HEAD", "--", *pk)
-    status = _git(root, "status", "--porcelain", "--", *pk, "tests")
-    new_src = [l[3:] for l in status.splitlines() if l.startswith("??") and not l[3:].startswith("tests")
+    extra_dirs = ["tests"] if os.path.isdir(os.path.join(root, "tests")) else []
+    status = _git(root, "status", "--porcelain", "-uall", "--", *pk, *extra_dirs)
+    new_src = [l[3:] for l in status.splitlines() if l.startswith("??") and not _is_test_path(l[3:])
                and l.endswith(".py")]
     if new_src:
         return None, {"reason": f"new source file {new_src[0]}"}
@@ -279,6 +280,8 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
     module_level: set[str] = set()
     class_names: set[str] = set()
     for f, lines in _changed_old_lines(diff).items():
+        if _is_test_path(f):
+            continue  # edited tests run themselves (below)
         src = _git(root, "show", f"HEAD:{f}")
         units, cls = _units(f, src)
         for ln in lines:
@@ -295,7 +298,8 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
     why: dict[str, Any] = {"functions": len(funcs), "files": sorted(module_level)}
     read_names: set[str] = set()
     if hit_global or module_level:
-        names, gained, info = _import_state_effect(root, covmap, python, set(_changed_old_lines(diff)))
+        names, gained, info = _import_state_effect(root, covmap, python,
+                                                   {f for f in _changed_old_lines(diff) if not _is_test_path(f)})
         why.update(info)
         if names is None:
             return None, why
@@ -365,7 +369,7 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
             if names_here & test_attrs_any or any(names_here & test_attrs_cls[c] for c in used & test_attrs_cls.keys()):
                 sel.append(node)
     # tests the agent added or edited always run
-    touched_tests = [l[3:].strip() for l in status.splitlines() if l[3:].strip().startswith("tests")]
+    touched_tests = [l[3:].strip() for l in status.splitlines() if _is_test_path(l[3:].strip())]
     extra = sorted({t for t in touched_tests if t.endswith(".py")})
     why["agent_tests"] = extra
     return sorted(set(sel)) + extra, why
@@ -377,16 +381,29 @@ BROAD_TARGETS = {"", "tests", "tests/", "./tests", "./tests/", "tests/dialects",
 _SEG_SPLIT = re.compile(r"(&&|\|\||;|\n)")
 
 
-def _is_broad_test(seg: str) -> bool:
+def _is_test_path(p: str) -> bool:
+    """Test code, wherever it lives (tests/ at the top or inside the package, test_*.py files)."""
+    p = p.replace(os.sep, "/")
+    base = p.rsplit("/", 1)[-1]
+    return p.startswith("tests/") or "/tests/" in p or base.startswith("test_") or base == "conftest.py"
+
+
+def _broad_targets(seg: str) -> list[str] | None:
+    """Targets of a broad test run (whole suite or directories), [] for no explicit target; None if the segment is
+    not a broad test run (a file, a test id, a -k/-m filter, or not a test command)."""
     s = seg.strip()
     if re.search(r"\bmake\s+(unit|test)\b", s):
-        return True
+        return []
     try:
         toks = shlex.split(s)
     except ValueError:
-        return False
+        return None
     if not toks:
-        return False
+        return None
+
+    def dir_like(t: str) -> bool:
+        return "::" not in t and not t.endswith(".py") and not t.startswith(("2>", ">", "|")) and t != "2>&1"
+
     if "pytest" in " ".join(toks[:4]):
         i = next(i for i, t in enumerate(toks) if "pytest" in t)
         rest = toks[i + 1:]
@@ -396,19 +413,27 @@ def _is_broad_test(seg: str) -> bool:
                 skip = False
                 continue
             if t in ("-k", "--deselect", "-m"):
-                return False  # filtered runs are already narrow
-            if t in ("-p", "-c", "--ignore", "-n", "--tb", "--maxfail", "-o", "--junitxml", "-W"):
+                return None  # filtered runs are already narrow
+            if t in ("-p", "-c", "--ignore", "-n", "--tb", "--maxfail", "-o", "--junitxml", "-W", "--rootdir",
+                     "--durations", "--timeout"):
                 skip = True
                 continue
             if t.startswith("-") or t.startswith(("2>", ">", "|")) or t == "2>&1":
                 continue
             targets.append(t)
-        return all(t in BROAD_TARGETS for t in targets)
+        return targets if all(dir_like(t) for t in targets) else None
     if "unittest" in toks:
         i = toks.index("unittest")
         rest = [t for t in toks[i + 1:] if not t.startswith("-")]
-        return not rest or rest[0] == "discover"
-    return False
+        return [] if not rest or rest[0] == "discover" else None
+    if toks[0] in ("bin/test", "./bin/test"):  # sympy's runner: paths are directories or files
+        rest = [t for t in toks[1:] if not t.startswith("-")]
+        return rest if rest and all(dir_like(t) and "/" in t for t in rest) else None
+    return None
+
+
+def _is_broad_test(seg: str) -> bool:
+    return _broad_targets(seg) is not None
 
 
 def rewrite(command: str, hook_python: str, test_python: str) -> str | None:
@@ -419,8 +444,11 @@ def rewrite(command: str, hook_python: str, test_python: str) -> str | None:
         if part in ("&&", "||", ";", "\n"):
             continue
         head, sep, tail = part.partition("|")
-        if _is_broad_test(head):
+        targets = _broad_targets(head)
+        if targets is not None:
             runner = f"{shlex.quote(hook_python)} -m dc_engine.impact run --python {shlex.quote(test_python)}"
+            if targets:
+                runner += " -- " + " ".join(shlex.quote(t) for t in targets)
             lead = re.match(r"^\s*", head).group(0)
             parts[i] = lead + runner  # the agent's filters (grep/tail) would hide the summary
             changed = True
@@ -458,48 +486,97 @@ def _junit(xml: str) -> dict[str, bool]:
     return res
 
 
-def run_selected(root: str, python: str) -> str:
+OUTCOME_PLUGIN = '''"""pytest plugin written by Proviso: test outcomes keyed by pytest node id."""
+import json, os
+_res = {}
+def pytest_runtest_logreport(report):
+    if report.when == "call" or (report.when == "setup" and not report.passed):
+        _res[report.nodeid] = bool(report.passed or report.skipped)
+def pytest_collectreport(report):
+    if report.failed:
+        _res[report.nodeid] = False
+def pytest_sessionfinish(session, exitstatus):
+    json.dump(_res, open(os.environ["DC_OUTCOMES"], "w"))
+'''
+
+
+def _pytest(root: str, python: str, args: list[str], argfile_name: str) -> tuple[dict[str, bool], str]:
+    """Run pytest with Proviso's outcome plugin. Returns ({node id: passed}, stdout)."""
+    d = os.path.join(root, STATE_DIR)
+    plug = os.path.join(d, "dc_outcomes.py")
+    with open(plug, "w", encoding="utf-8") as fh:
+        fh.write(OUTCOME_PLUGIN)
+    out = os.path.join(d, "impact-outcomes.json")
+    if os.path.exists(out):
+        os.remove(out)
+    cmd = [python, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "dc_outcomes", "--tb=short", "--no-header",
+           "-rN", "--continue-on-collection-errors"]
+    if len(args) > 200:
+        argfile = os.path.join(d, argfile_name)
+        with open(argfile, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(args))
+        cmd.append(f"@{argfile}")
+    else:
+        cmd += args
+    env = dict(os.environ)
+    env["PYTHONPATH"] = d + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    env["DC_OUTCOMES"] = out
+    r = subprocess.run(cmd, cwd=root, capture_output=True, text=True, env=env)
+    try:
+        res = json.load(open(out))
+    except (OSError, ValueError):
+        res = {}
+    return res, r.stdout
+
+
+def _collect(root: str, python: str, targets: list[str]) -> list[str] | None:
+    """Node ids pytest collects for the targets (None if collection did not work)."""
+    env = dict(os.environ)
+    r = subprocess.run([python, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider", "--no-header",
+                        "--continue-on-collection-errors", *targets], cwd=root, capture_output=True, text=True, env=env)
+    ids = [l.strip() for l in r.stdout.splitlines() if "::" in l and not l.startswith(("=", " "))]
+    return ids or None
+
+
+def run_selected(root: str, python: str, targets: list[str] | None = None) -> str:
+    """Run what the agent asked for (targets: directories relative to the repository root; [] = the default suite),
+    restricted to the tests the change can affect. Tests the coverage map does not know always run."""
+    targets = targets or []
     covmap = _asset(root, "covmap.json") or {}
-    n_suite = len([k for k in covmap if k != "__global__"])
     base_fail = set(_asset(root, "base_failures.json") or [])
     t0 = time.time()
     sel, why = selection(root, covmap, python) if covmap else (None, {"reason": "no coverage map"})
-    xml = os.path.join(root, STATE_DIR, "impact.xml")
-    if os.path.exists(xml):
-        os.remove(xml)
-    targets = ["tests"] if sel is None else sel
-    if sel is not None and not sel:
-        summary = ("[Proviso] Your changes do not reach any code the existing tests execute, so no existing test can "
-                   f"change outcome; nothing to run (full suite: {n_suite} tests).")
-        _log_run(root, 0, n_suite, 0.0, [], why)
-        return summary
-    cmd = [python, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=short", "--no-header", "-rN",
-           "--continue-on-collection-errors", f"--junitxml={xml}"]
-    argfile = None
-    if len(targets) > 200:
-        argfile = os.path.join(root, STATE_DIR, "impact-args.txt")
-        with open(argfile, "w", encoding="utf-8") as fh:
-            fh.write("\n".join(targets))
-        cmd.append(f"@{argfile}")
+    where = " ".join(targets) if targets else "the test suite"
+    collected = _collect(root, python, targets) if sel is not None else None
+    if sel is not None and collected is None:
+        sel, why = None, {**why, "reason": "could not list the tests"}
+    if sel is None:
+        res, stdout = _pytest(root, python, targets, "impact-args.txt")
+        n_scope = len(res)
     else:
-        cmd += targets
-    r = subprocess.run(cmd, cwd=root, capture_output=True, text=True)
-    res = _junit(xml)
+        selset = set(sel)
+        agent_files = {x for x in sel if "::" not in x}
+        run = [n for n in collected if n in selset or n not in covmap or n.split("::", 1)[0] in agent_files]
+        n_scope = len(collected)
+        if not run:
+            _log_run(root, 0, n_scope, time.time() - t0, [], why)
+            return (f"[Proviso] Your changes do not reach any code the {n_scope} existing tests in {where} execute, so "
+                    "none of them can change outcome; nothing to run.")
+        res, stdout = _pytest(root, python, run, "impact-args.txt")
     secs = time.time() - t0
     failing = sorted(n for n, ok in res.items() if not ok)
     new = [n for n in failing if n not in base_fail and n.split("::")[0] not in base_fail]
-    failing_modules_known = {n for n in failing if "::" not in n and n in base_fail}
-    new = [n for n in new if n not in failing_modules_known]
     old = [n for n in failing if n not in new]
     if sel is not None:
-        lines = [f"[Proviso] Ran the {len(res)} existing tests whose code your changes reach (of {n_suite}) in "
-                 f"{secs:.0f}s instead of the full suite."]
+        lines = [f"[Proviso] Ran the {len(res)} tests in {where} whose code your changes reach (of {n_scope}) in "
+                 f"{secs:.0f}s instead of all of them."]
     else:
-        lines = [f"[Proviso] Ran the full suite ({why.get('reason', 'change could not be placed')}) in {secs:.0f}s."]
+        lines = [f"[Proviso] Ran all {len(res)} tests in {where} ({why.get('reason', 'change could not be placed')}) "
+                 f"in {secs:.0f}s."]
     if new:
         lines.append(f"NEW failures ({len(new)}), not failing before your change:")
         lines += [f"  - {n}" for n in new[:15]]
-        details = _failure_details(r.stdout, new)
+        details = _failure_details(stdout, new)
         if details:
             lines.append(details)
     else:
@@ -508,7 +585,7 @@ def run_selected(root: str, python: str) -> str:
         lines.append(f"{len(old)} failure(s) that already fail at the original commit (not caused by you).")
     lines.append(f"===== {sum(res.values())} passed, {len(new)} new failed, {len(old)} pre-existing failures "
                  f"(not caused by you) in {secs:.0f}s =====")
-    _log_run(root, len(res), n_suite, secs, new, why)
+    _log_run(root, len(res), n_scope, secs, new, why)
     return "\n".join(lines)
 
 
@@ -743,9 +820,16 @@ def main(argv: list[str] | None = None) -> int:
     rp = sub.add_parser("run", help="run the tests the current change can affect")
     rp.add_argument("--python", default=sys.executable)
     rp.add_argument("--root", default=None)
-    a, _rest = ap.parse_known_args(argv)
+    rp.add_argument("targets", nargs="*", help="directories the agent asked to test (relative to the current directory)")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if "--" in argv:  # targets after --
+        k = argv.index("--")
+        argv = argv[:k] + argv[k + 1:]
+    a = ap.parse_args(argv)
     root = a.root or _git(os.getcwd(), "rev-parse", "--show-toplevel").strip() or os.getcwd()
-    text = run_selected(root, a.python)
+    rel = [os.path.relpath(os.path.join(os.getcwd(), t), root) for t in a.targets]
+    rel = [t for t in rel if t != "."]
+    text = run_selected(root, a.python, rel)
     print(text)
     return 1 if "NEW failures" in text else 0
 
