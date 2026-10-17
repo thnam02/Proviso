@@ -204,11 +204,30 @@ def restore_hidden_tests(
     git_cwd = src if src and is_git_repo(src) else repo
     sha = resolve_fix_commit(task, git_cwd)
     if sha and files:
-        checkout_fix_files(repo, files, sha, src_repo=src or None)
+        # files the task adds beyond the fix commit (e.g. extra hidden checks) come from the patch itself
+        show_cwd = src if src and is_git_repo(src) else repo
+        in_fix = [f for f in files if git(["cat-file", "-e", f"{sha}:{f}"], cwd=show_cwd, check=False).returncode == 0]
+        extra = [f for f in files if f not in in_fix]
+        checkout_fix_files(repo, in_fix, sha, src_repo=src or None)
+        if extra:
+            _reset_to_head(repo, extra)
+            apply_patch(repo, patch_for_files(task.test_patch, extra))
         return modified
     _reset_to_head(repo, files)
     apply_patch(repo, task.test_patch)
     return modified
+
+
+def patch_for_files(patch: str, files: list[str]) -> str:
+    """The sections of a unified git diff that touch `files`."""
+    keep, out = False, []
+    for line in patch.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            path = line.split(" b/", 1)[-1].strip()
+            keep = path in files
+        if keep:
+            out.append(line)
+    return "".join(out)
 
 
 def _reset_to_head(repo: str, files: list[str]) -> None:
