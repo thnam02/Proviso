@@ -52,9 +52,14 @@ ARM_CONFIG: dict[str, dict[str, Any]] = {
     },
     # Pre-fetch ceiling: a per-task brief (eval_dir/briefs/<task id>.md) built from what baseline
     # agents read before their first edit, pushed at prompt time. No replay, no test check.
-    # Change impact: broad test runs rewritten to affected tests (PreToolUse) + ripple replay at Stop.
-    # Assets per task in eval_dir/impact/<task id>/ (covmap, base failures, probes, base outputs, replay runner).
+    # The method: broad test runs rewritten to the tests the change can affect (PreToolUse).
+    # Assets per task in eval_dir/impact/<task id>/ (covmap, base failures, import-state snapshot).
     "impact": {
+        "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
+        "proviso": {"context": False, "trajectory": False, "tests": False, "impact": True, "ripple": False},
+    },
+    # Archived (out of the paper's scope): selection plus ripple replay of test inputs in inheriting dialects at Stop.
+    "impact-ripple": {
         "mcp": False, "hooks": False, "tools": None, "contract_policy": None, "hook_mode": "proviso",
         "proviso": {"context": False, "trajectory": False, "tests": False, "impact": True, "ripple": True},
     },
