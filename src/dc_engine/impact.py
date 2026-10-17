@@ -389,8 +389,8 @@ def _is_test_path(p: str) -> bool:
 
 
 def _broad_targets(seg: str) -> list[str] | None:
-    """Targets of a broad test run (whole suite or directories), [] for no explicit target; None if the segment is
-    not a broad test run (a file, a test id, a -k/-m filter, or not a test command)."""
+    """Targets of a broad test run (the suite, directories or whole test files), [] for no explicit target; None if
+    the segment is not a broad test run (explicit test ids, a -k/-m filter, or not a test command)."""
     s = seg.strip()
     if re.search(r"\bmake\s+(unit|test)\b", s):
         return []
@@ -402,7 +402,8 @@ def _broad_targets(seg: str) -> list[str] | None:
         return None
 
     def dir_like(t: str) -> bool:
-        return "::" not in t and not t.endswith(".py") and not t.startswith(("2>", ">", "|")) and t != "2>&1"
+        # directories and whole test files; explicit test ids (file::test) are the agent's own choice
+        return "::" not in t and not t.startswith(("2>", ">", "|")) and t != "2>&1"
 
     if "pytest" in " ".join(toks[:4]):
         i = next(i for i, t in enumerate(toks) if "pytest" in t)

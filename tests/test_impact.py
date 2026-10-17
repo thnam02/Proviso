@@ -20,11 +20,12 @@ class Rewrite(unittest.TestCase):
         r = I.rewrite("cd /x && python -m pytest tests -q 2>&1 | tail -5; python -m pytest tests/a.py", "/h", "/v")
         self.assertIn("/h -m dc_engine.impact run --python /v -- tests;", r)
         self.assertNotIn("tail -5", r)
-        self.assertIn("python -m pytest tests/a.py", r)
+        self.assertIn("-- tests/a.py", r)  # whole test files are selected within too
         self.assertIsNotNone(I.rewrite("python -m unittest discover -s tests", "/h", "/v"))
         self.assertIsNotNone(I.rewrite("make unit", "/h", "/v"))
         self.assertIsNone(I.rewrite("python -m pytest tests -k foo", "/h", "/v"))
         self.assertIsNone(I.rewrite("python -m unittest tests.dialects.test_mysql", "/h", "/v"))
+        self.assertIsNone(I.rewrite("pytest tests/a.py::TestA::test_b", "/h", "/v"))
         self.assertIsNone(I.rewrite("ls tests", "/h", "/v"))
         # any directory counts, in any layout; files and test ids are already narrow
         self.assertTrue(I.rewrite("python -m pytest sympy/solvers -q", "/h", "/v").endswith("-- sympy/solvers"))
@@ -32,7 +33,8 @@ class Rewrite(unittest.TestCase):
             "-- sympy/solvers/tests/ sympy/core"))
         self.assertIsNotNone(I.rewrite("bin/test sympy/printing", "/h", "/v"))
         self.assertIsNone(I.rewrite("bin/test test_latex", "/h", "/v"))
-        self.assertIsNone(I.rewrite("pytest sympy/solvers/tests/test_solvers.py", "/h", "/v"))
+        self.assertTrue(I.rewrite("pytest sympy/solvers/tests/test_solvers.py", "/h", "/v").endswith(
+            "-- sympy/solvers/tests/test_solvers.py"))
         self.assertIsNone(I.rewrite("pytest 'sympy/core/tests/test_basic.py::test_x'", "/h", "/v"))
         self.assertTrue(I.rewrite("python -m pytest -q", "/h", "/v").endswith("--python /v"))
 
