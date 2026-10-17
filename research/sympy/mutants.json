@@ -557,5 +557,37 @@
   "full": false,
   "missed": [],
   "reason": ""
+ },
+ {
+  "kind": "class",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 1941,
+  "op": "flip",
+  "code": "is_prime = False",
+  "killed": true,
+  "failing": [
+   "sympy/functions/combinatorial/tests/test_comb_numbers.py::test_jacobi_symbol"
+  ],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
+ },
+ {
+  "kind": "class",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 2327,
+  "op": "flip",
+  "code": "is_integer = True",
+  "killed": true,
+  "failing": [
+   "sympy/functions/combinatorial/tests/test_comb_numbers.py::test_primepi"
+  ],
+  "selected": 581,
+  "covered": 581,
+  "full": false,
+  "missed": [],
+  "reason": ""
  }
 ]
