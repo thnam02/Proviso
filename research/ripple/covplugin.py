@@ -68,6 +68,23 @@ def pytest_sessionstart(session):
     threading.setprofile(_prof)  # code run in threads (e.g. concurrent import tests) is attributed too
 
 
+_BEFORE = os.environ.get("COVMAP_BEFORE_TEST", "")  # "module:function" run before each test, e.g. a cache reset
+
+
+def _before_test():
+    if not _BEFORE:
+        return
+    import importlib
+    mod, fn = _BEFORE.split(":")
+    getattr(importlib.import_module(mod), fn)()
+
+
+def pytest_runtest_setup(item):
+    # results memoised by an earlier test (e.g. sympy's @cacheit) would hide this test's dependence on the code that
+    # computed them; resetting such caches before each test makes every test record what it really depends on
+    _before_test()
+
+
 def pytest_runtest_call(item):
     _cur.clear()
     _cls.clear()
