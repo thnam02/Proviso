@@ -691,10 +691,14 @@ def layer_disk_stats(root: str) -> dict[str, Any]:
     }
 
 
+# a slow suite (sympy's solvers: ~3 min alone) can exceed a few minutes when runs share the machine
+GRADE_TIMEOUT = int(os.environ.get("DC_EVAL_GRADE_TIMEOUT", "1800"))
+
+
 def grade_repo(
     task: Task,
     repo: str,
-    pytest_timeout: int = 300,
+    pytest_timeout: int = GRADE_TIMEOUT,
     python: str | None = None,
     src_repo: str | None = None,
     run_dir: str | None = None,
