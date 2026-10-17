@@ -255,16 +255,25 @@ def snapshot(tree: str, files: list[str], python: str, heap_pad: int = 0) -> dic
                 os.remove(p)
 
 
+def cache_key(root: str, tops: list[str], python: str) -> str:
+    """Content of the base commit's package directories (git tree hashes, so a copy of the same code in another
+    repository matches) and the interpreter (bytecode differs between versions)."""
+    trees = [subprocess.run(["git", "-C", root, "rev-parse", f"HEAD:{t}"], capture_output=True, text=True).stdout.strip()
+             for t in tops]
+    ver = subprocess.run([python, "-c", "import sys; print(sys.version)"], capture_output=True, text=True).stdout.strip()
+    return hashlib.sha1(json.dumps([trees, ver]).encode()).hexdigest()
+
+
 def base_snapshot(root: str, files: list[str], python: str, cache_path: str) -> dict | None:
     """Snapshot of the HEAD commit (exported to a temporary directory), cached per commit."""
-    head = subprocess.run(["git", "-C", root, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    tops = sorted({f.split("/", 1)[0] for f in files})
+    head = cache_key(root, tops, python)
     try:
         cached = json.load(open(cache_path))
         if cached.get("head") == head and cached.get("format") == FORMAT:
             return cached["snapshot"]
     except (OSError, ValueError, KeyError):
         pass
-    tops = sorted({f.split("/", 1)[0] for f in files})
     tmp = tempfile.mkdtemp(prefix="dc-base-")
     try:
         arch = subprocess.run(["git", "-C", root, "archive", "HEAD", *tops], capture_output=True)
