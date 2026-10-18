@@ -118,5 +118,41 @@
   "truth": 0,
   "missed": [],
   "selected_files": 1
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "1e427cc30a-fix-eigenvals-rational-true-returning-fl",
+  "selector": "namerts",
+  "selected": 727,
+  "universe": 1015,
+  "time_share": 0.8493,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 11
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "5746517ff8-fix-polys-terminate-subresultants-pg-seq",
+  "selector": "namerts",
+  "selected": 25,
+  "universe": 2466,
+  "time_share": 0.0634,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 1
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "8ff0458f56-fix-how-qr-decomposition-handles-rank-of",
+  "selector": "namerts",
+  "selected": 700,
+  "universe": 1014,
+  "time_share": 0.8979,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 14
  }
 ]
