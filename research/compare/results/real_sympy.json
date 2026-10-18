@@ -1174,5 +1174,53 @@
   "selected": 227,
   "time_share": 0.9936,
   "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "5e60418896-fix-sign-errors-in-li-z-rewrite-shi-chi",
+  "files": 1,
+  "universe": 570,
+  "truth": 0,
+  "selector": "file_coverage",
+  "selected": 48,
+  "time_share": 0.1354,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "5e60418896-fix-sign-errors-in-li-z-rewrite-shi-chi",
+  "files": 1,
+  "universe": 570,
+  "truth": 0,
+  "selector": "testmon",
+  "selected": 48,
+  "time_share": 0.1354,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "5e60418896-fix-sign-errors-in-li-z-rewrite-shi-chi",
+  "files": 1,
+  "universe": 570,
+  "truth": 0,
+  "selector": "file_coverage_cc",
+  "selected": 48,
+  "time_share": 0.1354,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "5e60418896-fix-sign-errors-in-li-z-rewrite-shi-chi",
+  "files": 1,
+  "universe": 570,
+  "truth": 0,
+  "selector": "testmon_cc",
+  "selected": 48,
+  "time_share": 0.1354,
+  "missed": []
  }
 ]
