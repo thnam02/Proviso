@@ -7,10 +7,10 @@ Usage: python analyze.py OUT_SUMMARY.json IN.json..."""
 import json, statistics as st, sys
 
 ORDER = ["retest_all", "name_match", "static_imports", "file_coverage", "file_coverage_cc", "testmon", "testmon_cc",
-         "func_only", "func_file", "proviso"]
+         "namerts", "func_only", "func_file", "proviso"]
 LABEL = {"retest_all": "Retest all", "name_match": "Name-matched test files", "static_imports": "Static import graph",
          "file_coverage": "File-level coverage", "file_coverage_cc": "File-level coverage (cache cleared)",
-         "testmon": "pytest-testmon", "testmon_cc": "pytest-testmon (cache cleared)",
+         "testmon": "pytest-testmon", "testmon_cc": "pytest-testmon (cache cleared)", "namerts": "NameRTS",
          "func_only": "Proviso, functions only", "func_file": "Proviso, file fallback", "proviso": "Proviso"}
 
 
