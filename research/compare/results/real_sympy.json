@@ -1462,5 +1462,101 @@
   "selected": 123,
   "time_share": 0.4651,
   "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "d671b70c7d-series-pass-dir-to-recursive-limit-calls",
+  "files": 1,
+  "universe": 489,
+  "truth": 0,
+  "selector": "file_coverage",
+  "selected": 397,
+  "time_share": 0.9728,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "d671b70c7d-series-pass-dir-to-recursive-limit-calls",
+  "files": 1,
+  "universe": 489,
+  "truth": 0,
+  "selector": "testmon",
+  "selected": 397,
+  "time_share": 0.9728,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "d671b70c7d-series-pass-dir-to-recursive-limit-calls",
+  "files": 1,
+  "universe": 489,
+  "truth": 0,
+  "selector": "file_coverage_cc",
+  "selected": 407,
+  "time_share": 0.9746,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "d671b70c7d-series-pass-dir-to-recursive-limit-calls",
+  "files": 1,
+  "universe": 489,
+  "truth": 0,
+  "selector": "testmon_cc",
+  "selected": 407,
+  "time_share": 0.9746,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "ed2a9bef3b-fix-eval-interval-in-piecewise-to-handle",
+  "files": 1,
+  "universe": 551,
+  "truth": 0,
+  "selector": "file_coverage",
+  "selected": 302,
+  "time_share": 0.8721,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "ed2a9bef3b-fix-eval-interval-in-piecewise-to-handle",
+  "files": 1,
+  "universe": 551,
+  "truth": 0,
+  "selector": "testmon",
+  "selected": 22,
+  "time_share": 0.043,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "ed2a9bef3b-fix-eval-interval-in-piecewise-to-handle",
+  "files": 1,
+  "universe": 551,
+  "truth": 0,
+  "selector": "file_coverage_cc",
+  "selected": 298,
+  "time_share": 0.8715,
+  "missed": []
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "ed2a9bef3b-fix-eval-interval-in-piecewise-to-handle",
+  "files": 1,
+  "universe": 551,
+  "truth": 0,
+  "selector": "testmon_cc",
+  "selected": 22,
+  "time_share": 0.043,
+  "missed": []
  }
 ]

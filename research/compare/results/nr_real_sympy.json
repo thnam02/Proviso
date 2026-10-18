@@ -1,0 +1,122 @@
+[
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "3e18ad01a1-fix-nonlinsolve-returning-incorrect-para",
+  "selector": "namerts",
+  "selected": 196,
+  "universe": 586,
+  "time_share": 0.2848,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 1
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "44521b8f6c-fix-polys-do-not-duplicate-roots-in-rati",
+  "selector": "namerts",
+  "selected": 279,
+  "universe": 443,
+  "time_share": 0.6211,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 5
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "5aec828105-radsimp-fix-a-fraction-bug-when-strict-t",
+  "selector": "namerts",
+  "selected": 316,
+  "universe": 319,
+  "time_share": 0.9998,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 14
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "5e60418896-fix-sign-errors-in-li-z-rewrite-shi-chi",
+  "selector": "namerts",
+  "selected": 42,
+  "universe": 570,
+  "time_share": 0.1044,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 1
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "64f6a7cafb-sympy-solve-now-rewrites-max-min-functio",
+  "selector": "namerts",
+  "selected": 482,
+  "universe": 580,
+  "time_share": 0.9477,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 10
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "9350380769-fix-preserve-log-finiteness-at-zero",
+  "selector": "namerts",
+  "selected": 338,
+  "universe": 581,
+  "time_share": 0.5885,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 10
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "998fbe45fc-manualintegrate-trig-log-hang",
+  "selector": "namerts",
+  "selected": 307,
+  "universe": 465,
+  "time_share": 0.7181,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 4
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "ca0a14d19a-fix-asech-derivative-for-x-1",
+  "selector": "namerts",
+  "selected": 76,
+  "universe": 581,
+  "time_share": 0.18,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 1
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "d671b70c7d-series-pass-dir-to-recursive-limit-calls",
+  "selector": "namerts",
+  "selected": 464,
+  "universe": 489,
+  "time_share": 0.9845,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 12
+ },
+ {
+  "repo": "sympy",
+  "dataset": "real",
+  "change": "ed2a9bef3b-fix-eval-interval-in-piecewise-to-handle",
+  "selector": "namerts",
+  "selected": 64,
+  "universe": 551,
+  "time_share": 0.1041,
+  "truth": 0,
+  "missed": [],
+  "selected_files": 1
+ }
+]

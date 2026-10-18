@@ -75,7 +75,8 @@ def main():
     repo = sys.argv[4] if len(sys.argv) > 4 else "sqlglot"
     NameBDP = setup(tree, repo)
     if action == "init":
-        obj = NameBDP(project_path=tree, conda_env_name="local", n=2, use_isolation=True)
+        obj = NameBDP(project_path=tree, conda_env_name="local", n=int(os.environ.get("NAMERTS_WORKERS", "2")),
+                      use_isolation=True)
         tests = obj.get_tests_to_run(init=True)
         obj.run_and_update(tests)
         os.makedirs(cache, exist_ok=True)
@@ -85,7 +86,8 @@ def main():
     else:
         for f in CACHED:
             shutil.copy(os.path.join(cache, f), os.path.join(tree, f))
-        obj = NameBDP(project_path=tree, conda_env_name="local", n=2, use_isolation=True)
+        obj = NameBDP(project_path=tree, conda_env_name="local", n=int(os.environ.get("NAMERTS_WORKERS", "2")),
+                      use_isolation=True)
         tests = obj.get_tests_to_run()
         print("NAMERTS_SELECTED " + json.dumps(sorted(tests)))
 
