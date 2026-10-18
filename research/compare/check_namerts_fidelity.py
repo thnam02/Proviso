@@ -3,17 +3,19 @@ replication package (dataset/commit_pairs_loguru.json), NameRTS is initialised a
 and run on the commit; the selected test files are compared with results/rq1/namerts/NameBDP_RTSTest_LOG.json.
 (The paper's later pairs start from caches updated incrementally along the history, ours from a fresh init at the
 base, so small differences are possible there; the first pair starts from a fresh init in both.)
-Usage: python check_namerts_fidelity.py N OUT.json"""
+Usage: python check_namerts_fidelity.py N OUT.json [SKIP]"""
 import json, os, shutil, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 NR = "/home/claude/tools/NameRTS"
 W = "/home/claude/cmp/nrcheck"
 n, out = int(sys.argv[1]), sys.argv[2]
-pairs = [p for p in json.load(open(f"{NR}/dataset/commit_pairs_loguru.json")) if p[3]][:n]
+skip = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+pairs = [p for p in json.load(open(f"{NR}/dataset/commit_pairs_loguru.json")) if p[3]][skip:n]
 paper = {r["current"]: sorted(r["tests_to_run"])
          for r in json.load(open(f"{NR}/results/rq1/namerts/NameBDP_RTSTest_LOG.json"))}
 env = dict(os.environ, NAMERTS_EXTRA_PATH="/home/claude/tools/freezegun")
-rows = []
+rows = json.load(open(out)) if skip and os.path.exists(out) else []
+rows = [r for r in rows if r["commit"] not in {p[2] for p in pairs}]
 for _, base, cur, _ in pairs:
     tree = os.path.join(W, "loguru")
     shutil.rmtree(tree, ignore_errors=True)
@@ -25,7 +27,8 @@ for _, base, cur, _ in pairs:
     r = subprocess.run(["python3", f"{HERE}/namerts_driver.py", "init", tree, cache, "loguru"], capture_output=True,
                        text=True, env=env)
     info = json.loads(r.stdout.strip().splitlines()[-1])
-    g("checkout", "-q", cur)
+    if g("checkout", "-q", cur).returncode != 0:
+        raise RuntimeError(f"cannot check out {cur}")
     r = subprocess.run(["python3", f"{HERE}/namerts_driver.py", "select", tree, cache, "loguru"], capture_output=True,
                        text=True, env=env)
     ours = json.loads([l for l in r.stdout.splitlines() if l.startswith("NAMERTS_SELECTED ")][0][17:])
