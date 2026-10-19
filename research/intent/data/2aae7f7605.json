@@ -1,0 +1,1217 @@
+[
+ {
+  "task": "2aae7f7605",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "In Postgres, x IS NOT NULL is normalised to NOT x IS NULL. sqlglot should keep IS NOT NULL as written, represented as an exp.Is whose negate flag is set, while NOT x IS NULL stays as written too; the Postgres shorthands NOTNULL and ISNULL should read as IS NOT NULL / IS NULL, IS NOT UNKNOWN as IS NOT NULL, and constant folding in the optimizer must respect the negation (NULL IS NOT NULL simplifies to FALSE).\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT r IS NOT NULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n\nparse_one(\"r IS NOT NULL\", read=\"postgres\").args.get(\"negate\")\n# currently: None\n# expected:  True\n\nparse_one(\"SELECT r NOTNULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n```\n\nOther forms of the same constructs described above should work as well.",
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 6bef448..17148a9 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -752,6 +752,9 @@ class Dialect(metaclass=_Dialect):\n     # Not safe with MySQL and SQLite due to type coercion (may not return boolean)\n     SAFE_TO_ELIMINATE_DOUBLE_NEGATION = True\n \n+    # Whether `x IS NOT NULL` can be normalized to `NOT x IS NULL`\n+    NORMALIZE_NOT_NULL = True\n+\n     # Whether the INITCAP function supports custom delimiter characters as the second argument\n     # Default delimiter characters for INITCAP function: whitespace and non-alphanumeric characters\n     INITCAP_SUPPORTS_CUSTOM_DELIMITERS = True\ndiff --git a/sqlglot/dialects/materialize.py b/sqlglot/dialects/materialize.py\nindex ba9710e..8349f5b 100644\n--- a/sqlglot/dialects/materialize.py\n+++ b/sqlglot/dialects/materialize.py\n@@ -6,6 +6,8 @@ from sqlglot.parsers.materialize import MaterializeParser\n \n \n class Materialize(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     Parser = MaterializeParser\n \n     Generator = MaterializeGenerator\ndiff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 598b01a..7fd6572 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -11,6 +11,9 @@ from sqlglot.typing.postgres import EXPRESSION_METADATA\n class Postgres(Dialect):\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     INDEX_OFFSET = 1\n+    # Normalizing `x IS NOT NULL` to `NOT x IS NULL` is unsafe due to row values,\n+    # e.g. `ROW(1, NULL) IS NOT NULL` is false whereas `NOT ROW(1, NULL) IS NULL` is true\n+    NORMALIZE_NOT_NULL = False\n     TYPED_DIVISION = True\n     CONCAT_COALESCE = True\n     CONCAT_WS_COALESCE = True\ndiff --git a/sqlglot/dialects/redshift.py b/sqlglot/dialects/redshift.py\nindex 44fbc54..0f715d8 100644\n--- a/sqlglot/dialects/redshift.py\n+++ b/sqlglot/dialects/redshift.py\n@@ -12,6 +12,8 @@ class Redshift(Postgres):\n     # https://docs.aws.amazon.com/redshift/latest/dg/r_names.html\n     NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_INSENSITIVE\n \n+    NORMALIZE_NOT_NULL = True\n+\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     SUPPORTS_USER_DEFINED_TYPES = False\n     INDEX_OFFSET = 0\ndiff --git a/sqlglot/dialects/risingwave.py b/sqlglot/dialects/risingwave.py\nindex 8e84f4c..848129f 100644\n--- a/sqlglot/dialects/risingwave.py\n+++ b/sqlglot/dialects/risingwave.py\n@@ -7,6 +7,8 @@ from sqlglot.tokens import TokenType\n \n \n class RisingWave(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     REQUIRES_PARENTHESIZED_STRUCT_ACCESS = True\n     SUPPORTS_STRUCT_STAR_EXPANSION = True\n \ndiff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py\nindex 99bf642..5bb6b76 100644\n--- a/sqlglot/expressions/core.py\n+++ b/sqlglot/expressions/core.py\n@@ -2184,7 +2184,7 @@ class IntDiv(Expression, Binary):\n \n \n class Is(Expression, Binary, Predicate):\n-    pass\n+    arg_types = {\"this\": True, \"expression\": True, \"negate\": False}\n \n \n class Like(Expression, Binary, Predicate):\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 1d81e32..f298251 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -4440,11 +4440,11 @@ class Generator:\n         return self.binary(expression, \">=\")\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if not self.IS_BOOL_ALLOWED and isinstance(expression.expression, exp.Boolean):\n-            return self.sql(\n-                expression.this if expression.expression.this else exp.not_(expression.this)\n-            )\n-        return self.binary(expression, \"IS\")\n+            positive = bool(expression.expression.this) != bool(negate)\n+            return self.sql(expression.this if positive else exp.not_(expression.this))\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def _like_sql(\n         self,\ndiff --git a/sqlglot/generators/python.py b/sqlglot/generators/python.py\nindex 69da7a5..faa6bbb 100644\n--- a/sqlglot/generators/python.py\n+++ b/sqlglot/generators/python.py\n@@ -93,7 +93,9 @@ class PythonGenerator(generator.Generator):\n         exp.In: lambda self, e: f\"{self.sql(e, 'this')} in {{{self.expressions(e, flat=True)}}}\",\n         exp.Interval: lambda self, e: f\"INTERVAL({self.sql(e.this)}, '{self.sql(e.unit)}')\",\n         exp.Is: lambda self, e: (\n-            self.binary(e, \"==\") if isinstance(e.this, exp.Literal) else self.binary(e, \"is\")\n+            self.binary(e, \"!=\" if e.args.get(\"negate\") else \"==\")\n+            if isinstance(e.this, exp.Literal)\n+            else self.binary(e, \"is not\" if e.args.get(\"negate\") else \"is\")\n         ),\n         exp.JSONExtract: lambda self, e: self.func(e.key, e.this, e.expression, *e.expressions),\n         exp.JSONPath: lambda self, e: f\"[{','.join(self.sql(p) for p in e.expressions[1:])}]\",\ndiff --git a/sqlglot/generators/tsql.py b/sqlglot/generators/tsql.py\nindex d4ef5d7..cffd066 100644\n--- a/sqlglot/generators/tsql.py\n+++ b/sqlglot/generators/tsql.py\n@@ -378,9 +378,10 @@ class TSQLGenerator(generator.Generator):\n         return \"(1 = 1)\" if expression.this else \"(1 = 0)\"\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if isinstance(expression.expression, exp.Boolean):\n-            return self.binary(expression, \"=\")\n-        return self.binary(expression, \"IS\")\n+            return self.binary(expression, \"<>\" if negate else \"=\")\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def createable_sql(self, expression: exp.Create, locations: defaultdict) -> str:\n         sql = self.sql(expression, \"this\")\ndiff --git a/sqlglot/optimizer/simplify.py b/sqlglot/optimizer/simplify.py\nindex a76da7f..00026a7 100644\n--- a/sqlglot/optimizer/simplify.py\n+++ b/sqlglot/optimizer/simplify.py\n@@ -332,6 +332,8 @@ def eval_boolean(\n     expression: object, a: SupportsComparison, b: SupportsComparison\n ) -> exp.Boolean | None:\n     if isinstance(expression, (exp.EQ, exp.Is)):\n+        if isinstance(expression, exp.Is) and expression.args.get(\"negate\"):\n+            return boolean_literal(a != b)\n         return boolean_literal(a == b)\n     if isinstance(expression, exp.NEQ):\n         return boolean_literal(a != b)\n@@ -892,8 +894,11 @@ class Simplifier:\n         self, expression: exp.Expr, left: exp.Expr, right: exp.Expr, or_: bool = False\n     ) -> exp.Expr | None:\n         if isinstance(left, self.COMPARISONS) and isinstance(right, self.COMPARISONS):\n-            ll, lr = left.args.values()\n-            rl, rr = right.args.values()\n+            if any(isinstance(e, exp.Is) and e.args.get(\"negate\") for e in (left, right)):\n+                return None\n+\n+            ll, lr = left.this, left.expression\n+            rl, rr = right.this, right.expression\n \n             largs = {ll, lr}\n             rargs = {rl, rr}\n@@ -1194,6 +1199,9 @@ class Simplifier:\n                 c = b\n                 not_ = False\n \n+            if expression.args.get(\"negate\"):\n+                not_ = not not_\n+\n             if is_null(c):\n                 if isinstance(a, exp.Literal):\n                     return exp.true() if not_ else exp.false()\n@@ -1699,7 +1707,7 @@ class Gen:\n         self._binary(e, \" DIV \")\n \n     def is_sql(self, e: exp.Is) -> None:\n-        self._binary(e, \" IS \")\n+        self._binary(e, \" IS NOT \" if e.args.get(\"negate\") else \" IS \")\n \n     def like_sql(self, e: exp.Like) -> None:\n         self._binary(e, \" NOT Like \" if e.args.get(\"negate\") else \" Like \")\ndiff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 650cb59..ca7b968 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -5950,8 +5950,11 @@ class Parser:\n             elif self._match(TokenType.NOTNULL):\n                 # Postgres supports ISNULL and NOTNULL for conditions.\n                 # https://blog.andreiavram.ro/postgresql-null-composite-type/\n-                this = self.expression(exp.Is(this=this, expression=exp.Null()))\n-                this = self.expression(exp.Not(this=this))\n+                if self.dialect.NORMALIZE_NOT_NULL:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null()))\n+                    this = self.expression(exp.Not(this=this))\n+                else:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null(), negate=True))\n             else:\n                 if negate:\n                     self._retreat(self._index - 1)\n@@ -6007,8 +6010,12 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-        this = self.expression(exp.Is(this=this, expression=expression))\n-        this = self.expression(exp.Not(this=this)) if negate else this\n+        if negate and isinstance(expression, exp.Null) and not self.dialect.NORMALIZE_NOT_NULL:\n+            this = self.expression(exp.Is(this=this, expression=expression, negate=True))\n+        else:\n+            this = self.expression(exp.Is(this=this, expression=expression))\n+            this = self.expression(exp.Not(this=this)) if negate else this\n+\n         return self._parse_column_ops(this)\n \n     def _parse_in(self, this: exp.Expr | None, alias: bool = False) -> exp.In:\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.expressions.core:Is.arg_types",
+    "kind": "dict",
+    "added": {
+     "'negate'": "False"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "7675",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT col IS NOT NULL::BOOLEAN FROM (SELECT 1 AS col) AS t",
+    "before": "SELECT CAST(NOT col IS NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t",
+    "after": "SELECT CAST(col IS NOT NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t"
+   },
+   {
+    "probe": "7739",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted NOTNULL",
+    "before": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE NOT deleted IS NULL",
+    "after": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted IS NOT NULL"
+   },
+   {
+    "probe": "8151",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "x IS NOT UNKNOWN",
+    "before": "NOT x IS NULL",
+    "after": "x IS NOT NULL"
+   },
+   {
+    "probe": "13487",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT NOT r IS NOT NULL FROM t",
+    "before": "SELECT NOT NOT r IS NULL FROM t",
+    "after": "SELECT NOT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13495",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r IS NOT NULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13503",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r NOTNULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13507",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "r IS NOT NULL",
+    "before": "NOT r IS NULL",
+    "after": "r IS NOT NULL"
+   }
+  ],
+  "new_probes": 24
+ },
+ {
+  "task": "2aae7f7605",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "In Postgres, x IS NOT NULL is normalised to NOT x IS NULL. sqlglot should keep IS NOT NULL as written, represented as an exp.Is whose negate flag is set, while NOT x IS NULL stays as written too; the Postgres shorthands NOTNULL and ISNULL should read as IS NOT NULL / IS NULL, IS NOT UNKNOWN as IS NOT NULL, and constant folding in the optimizer must respect the negation (NULL IS NOT NULL simplifies to FALSE).\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT r IS NOT NULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n\nparse_one(\"r IS NOT NULL\", read=\"postgres\").args.get(\"negate\")\n# currently: None\n# expected:  True\n\nparse_one(\"SELECT r NOTNULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parser.py",
+   "line": 1344,
+   "op": "delete",
+   "code": "\"SET\": lambda self: self.expression(exp.SetProperty(multi=False)),"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 6bef448..17148a9 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -752,6 +752,9 @@ class Dialect(metaclass=_Dialect):\n     # Not safe with MySQL and SQLite due to type coercion (may not return boolean)\n     SAFE_TO_ELIMINATE_DOUBLE_NEGATION = True\n \n+    # Whether `x IS NOT NULL` can be normalized to `NOT x IS NULL`\n+    NORMALIZE_NOT_NULL = True\n+\n     # Whether the INITCAP function supports custom delimiter characters as the second argument\n     # Default delimiter characters for INITCAP function: whitespace and non-alphanumeric characters\n     INITCAP_SUPPORTS_CUSTOM_DELIMITERS = True\ndiff --git a/sqlglot/dialects/materialize.py b/sqlglot/dialects/materialize.py\nindex ba9710e..8349f5b 100644\n--- a/sqlglot/dialects/materialize.py\n+++ b/sqlglot/dialects/materialize.py\n@@ -6,6 +6,8 @@ from sqlglot.parsers.materialize import MaterializeParser\n \n \n class Materialize(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     Parser = MaterializeParser\n \n     Generator = MaterializeGenerator\ndiff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 598b01a..7fd6572 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -11,6 +11,9 @@ from sqlglot.typing.postgres import EXPRESSION_METADATA\n class Postgres(Dialect):\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     INDEX_OFFSET = 1\n+    # Normalizing `x IS NOT NULL` to `NOT x IS NULL` is unsafe due to row values,\n+    # e.g. `ROW(1, NULL) IS NOT NULL` is false whereas `NOT ROW(1, NULL) IS NULL` is true\n+    NORMALIZE_NOT_NULL = False\n     TYPED_DIVISION = True\n     CONCAT_COALESCE = True\n     CONCAT_WS_COALESCE = True\ndiff --git a/sqlglot/dialects/redshift.py b/sqlglot/dialects/redshift.py\nindex 44fbc54..0f715d8 100644\n--- a/sqlglot/dialects/redshift.py\n+++ b/sqlglot/dialects/redshift.py\n@@ -12,6 +12,8 @@ class Redshift(Postgres):\n     # https://docs.aws.amazon.com/redshift/latest/dg/r_names.html\n     NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_INSENSITIVE\n \n+    NORMALIZE_NOT_NULL = True\n+\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     SUPPORTS_USER_DEFINED_TYPES = False\n     INDEX_OFFSET = 0\ndiff --git a/sqlglot/dialects/risingwave.py b/sqlglot/dialects/risingwave.py\nindex 8e84f4c..848129f 100644\n--- a/sqlglot/dialects/risingwave.py\n+++ b/sqlglot/dialects/risingwave.py\n@@ -7,6 +7,8 @@ from sqlglot.tokens import TokenType\n \n \n class RisingWave(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     REQUIRES_PARENTHESIZED_STRUCT_ACCESS = True\n     SUPPORTS_STRUCT_STAR_EXPANSION = True\n \ndiff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py\nindex 99bf642..5bb6b76 100644\n--- a/sqlglot/expressions/core.py\n+++ b/sqlglot/expressions/core.py\n@@ -2184,7 +2184,7 @@ class IntDiv(Expression, Binary):\n \n \n class Is(Expression, Binary, Predicate):\n-    pass\n+    arg_types = {\"this\": True, \"expression\": True, \"negate\": False}\n \n \n class Like(Expression, Binary, Predicate):\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 1d81e32..f298251 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -4440,11 +4440,11 @@ class Generator:\n         return self.binary(expression, \">=\")\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if not self.IS_BOOL_ALLOWED and isinstance(expression.expression, exp.Boolean):\n-            return self.sql(\n-                expression.this if expression.expression.this else exp.not_(expression.this)\n-            )\n-        return self.binary(expression, \"IS\")\n+            positive = bool(expression.expression.this) != bool(negate)\n+            return self.sql(expression.this if positive else exp.not_(expression.this))\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def _like_sql(\n         self,\ndiff --git a/sqlglot/generators/python.py b/sqlglot/generators/python.py\nindex 69da7a5..faa6bbb 100644\n--- a/sqlglot/generators/python.py\n+++ b/sqlglot/generators/python.py\n@@ -93,7 +93,9 @@ class PythonGenerator(generator.Generator):\n         exp.In: lambda self, e: f\"{self.sql(e, 'this')} in {{{self.expressions(e, flat=True)}}}\",\n         exp.Interval: lambda self, e: f\"INTERVAL({self.sql(e.this)}, '{self.sql(e.unit)}')\",\n         exp.Is: lambda self, e: (\n-            self.binary(e, \"==\") if isinstance(e.this, exp.Literal) else self.binary(e, \"is\")\n+            self.binary(e, \"!=\" if e.args.get(\"negate\") else \"==\")\n+            if isinstance(e.this, exp.Literal)\n+            else self.binary(e, \"is not\" if e.args.get(\"negate\") else \"is\")\n         ),\n         exp.JSONExtract: lambda self, e: self.func(e.key, e.this, e.expression, *e.expressions),\n         exp.JSONPath: lambda self, e: f\"[{','.join(self.sql(p) for p in e.expressions[1:])}]\",\ndiff --git a/sqlglot/generators/tsql.py b/sqlglot/generators/tsql.py\nindex d4ef5d7..cffd066 100644\n--- a/sqlglot/generators/tsql.py\n+++ b/sqlglot/generators/tsql.py\n@@ -378,9 +378,10 @@ class TSQLGenerator(generator.Generator):\n         return \"(1 = 1)\" if expression.this else \"(1 = 0)\"\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if isinstance(expression.expression, exp.Boolean):\n-            return self.binary(expression, \"=\")\n-        return self.binary(expression, \"IS\")\n+            return self.binary(expression, \"<>\" if negate else \"=\")\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def createable_sql(self, expression: exp.Create, locations: defaultdict) -> str:\n         sql = self.sql(expression, \"this\")\ndiff --git a/sqlglot/optimizer/simplify.py b/sqlglot/optimizer/simplify.py\nindex a76da7f..00026a7 100644\n--- a/sqlglot/optimizer/simplify.py\n+++ b/sqlglot/optimizer/simplify.py\n@@ -332,6 +332,8 @@ def eval_boolean(\n     expression: object, a: SupportsComparison, b: SupportsComparison\n ) -> exp.Boolean | None:\n     if isinstance(expression, (exp.EQ, exp.Is)):\n+        if isinstance(expression, exp.Is) and expression.args.get(\"negate\"):\n+            return boolean_literal(a != b)\n         return boolean_literal(a == b)\n     if isinstance(expression, exp.NEQ):\n         return boolean_literal(a != b)\n@@ -892,8 +894,11 @@ class Simplifier:\n         self, expression: exp.Expr, left: exp.Expr, right: exp.Expr, or_: bool = False\n     ) -> exp.Expr | None:\n         if isinstance(left, self.COMPARISONS) and isinstance(right, self.COMPARISONS):\n-            ll, lr = left.args.values()\n-            rl, rr = right.args.values()\n+            if any(isinstance(e, exp.Is) and e.args.get(\"negate\") for e in (left, right)):\n+                return None\n+\n+            ll, lr = left.this, left.expression\n+            rl, rr = right.this, right.expression\n \n             largs = {ll, lr}\n             rargs = {rl, rr}\n@@ -1194,6 +1199,9 @@ class Simplifier:\n                 c = b\n                 not_ = False\n \n+            if expression.args.get(\"negate\"):\n+                not_ = not not_\n+\n             if is_null(c):\n                 if isinstance(a, exp.Literal):\n                     return exp.true() if not_ else exp.false()\n@@ -1699,7 +1707,7 @@ class Gen:\n         self._binary(e, \" DIV \")\n \n     def is_sql(self, e: exp.Is) -> None:\n-        self._binary(e, \" IS \")\n+        self._binary(e, \" IS NOT \" if e.args.get(\"negate\") else \" IS \")\n \n     def like_sql(self, e: exp.Like) -> None:\n         self._binary(e, \" NOT Like \" if e.args.get(\"negate\") else \" Like \")\ndiff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 650cb59..8eab33b 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1341,7 +1341,7 @@ class Parser:\n         \"SECURE\": lambda self: self.expression(exp.SecureProperty()),\n         \"SECURITY\": lambda self: self._parse_sql_security(),\n         \"SQL SECURITY\": lambda self: self._parse_sql_security(),\n-        \"SET\": lambda self: self.expression(exp.SetProperty(multi=False)),\n+\n         \"SETTINGS\": lambda self: self._parse_settings_property(),\n         \"SHARING\": lambda self: self._parse_property_assignment(exp.SharingProperty),\n         \"SORTKEY\": lambda self: self._parse_sortkey(),\n@@ -5950,8 +5950,11 @@ class Parser:\n             elif self._match(TokenType.NOTNULL):\n                 # Postgres supports ISNULL and NOTNULL for conditions.\n                 # https://blog.andreiavram.ro/postgresql-null-composite-type/\n-                this = self.expression(exp.Is(this=this, expression=exp.Null()))\n-                this = self.expression(exp.Not(this=this))\n+                if self.dialect.NORMALIZE_NOT_NULL:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null()))\n+                    this = self.expression(exp.Not(this=this))\n+                else:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null(), negate=True))\n             else:\n                 if negate:\n                     self._retreat(self._index - 1)\n@@ -6007,8 +6010,12 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-        this = self.expression(exp.Is(this=this, expression=expression))\n-        this = self.expression(exp.Not(this=this)) if negate else this\n+        if negate and isinstance(expression, exp.Null) and not self.dialect.NORMALIZE_NOT_NULL:\n+            this = self.expression(exp.Is(this=this, expression=expression, negate=True))\n+        else:\n+            this = self.expression(exp.Is(this=this, expression=expression))\n+            this = self.expression(exp.Not(this=this)) if negate else this\n+\n         return self._parse_column_ops(this)\n \n     def _parse_in(self, this: exp.Expr | None, alias: bool = False) -> exp.In:\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.bigquery:BigQueryParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.clickhouse:ClickHouseParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.hive:HiveParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.oracle:OracleParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.sqlite:SQLiteParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.starrocks:StarRocksParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SET'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.expressions.core:Is.arg_types",
+    "kind": "dict",
+    "added": {
+     "'negate'": "False"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "7675",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT col IS NOT NULL::BOOLEAN FROM (SELECT 1 AS col) AS t",
+    "before": "SELECT CAST(NOT col IS NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t",
+    "after": "SELECT CAST(col IS NOT NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t"
+   },
+   {
+    "probe": "7739",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted NOTNULL",
+    "before": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE NOT deleted IS NULL",
+    "after": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted IS NOT NULL"
+   },
+   {
+    "probe": "8151",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "x IS NOT UNKNOWN",
+    "before": "NOT x IS NULL",
+    "after": "x IS NOT NULL"
+   },
+   {
+    "probe": "12290",
+    "source": "teradata",
+    "dialect": "teradata",
+    "input": "CREATE SET TABLE test, NO FALLBACK, NO BEFORE JOURNAL, NO AFTER JOURNAL,\n            CHECKSUM = DEFAULT (x INT, y INT, z CHAR(30), a INT, b DATE, e INT)\n            PRIMARY INDEX (a),\n            INDEX(x, y)",
+    "before": "CREATE SET TABLE test, NO FALLBACK, NO BEFORE JOURNAL, NO AFTER JOURNAL, CHECKSUM=DEFAULT (x INT, y INT, z CHAR(30), a INT, b DATE, e INT) PRIMARY INDEX (a) INDEX (x, y)",
+    "after": "CREATE SET TABLE test, NO FALLBACK, NO BEFORE JOURNAL, NO AFTER JOURNAL,\n            CHECKSUM = DEFAULT (x INT, y INT, z CHAR(30), a INT, b DATE, e INT)\n            PRIMARY INDEX (a),\n            INDEX(x, y)"
+   },
+   {
+    "probe": "13487",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT NOT r IS NOT NULL FROM t",
+    "before": "SELECT NOT NOT r IS NULL FROM t",
+    "after": "SELECT NOT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13495",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r IS NOT NULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13503",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r NOTNULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13507",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "r IS NOT NULL",
+    "before": "NOT r IS NULL",
+    "after": "r IS NOT NULL"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 1,
+   "imports": 10
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_teradata.py::TestTeradata::test_create"
+  ]
+ },
+ {
+  "task": "2aae7f7605",
+  "variant": "bug",
+  "label": "no_effect",
+  "prompt": "In Postgres, x IS NOT NULL is normalised to NOT x IS NULL. sqlglot should keep IS NOT NULL as written, represented as an exp.Is whose negate flag is set, while NOT x IS NULL stays as written too; the Postgres shorthands NOTNULL and ISNULL should read as IS NOT NULL / IS NULL, IS NOT UNKNOWN as IS NOT NULL, and constant folding in the optimizer must respect the negation (NULL IS NOT NULL simplifies to FALSE).\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT r IS NOT NULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n\nparse_one(\"r IS NOT NULL\", read=\"postgres\").args.get(\"negate\")\n# currently: None\n# expected:  True\n\nparse_one(\"SELECT r NOTNULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/optimizer/simplify.py",
+   "line": 345,
+   "op": "flip",
+   "code": "return boolean_literal(a < b)"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 6bef448..17148a9 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -752,6 +752,9 @@ class Dialect(metaclass=_Dialect):\n     # Not safe with MySQL and SQLite due to type coercion (may not return boolean)\n     SAFE_TO_ELIMINATE_DOUBLE_NEGATION = True\n \n+    # Whether `x IS NOT NULL` can be normalized to `NOT x IS NULL`\n+    NORMALIZE_NOT_NULL = True\n+\n     # Whether the INITCAP function supports custom delimiter characters as the second argument\n     # Default delimiter characters for INITCAP function: whitespace and non-alphanumeric characters\n     INITCAP_SUPPORTS_CUSTOM_DELIMITERS = True\ndiff --git a/sqlglot/dialects/materialize.py b/sqlglot/dialects/materialize.py\nindex ba9710e..8349f5b 100644\n--- a/sqlglot/dialects/materialize.py\n+++ b/sqlglot/dialects/materialize.py\n@@ -6,6 +6,8 @@ from sqlglot.parsers.materialize import MaterializeParser\n \n \n class Materialize(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     Parser = MaterializeParser\n \n     Generator = MaterializeGenerator\ndiff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 598b01a..7fd6572 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -11,6 +11,9 @@ from sqlglot.typing.postgres import EXPRESSION_METADATA\n class Postgres(Dialect):\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     INDEX_OFFSET = 1\n+    # Normalizing `x IS NOT NULL` to `NOT x IS NULL` is unsafe due to row values,\n+    # e.g. `ROW(1, NULL) IS NOT NULL` is false whereas `NOT ROW(1, NULL) IS NULL` is true\n+    NORMALIZE_NOT_NULL = False\n     TYPED_DIVISION = True\n     CONCAT_COALESCE = True\n     CONCAT_WS_COALESCE = True\ndiff --git a/sqlglot/dialects/redshift.py b/sqlglot/dialects/redshift.py\nindex 44fbc54..0f715d8 100644\n--- a/sqlglot/dialects/redshift.py\n+++ b/sqlglot/dialects/redshift.py\n@@ -12,6 +12,8 @@ class Redshift(Postgres):\n     # https://docs.aws.amazon.com/redshift/latest/dg/r_names.html\n     NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_INSENSITIVE\n \n+    NORMALIZE_NOT_NULL = True\n+\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     SUPPORTS_USER_DEFINED_TYPES = False\n     INDEX_OFFSET = 0\ndiff --git a/sqlglot/dialects/risingwave.py b/sqlglot/dialects/risingwave.py\nindex 8e84f4c..848129f 100644\n--- a/sqlglot/dialects/risingwave.py\n+++ b/sqlglot/dialects/risingwave.py\n@@ -7,6 +7,8 @@ from sqlglot.tokens import TokenType\n \n \n class RisingWave(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     REQUIRES_PARENTHESIZED_STRUCT_ACCESS = True\n     SUPPORTS_STRUCT_STAR_EXPANSION = True\n \ndiff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py\nindex 99bf642..5bb6b76 100644\n--- a/sqlglot/expressions/core.py\n+++ b/sqlglot/expressions/core.py\n@@ -2184,7 +2184,7 @@ class IntDiv(Expression, Binary):\n \n \n class Is(Expression, Binary, Predicate):\n-    pass\n+    arg_types = {\"this\": True, \"expression\": True, \"negate\": False}\n \n \n class Like(Expression, Binary, Predicate):\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 1d81e32..f298251 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -4440,11 +4440,11 @@ class Generator:\n         return self.binary(expression, \">=\")\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if not self.IS_BOOL_ALLOWED and isinstance(expression.expression, exp.Boolean):\n-            return self.sql(\n-                expression.this if expression.expression.this else exp.not_(expression.this)\n-            )\n-        return self.binary(expression, \"IS\")\n+            positive = bool(expression.expression.this) != bool(negate)\n+            return self.sql(expression.this if positive else exp.not_(expression.this))\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def _like_sql(\n         self,\ndiff --git a/sqlglot/generators/python.py b/sqlglot/generators/python.py\nindex 69da7a5..faa6bbb 100644\n--- a/sqlglot/generators/python.py\n+++ b/sqlglot/generators/python.py\n@@ -93,7 +93,9 @@ class PythonGenerator(generator.Generator):\n         exp.In: lambda self, e: f\"{self.sql(e, 'this')} in {{{self.expressions(e, flat=True)}}}\",\n         exp.Interval: lambda self, e: f\"INTERVAL({self.sql(e.this)}, '{self.sql(e.unit)}')\",\n         exp.Is: lambda self, e: (\n-            self.binary(e, \"==\") if isinstance(e.this, exp.Literal) else self.binary(e, \"is\")\n+            self.binary(e, \"!=\" if e.args.get(\"negate\") else \"==\")\n+            if isinstance(e.this, exp.Literal)\n+            else self.binary(e, \"is not\" if e.args.get(\"negate\") else \"is\")\n         ),\n         exp.JSONExtract: lambda self, e: self.func(e.key, e.this, e.expression, *e.expressions),\n         exp.JSONPath: lambda self, e: f\"[{','.join(self.sql(p) for p in e.expressions[1:])}]\",\ndiff --git a/sqlglot/generators/tsql.py b/sqlglot/generators/tsql.py\nindex d4ef5d7..cffd066 100644\n--- a/sqlglot/generators/tsql.py\n+++ b/sqlglot/generators/tsql.py\n@@ -378,9 +378,10 @@ class TSQLGenerator(generator.Generator):\n         return \"(1 = 1)\" if expression.this else \"(1 = 0)\"\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if isinstance(expression.expression, exp.Boolean):\n-            return self.binary(expression, \"=\")\n-        return self.binary(expression, \"IS\")\n+            return self.binary(expression, \"<>\" if negate else \"=\")\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def createable_sql(self, expression: exp.Create, locations: defaultdict) -> str:\n         sql = self.sql(expression, \"this\")\ndiff --git a/sqlglot/optimizer/simplify.py b/sqlglot/optimizer/simplify.py\nindex a76da7f..09fbf61 100644\n--- a/sqlglot/optimizer/simplify.py\n+++ b/sqlglot/optimizer/simplify.py\n@@ -332,6 +332,8 @@ def eval_boolean(\n     expression: object, a: SupportsComparison, b: SupportsComparison\n ) -> exp.Boolean | None:\n     if isinstance(expression, (exp.EQ, exp.Is)):\n+        if isinstance(expression, exp.Is) and expression.args.get(\"negate\"):\n+            return boolean_literal(a != b)\n         return boolean_literal(a == b)\n     if isinstance(expression, exp.NEQ):\n         return boolean_literal(a != b)\n@@ -340,7 +342,7 @@ def eval_boolean(\n     if isinstance(expression, exp.GTE):\n         return boolean_literal(a >= b)\n     if isinstance(expression, exp.LT):\n-        return boolean_literal(a < b)\n+        return boolean_literal(a >= b)\n     if isinstance(expression, exp.LTE):\n         return boolean_literal(a <= b)\n     return None\n@@ -892,8 +894,11 @@ class Simplifier:\n         self, expression: exp.Expr, left: exp.Expr, right: exp.Expr, or_: bool = False\n     ) -> exp.Expr | None:\n         if isinstance(left, self.COMPARISONS) and isinstance(right, self.COMPARISONS):\n-            ll, lr = left.args.values()\n-            rl, rr = right.args.values()\n+            if any(isinstance(e, exp.Is) and e.args.get(\"negate\") for e in (left, right)):\n+                return None\n+\n+            ll, lr = left.this, left.expression\n+            rl, rr = right.this, right.expression\n \n             largs = {ll, lr}\n             rargs = {rl, rr}\n@@ -1194,6 +1199,9 @@ class Simplifier:\n                 c = b\n                 not_ = False\n \n+            if expression.args.get(\"negate\"):\n+                not_ = not not_\n+\n             if is_null(c):\n                 if isinstance(a, exp.Literal):\n                     return exp.true() if not_ else exp.false()\n@@ -1699,7 +1707,7 @@ class Gen:\n         self._binary(e, \" DIV \")\n \n     def is_sql(self, e: exp.Is) -> None:\n-        self._binary(e, \" IS \")\n+        self._binary(e, \" IS NOT \" if e.args.get(\"negate\") else \" IS \")\n \n     def like_sql(self, e: exp.Like) -> None:\n         self._binary(e, \" NOT Like \" if e.args.get(\"negate\") else \" Like \")\ndiff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 650cb59..ca7b968 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -5950,8 +5950,11 @@ class Parser:\n             elif self._match(TokenType.NOTNULL):\n                 # Postgres supports ISNULL and NOTNULL for conditions.\n                 # https://blog.andreiavram.ro/postgresql-null-composite-type/\n-                this = self.expression(exp.Is(this=this, expression=exp.Null()))\n-                this = self.expression(exp.Not(this=this))\n+                if self.dialect.NORMALIZE_NOT_NULL:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null()))\n+                    this = self.expression(exp.Not(this=this))\n+                else:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null(), negate=True))\n             else:\n                 if negate:\n                     self._retreat(self._index - 1)\n@@ -6007,8 +6010,12 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-        this = self.expression(exp.Is(this=this, expression=expression))\n-        this = self.expression(exp.Not(this=this)) if negate else this\n+        if negate and isinstance(expression, exp.Null) and not self.dialect.NORMALIZE_NOT_NULL:\n+            this = self.expression(exp.Is(this=this, expression=expression, negate=True))\n+        else:\n+            this = self.expression(exp.Is(this=this, expression=expression))\n+            this = self.expression(exp.Not(this=this)) if negate else this\n+\n         return self._parse_column_ops(this)\n \n     def _parse_in(self, this: exp.Expr | None, alias: bool = False) -> exp.In:\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.expressions.core:Is.arg_types",
+    "kind": "dict",
+    "added": {
+     "'negate'": "False"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "7675",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT col IS NOT NULL::BOOLEAN FROM (SELECT 1 AS col) AS t",
+    "before": "SELECT CAST(NOT col IS NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t",
+    "after": "SELECT CAST(col IS NOT NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t"
+   },
+   {
+    "probe": "7739",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted NOTNULL",
+    "before": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE NOT deleted IS NULL",
+    "after": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted IS NOT NULL"
+   },
+   {
+    "probe": "8151",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "x IS NOT UNKNOWN",
+    "before": "NOT x IS NULL",
+    "after": "x IS NOT NULL"
+   },
+   {
+    "probe": "13487",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT NOT r IS NOT NULL FROM t",
+    "before": "SELECT NOT NOT r IS NULL FROM t",
+    "after": "SELECT NOT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13495",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r IS NOT NULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13503",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r NOTNULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13507",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "r IS NOT NULL",
+    "before": "NOT r IS NULL",
+    "after": "r IS NOT NULL"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb"
+  ]
+ },
+ {
+  "task": "2aae7f7605",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "In Postgres, x IS NOT NULL is normalised to NOT x IS NULL. sqlglot should keep IS NOT NULL as written, represented as an exp.Is whose negate flag is set, while NOT x IS NULL stays as written too; the Postgres shorthands NOTNULL and ISNULL should read as IS NOT NULL / IS NULL, IS NOT UNKNOWN as IS NOT NULL, and constant folding in the optimizer must respect the negation (NULL IS NOT NULL simplifies to FALSE).\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT r IS NOT NULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n\nparse_one(\"r IS NOT NULL\", read=\"postgres\").args.get(\"negate\")\n# currently: None\n# expected:  True\n\nparse_one(\"SELECT r NOTNULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parser.py",
+   "line": 1543,
+   "op": "delete",
+   "code": "\"SUBSTRING\": lambda self: self._parse_substring(),"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 6bef448..17148a9 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -752,6 +752,9 @@ class Dialect(metaclass=_Dialect):\n     # Not safe with MySQL and SQLite due to type coercion (may not return boolean)\n     SAFE_TO_ELIMINATE_DOUBLE_NEGATION = True\n \n+    # Whether `x IS NOT NULL` can be normalized to `NOT x IS NULL`\n+    NORMALIZE_NOT_NULL = True\n+\n     # Whether the INITCAP function supports custom delimiter characters as the second argument\n     # Default delimiter characters for INITCAP function: whitespace and non-alphanumeric characters\n     INITCAP_SUPPORTS_CUSTOM_DELIMITERS = True\ndiff --git a/sqlglot/dialects/materialize.py b/sqlglot/dialects/materialize.py\nindex ba9710e..8349f5b 100644\n--- a/sqlglot/dialects/materialize.py\n+++ b/sqlglot/dialects/materialize.py\n@@ -6,6 +6,8 @@ from sqlglot.parsers.materialize import MaterializeParser\n \n \n class Materialize(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     Parser = MaterializeParser\n \n     Generator = MaterializeGenerator\ndiff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 598b01a..7fd6572 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -11,6 +11,9 @@ from sqlglot.typing.postgres import EXPRESSION_METADATA\n class Postgres(Dialect):\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     INDEX_OFFSET = 1\n+    # Normalizing `x IS NOT NULL` to `NOT x IS NULL` is unsafe due to row values,\n+    # e.g. `ROW(1, NULL) IS NOT NULL` is false whereas `NOT ROW(1, NULL) IS NULL` is true\n+    NORMALIZE_NOT_NULL = False\n     TYPED_DIVISION = True\n     CONCAT_COALESCE = True\n     CONCAT_WS_COALESCE = True\ndiff --git a/sqlglot/dialects/redshift.py b/sqlglot/dialects/redshift.py\nindex 44fbc54..0f715d8 100644\n--- a/sqlglot/dialects/redshift.py\n+++ b/sqlglot/dialects/redshift.py\n@@ -12,6 +12,8 @@ class Redshift(Postgres):\n     # https://docs.aws.amazon.com/redshift/latest/dg/r_names.html\n     NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_INSENSITIVE\n \n+    NORMALIZE_NOT_NULL = True\n+\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     SUPPORTS_USER_DEFINED_TYPES = False\n     INDEX_OFFSET = 0\ndiff --git a/sqlglot/dialects/risingwave.py b/sqlglot/dialects/risingwave.py\nindex 8e84f4c..848129f 100644\n--- a/sqlglot/dialects/risingwave.py\n+++ b/sqlglot/dialects/risingwave.py\n@@ -7,6 +7,8 @@ from sqlglot.tokens import TokenType\n \n \n class RisingWave(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     REQUIRES_PARENTHESIZED_STRUCT_ACCESS = True\n     SUPPORTS_STRUCT_STAR_EXPANSION = True\n \ndiff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py\nindex 99bf642..5bb6b76 100644\n--- a/sqlglot/expressions/core.py\n+++ b/sqlglot/expressions/core.py\n@@ -2184,7 +2184,7 @@ class IntDiv(Expression, Binary):\n \n \n class Is(Expression, Binary, Predicate):\n-    pass\n+    arg_types = {\"this\": True, \"expression\": True, \"negate\": False}\n \n \n class Like(Expression, Binary, Predicate):\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 1d81e32..f298251 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -4440,11 +4440,11 @@ class Generator:\n         return self.binary(expression, \">=\")\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if not self.IS_BOOL_ALLOWED and isinstance(expression.expression, exp.Boolean):\n-            return self.sql(\n-                expression.this if expression.expression.this else exp.not_(expression.this)\n-            )\n-        return self.binary(expression, \"IS\")\n+            positive = bool(expression.expression.this) != bool(negate)\n+            return self.sql(expression.this if positive else exp.not_(expression.this))\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def _like_sql(\n         self,\ndiff --git a/sqlglot/generators/python.py b/sqlglot/generators/python.py\nindex 69da7a5..faa6bbb 100644\n--- a/sqlglot/generators/python.py\n+++ b/sqlglot/generators/python.py\n@@ -93,7 +93,9 @@ class PythonGenerator(generator.Generator):\n         exp.In: lambda self, e: f\"{self.sql(e, 'this')} in {{{self.expressions(e, flat=True)}}}\",\n         exp.Interval: lambda self, e: f\"INTERVAL({self.sql(e.this)}, '{self.sql(e.unit)}')\",\n         exp.Is: lambda self, e: (\n-            self.binary(e, \"==\") if isinstance(e.this, exp.Literal) else self.binary(e, \"is\")\n+            self.binary(e, \"!=\" if e.args.get(\"negate\") else \"==\")\n+            if isinstance(e.this, exp.Literal)\n+            else self.binary(e, \"is not\" if e.args.get(\"negate\") else \"is\")\n         ),\n         exp.JSONExtract: lambda self, e: self.func(e.key, e.this, e.expression, *e.expressions),\n         exp.JSONPath: lambda self, e: f\"[{','.join(self.sql(p) for p in e.expressions[1:])}]\",\ndiff --git a/sqlglot/generators/tsql.py b/sqlglot/generators/tsql.py\nindex d4ef5d7..cffd066 100644\n--- a/sqlglot/generators/tsql.py\n+++ b/sqlglot/generators/tsql.py\n@@ -378,9 +378,10 @@ class TSQLGenerator(generator.Generator):\n         return \"(1 = 1)\" if expression.this else \"(1 = 0)\"\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if isinstance(expression.expression, exp.Boolean):\n-            return self.binary(expression, \"=\")\n-        return self.binary(expression, \"IS\")\n+            return self.binary(expression, \"<>\" if negate else \"=\")\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def createable_sql(self, expression: exp.Create, locations: defaultdict) -> str:\n         sql = self.sql(expression, \"this\")\ndiff --git a/sqlglot/optimizer/simplify.py b/sqlglot/optimizer/simplify.py\nindex a76da7f..00026a7 100644\n--- a/sqlglot/optimizer/simplify.py\n+++ b/sqlglot/optimizer/simplify.py\n@@ -332,6 +332,8 @@ def eval_boolean(\n     expression: object, a: SupportsComparison, b: SupportsComparison\n ) -> exp.Boolean | None:\n     if isinstance(expression, (exp.EQ, exp.Is)):\n+        if isinstance(expression, exp.Is) and expression.args.get(\"negate\"):\n+            return boolean_literal(a != b)\n         return boolean_literal(a == b)\n     if isinstance(expression, exp.NEQ):\n         return boolean_literal(a != b)\n@@ -892,8 +894,11 @@ class Simplifier:\n         self, expression: exp.Expr, left: exp.Expr, right: exp.Expr, or_: bool = False\n     ) -> exp.Expr | None:\n         if isinstance(left, self.COMPARISONS) and isinstance(right, self.COMPARISONS):\n-            ll, lr = left.args.values()\n-            rl, rr = right.args.values()\n+            if any(isinstance(e, exp.Is) and e.args.get(\"negate\") for e in (left, right)):\n+                return None\n+\n+            ll, lr = left.this, left.expression\n+            rl, rr = right.this, right.expression\n \n             largs = {ll, lr}\n             rargs = {rl, rr}\n@@ -1194,6 +1199,9 @@ class Simplifier:\n                 c = b\n                 not_ = False\n \n+            if expression.args.get(\"negate\"):\n+                not_ = not not_\n+\n             if is_null(c):\n                 if isinstance(a, exp.Literal):\n                     return exp.true() if not_ else exp.false()\n@@ -1699,7 +1707,7 @@ class Gen:\n         self._binary(e, \" DIV \")\n \n     def is_sql(self, e: exp.Is) -> None:\n-        self._binary(e, \" IS \")\n+        self._binary(e, \" IS NOT \" if e.args.get(\"negate\") else \" IS \")\n \n     def like_sql(self, e: exp.Like) -> None:\n         self._binary(e, \" NOT Like \" if e.args.get(\"negate\") else \" Like \")\ndiff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 650cb59..ea9f692 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1540,7 +1540,7 @@ class Parser:\n         \"POSITION\": lambda self: self._parse_position(),\n         \"SAFE_CAST\": lambda self: self._parse_cast(False, safe=True),\n         \"STRING_AGG\": lambda self: self._parse_string_agg(),\n-        \"SUBSTRING\": lambda self: self._parse_substring(),\n+\n         \"TRIM\": lambda self: self._parse_trim(),\n         \"TRY_CAST\": lambda self: self._parse_cast(False, safe=True),\n         \"TRY_CONVERT\": lambda self: self._parse_convert(False, safe=True),\n@@ -5950,8 +5950,11 @@ class Parser:\n             elif self._match(TokenType.NOTNULL):\n                 # Postgres supports ISNULL and NOTNULL for conditions.\n                 # https://blog.andreiavram.ro/postgresql-null-composite-type/\n-                this = self.expression(exp.Is(this=this, expression=exp.Null()))\n-                this = self.expression(exp.Not(this=this))\n+                if self.dialect.NORMALIZE_NOT_NULL:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null()))\n+                    this = self.expression(exp.Not(this=this))\n+                else:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null(), negate=True))\n             else:\n                 if negate:\n                     self._retreat(self._index - 1)\n@@ -6007,8 +6010,12 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-        this = self.expression(exp.Is(this=this, expression=expression))\n-        this = self.expression(exp.Not(this=this)) if negate else this\n+        if negate and isinstance(expression, exp.Null) and not self.dialect.NORMALIZE_NOT_NULL:\n+            this = self.expression(exp.Is(this=this, expression=expression, negate=True))\n+        else:\n+            this = self.expression(exp.Is(this=this, expression=expression))\n+            this = self.expression(exp.Not(this=this)) if negate else this\n+\n         return self._parse_column_ops(this)\n \n     def _parse_in(self, this: exp.Expr | None, alias: bool = False) -> exp.In:\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.bigquery:BigQueryParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.clickhouse:ClickHouseParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.databricks:DatabricksParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.druid:DruidParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.duckdb:DuckDBParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.exasol:ExasolParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.hive:HiveParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.oracle:OracleParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.presto:PrestoParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.redshift:RedshiftParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.spark2:Spark2Parser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.spark:SparkParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.teradata:TeradataParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.trino:TrinoParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SUBSTRING'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.expressions.core:Is.arg_types",
+    "kind": "dict",
+    "added": {
+     "'negate'": "False"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "6999",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT * FROM \"x\" WHERE SUBSTRING(\"x\".\"foo\" FROM 1 FOR 2) IN ('mas')",
+    "before": "SELECT * FROM \"x\" WHERE SUBSTRING(\"x\".\"foo\" FROM 1 FOR 2) IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7000",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT * FROM \"x\" WHERE SUBSTRING(\"x\".\"foo\" FROM 1 FOR 2) IN ('mas')",
+    "before": "SELECT * FROM \"x\" WHERE SUBSTRING(\"x\".\"foo\" FROM 1 FOR 2) IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7001",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT * FROM \"x\" WHERE SUBSTRING(\"x\".\"foo\" FROM 1 FOR 2) IN ('mas')",
+    "before": "SELECT * FROM \"x\" WHERE SUBSTRING(\"x\".\"foo\" FROM 1 FOR 2) IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7002",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT * FROM \"x\" WHERE SUBSTRING(\"x\".\"foo\" FROM 1 FOR 2) IN ('mas')",
+    "before": "SELECT * FROM \"x\" WHERE SUBSTRING(\"x\".\"foo\" FROM 1 FOR 2) IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7139",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '%#\"o_a#\"_' FOR '#') IN ('mas')",
+    "before": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '%#\"o_a#\"_' FOR '#') IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7140",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '%#\"o_a#\"_' FOR '#') IN ('mas')",
+    "before": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '%#\"o_a#\"_' FOR '#') IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7141",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '%#\"o_a#\"_' FOR '#') IN ('mas')",
+    "before": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '%#\"o_a#\"_' FOR '#') IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7142",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '%#\"o_a#\"_' FOR '#') IN ('mas')",
+    "before": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '%#\"o_a#\"_' FOR '#') IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7143",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '...$') IN ('mas')",
+    "before": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '...$') IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7144",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '...$') IN ('mas')",
+    "before": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '...$') IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7145",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '...$') IN ('mas')",
+    "before": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '...$') IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7146",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '...$') IN ('mas')",
+    "before": "SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '...$') IN ('mas')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7147",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT * FROM x WHERE SUBSTRING(col1 FROM 3 + LENGTH(col1) - 10 FOR 10) IN (col2)",
+    "before": "SELECT * FROM x WHERE SUBSTRING(col1 FROM 3 + LENGTH(col1) - 10 FOR 10) IN (col2)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7148",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT * FROM x WHERE SUBSTRING(col1 FROM 3 + LENGTH(col1) - 10 FOR 10) IN (col2)",
+    "before": "SELECT * FROM x WHERE SUBSTRING(col1 FROM 3 + LENGTH(col1) - 10 FOR 10) IN (col2)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7149",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT * FROM x WHERE SUBSTRING(col1 FROM 3 + LENGTH(col1) - 10 FOR 10) IN (col2)",
+    "before": "SELECT * FROM x WHERE SUBSTRING(col1 FROM 3 + LENGTH(col1) - 10 FOR 10) IN (col2)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7150",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT * FROM x WHERE SUBSTRING(col1 FROM 3 + LENGTH(col1) - 10 FOR 10) IN (col2)",
+    "before": "SELECT * FROM x WHERE SUBSTRING(col1 FROM 3 + LENGTH(col1) - 10 FOR 10) IN (col2)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7187",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1 FOR 2) IN ('ab') THEN 1 ELSE 0 END",
+    "before": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1 FOR 2) IN ('ab') THEN 1 ELSE 0 END",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7188",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1 FOR 2) IN ('ab') THEN 1 ELSE 0 END",
+    "before": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1 FOR 2) IN ('ab') THEN 1 ELSE 0 END",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7189",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1 FOR 2) IN ('ab') THEN 1 ELSE 0 END",
+    "before": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1 FOR 2) IN ('ab') THEN 1 ELSE 0 END",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7190",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1 FOR 2) IN ('ab') THEN 1 ELSE 0 END",
+    "before": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1 FOR 2) IN ('ab') THEN 1 ELSE 0 END",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7191",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1) IN ('ab') THEN 1 ELSE 0 END",
+    "before": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1) IN ('ab') THEN 1 ELSE 0 END",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7192",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1) IN ('ab') THEN 1 ELSE 0 END",
+    "before": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1) IN ('ab') THEN 1 ELSE 0 END",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7193",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1) IN ('ab') THEN 1 ELSE 0 END",
+    "before": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1) IN ('ab') THEN 1 ELSE 0 END",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7194",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1) IN ('ab') THEN 1 ELSE 0 END",
+    "before": "SELECT CASE WHEN SUBSTRING('abcdefg' FROM 1) IN ('ab') THEN 1 ELSE 0 END",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7519",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT SUBSTRING('Thomas' FOR 3 FROM 2)",
+    "before": "SELECT SUBSTRING('Thomas' FROM 2 FOR 3)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7520",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT SUBSTRING('Thomas' FOR 3 FROM 2)",
+    "before": "SELECT SUBSTRING('Thomas' FROM 2 FOR 3)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7521",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT SUBSTRING('Thomas' FOR 3 FROM 2)",
+    "before": "SELECT SUBSTRING('Thomas' FROM 2 FOR 3)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7522",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT SUBSTRING('Thomas' FOR 3 FROM 2)",
+    "before": "SELECT SUBSTRING('Thomas' FROM 2 FOR 3)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7523",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT SUBSTRING('afafa' for 1)",
+    "before": "SELECT SUBSTRING('afafa' FROM 1 FOR 1)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7524",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT SUBSTRING('afafa' for 1)",
+    "before": "SELECT SUBSTRING('afafa' FROM 1 FOR 1)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7525",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT SUBSTRING('afafa' for 1)",
+    "before": "SELECT SUBSTRING('afafa' FROM 1 FOR 1)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7526",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT SUBSTRING('afafa' for 1)",
+    "before": "SELECT SUBSTRING('afafa' FROM 1 FOR 1)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7527",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT SUBSTRING('bla' + 'foo' || 'bar' FROM 3 - 1 + 5 FOR 4 + SOME_FUNC(arg1, arg2))",
+    "before": "SELECT SUBSTRING('bla' + 'foo' || 'bar' FROM 3 - 1 + 5 FOR 4 + SOME_FUNC(arg1, arg2))",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7528",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT SUBSTRING('bla' + 'foo' || 'bar' FROM 3 - 1 + 5 FOR 4 + SOME_FUNC(arg1, arg2))",
+    "before": "SELECT SUBSTRING('bla' + 'foo' || 'bar' FROM 3 - 1 + 5 FOR 4 + SOME_FUNC(arg1, arg2))",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7529",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT SUBSTRING('bla' + 'foo' || 'bar' FROM 3 - 1 + 5 FOR 4 + SOME_FUNC(arg1, arg2))",
+    "before": "SELECT SUBSTRING('bla' + 'foo' || 'bar' FROM 3 - 1 + 5 FOR 4 + SOME_FUNC(arg1, arg2))",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7530",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT SUBSTRING('bla' + 'foo' || 'bar' FROM 3 - 1 + 5 FOR 4 + SOME_FUNC(arg1, arg2))",
+    "before": "SELECT SUBSTRING('bla' + 'foo' || 'bar' FROM 3 - 1 + 5 FOR 4 + SOME_FUNC(arg1, arg2))",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7531",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT SUBSTRING(2022::CHAR(4) || LPAD(3::CHAR(2), 2, '0') FROM 3 FOR 4)",
+    "before": "SELECT SUBSTRING(CAST(2022 AS CHAR(4)) || LPAD(CAST(3 AS CHAR(2)), 2, '0') FROM 3 FOR 4)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7532",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT SUBSTRING(2022::CHAR(4) || LPAD(3::CHAR(2), 2, '0') FROM 3 FOR 4)",
+    "before": "SELECT SUBSTRING(CAST(2022 AS CHAR(4)) || LPAD(CAST(3 AS CHAR(2)), 2, '0') FROM 3 FOR 4)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7533",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT SUBSTRING(2022::CHAR(4) || LPAD(3::CHAR(2), 2, '0') FROM 3 FOR 4)",
+    "before": "SELECT SUBSTRING(CAST(2022 AS CHAR(4)) || LPAD(CAST(3 AS CHAR(2)), 2, '0') FROM 3 FOR 4)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7534",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT SUBSTRING(2022::CHAR(4) || LPAD(3::CHAR(2), 2, '0') FROM 3 FOR 4)",
+    "before": "SELECT SUBSTRING(CAST(2022 AS CHAR(4)) || LPAD(CAST(3 AS CHAR(2)), 2, '0') FROM 3 FOR 4)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7675",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT col IS NOT NULL::BOOLEAN FROM (SELECT 1 AS col) AS t",
+    "before": "SELECT CAST(NOT col IS NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t",
+    "after": "SELECT CAST(col IS NOT NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t"
+   },
+   {
+    "probe": "7739",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted NOTNULL",
+    "before": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE NOT deleted IS NULL",
+    "after": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted IS NOT NULL"
+   },
+   {
+    "probe": "8151",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "x IS NOT UNKNOWN",
+    "before": "NOT x IS NULL",
+    "after": "x IS NOT NULL"
+   },
+   {
+    "probe": "13487",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT NOT r IS NOT NULL FROM t",
+    "before": "SELECT NOT NOT r IS NULL FROM t",
+    "after": "SELECT NOT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13495",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r IS NOT NULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13503",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r NOTNULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13507",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "r IS NOT NULL",
+    "before": "NOT r IS NULL",
+    "after": "r IS NOT NULL"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 40,
+   "imports": 22
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres"
+  ]
+ },
+ {
+  "task": "2aae7f7605",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "In Postgres, x IS NOT NULL is normalised to NOT x IS NULL. sqlglot should keep IS NOT NULL as written, represented as an exp.Is whose negate flag is set, while NOT x IS NULL stays as written too; the Postgres shorthands NOTNULL and ISNULL should read as IS NOT NULL / IS NULL, IS NOT UNKNOWN as IS NOT NULL, and constant folding in the optimizer must respect the negation (NULL IS NOT NULL simplifies to FALSE).\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT r IS NOT NULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n\nparse_one(\"r IS NOT NULL\", read=\"postgres\").args.get(\"negate\")\n# currently: None\n# expected:  True\n\nparse_one(\"SELECT r NOTNULL FROM t\", read=\"postgres\").sql(\"postgres\")\n# currently: SELECT NOT r IS NULL FROM t\n# expected:  SELECT r IS NOT NULL FROM t\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 7792,
+   "op": "flip",
+   "code": "and self._curr.token_type == TokenType.VAR"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 6bef448..17148a9 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -752,6 +752,9 @@ class Dialect(metaclass=_Dialect):\n     # Not safe with MySQL and SQLite due to type coercion (may not return boolean)\n     SAFE_TO_ELIMINATE_DOUBLE_NEGATION = True\n \n+    # Whether `x IS NOT NULL` can be normalized to `NOT x IS NULL`\n+    NORMALIZE_NOT_NULL = True\n+\n     # Whether the INITCAP function supports custom delimiter characters as the second argument\n     # Default delimiter characters for INITCAP function: whitespace and non-alphanumeric characters\n     INITCAP_SUPPORTS_CUSTOM_DELIMITERS = True\ndiff --git a/sqlglot/dialects/materialize.py b/sqlglot/dialects/materialize.py\nindex ba9710e..8349f5b 100644\n--- a/sqlglot/dialects/materialize.py\n+++ b/sqlglot/dialects/materialize.py\n@@ -6,6 +6,8 @@ from sqlglot.parsers.materialize import MaterializeParser\n \n \n class Materialize(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     Parser = MaterializeParser\n \n     Generator = MaterializeGenerator\ndiff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 598b01a..7fd6572 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -11,6 +11,9 @@ from sqlglot.typing.postgres import EXPRESSION_METADATA\n class Postgres(Dialect):\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     INDEX_OFFSET = 1\n+    # Normalizing `x IS NOT NULL` to `NOT x IS NULL` is unsafe due to row values,\n+    # e.g. `ROW(1, NULL) IS NOT NULL` is false whereas `NOT ROW(1, NULL) IS NULL` is true\n+    NORMALIZE_NOT_NULL = False\n     TYPED_DIVISION = True\n     CONCAT_COALESCE = True\n     CONCAT_WS_COALESCE = True\ndiff --git a/sqlglot/dialects/redshift.py b/sqlglot/dialects/redshift.py\nindex 44fbc54..0f715d8 100644\n--- a/sqlglot/dialects/redshift.py\n+++ b/sqlglot/dialects/redshift.py\n@@ -12,6 +12,8 @@ class Redshift(Postgres):\n     # https://docs.aws.amazon.com/redshift/latest/dg/r_names.html\n     NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_INSENSITIVE\n \n+    NORMALIZE_NOT_NULL = True\n+\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n     SUPPORTS_USER_DEFINED_TYPES = False\n     INDEX_OFFSET = 0\ndiff --git a/sqlglot/dialects/risingwave.py b/sqlglot/dialects/risingwave.py\nindex 8e84f4c..848129f 100644\n--- a/sqlglot/dialects/risingwave.py\n+++ b/sqlglot/dialects/risingwave.py\n@@ -7,6 +7,8 @@ from sqlglot.tokens import TokenType\n \n \n class RisingWave(Postgres):\n+    NORMALIZE_NOT_NULL = True\n+\n     REQUIRES_PARENTHESIZED_STRUCT_ACCESS = True\n     SUPPORTS_STRUCT_STAR_EXPANSION = True\n \ndiff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py\nindex 99bf642..5bb6b76 100644\n--- a/sqlglot/expressions/core.py\n+++ b/sqlglot/expressions/core.py\n@@ -2184,7 +2184,7 @@ class IntDiv(Expression, Binary):\n \n \n class Is(Expression, Binary, Predicate):\n-    pass\n+    arg_types = {\"this\": True, \"expression\": True, \"negate\": False}\n \n \n class Like(Expression, Binary, Predicate):\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 1d81e32..f298251 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -4440,11 +4440,11 @@ class Generator:\n         return self.binary(expression, \">=\")\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if not self.IS_BOOL_ALLOWED and isinstance(expression.expression, exp.Boolean):\n-            return self.sql(\n-                expression.this if expression.expression.this else exp.not_(expression.this)\n-            )\n-        return self.binary(expression, \"IS\")\n+            positive = bool(expression.expression.this) != bool(negate)\n+            return self.sql(expression.this if positive else exp.not_(expression.this))\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def _like_sql(\n         self,\ndiff --git a/sqlglot/generators/python.py b/sqlglot/generators/python.py\nindex 69da7a5..faa6bbb 100644\n--- a/sqlglot/generators/python.py\n+++ b/sqlglot/generators/python.py\n@@ -93,7 +93,9 @@ class PythonGenerator(generator.Generator):\n         exp.In: lambda self, e: f\"{self.sql(e, 'this')} in {{{self.expressions(e, flat=True)}}}\",\n         exp.Interval: lambda self, e: f\"INTERVAL({self.sql(e.this)}, '{self.sql(e.unit)}')\",\n         exp.Is: lambda self, e: (\n-            self.binary(e, \"==\") if isinstance(e.this, exp.Literal) else self.binary(e, \"is\")\n+            self.binary(e, \"!=\" if e.args.get(\"negate\") else \"==\")\n+            if isinstance(e.this, exp.Literal)\n+            else self.binary(e, \"is not\" if e.args.get(\"negate\") else \"is\")\n         ),\n         exp.JSONExtract: lambda self, e: self.func(e.key, e.this, e.expression, *e.expressions),\n         exp.JSONPath: lambda self, e: f\"[{','.join(self.sql(p) for p in e.expressions[1:])}]\",\ndiff --git a/sqlglot/generators/tsql.py b/sqlglot/generators/tsql.py\nindex d4ef5d7..cffd066 100644\n--- a/sqlglot/generators/tsql.py\n+++ b/sqlglot/generators/tsql.py\n@@ -378,9 +378,10 @@ class TSQLGenerator(generator.Generator):\n         return \"(1 = 1)\" if expression.this else \"(1 = 0)\"\n \n     def is_sql(self, expression: exp.Is) -> str:\n+        negate = expression.args.get(\"negate\")\n         if isinstance(expression.expression, exp.Boolean):\n-            return self.binary(expression, \"=\")\n-        return self.binary(expression, \"IS\")\n+            return self.binary(expression, \"<>\" if negate else \"=\")\n+        return self.binary(expression, \"IS NOT\" if negate else \"IS\")\n \n     def createable_sql(self, expression: exp.Create, locations: defaultdict) -> str:\n         sql = self.sql(expression, \"this\")\ndiff --git a/sqlglot/optimizer/simplify.py b/sqlglot/optimizer/simplify.py\nindex a76da7f..00026a7 100644\n--- a/sqlglot/optimizer/simplify.py\n+++ b/sqlglot/optimizer/simplify.py\n@@ -332,6 +332,8 @@ def eval_boolean(\n     expression: object, a: SupportsComparison, b: SupportsComparison\n ) -> exp.Boolean | None:\n     if isinstance(expression, (exp.EQ, exp.Is)):\n+        if isinstance(expression, exp.Is) and expression.args.get(\"negate\"):\n+            return boolean_literal(a != b)\n         return boolean_literal(a == b)\n     if isinstance(expression, exp.NEQ):\n         return boolean_literal(a != b)\n@@ -892,8 +894,11 @@ class Simplifier:\n         self, expression: exp.Expr, left: exp.Expr, right: exp.Expr, or_: bool = False\n     ) -> exp.Expr | None:\n         if isinstance(left, self.COMPARISONS) and isinstance(right, self.COMPARISONS):\n-            ll, lr = left.args.values()\n-            rl, rr = right.args.values()\n+            if any(isinstance(e, exp.Is) and e.args.get(\"negate\") for e in (left, right)):\n+                return None\n+\n+            ll, lr = left.this, left.expression\n+            rl, rr = right.this, right.expression\n \n             largs = {ll, lr}\n             rargs = {rl, rr}\n@@ -1194,6 +1199,9 @@ class Simplifier:\n                 c = b\n                 not_ = False\n \n+            if expression.args.get(\"negate\"):\n+                not_ = not not_\n+\n             if is_null(c):\n                 if isinstance(a, exp.Literal):\n                     return exp.true() if not_ else exp.false()\n@@ -1699,7 +1707,7 @@ class Gen:\n         self._binary(e, \" DIV \")\n \n     def is_sql(self, e: exp.Is) -> None:\n-        self._binary(e, \" IS \")\n+        self._binary(e, \" IS NOT \" if e.args.get(\"negate\") else \" IS \")\n \n     def like_sql(self, e: exp.Like) -> None:\n         self._binary(e, \" NOT Like \" if e.args.get(\"negate\") else \" Like \")\ndiff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 650cb59..e695dd9 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -5950,8 +5950,11 @@ class Parser:\n             elif self._match(TokenType.NOTNULL):\n                 # Postgres supports ISNULL and NOTNULL for conditions.\n                 # https://blog.andreiavram.ro/postgresql-null-composite-type/\n-                this = self.expression(exp.Is(this=this, expression=exp.Null()))\n-                this = self.expression(exp.Not(this=this))\n+                if self.dialect.NORMALIZE_NOT_NULL:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null()))\n+                    this = self.expression(exp.Not(this=this))\n+                else:\n+                    this = self.expression(exp.Is(this=this, expression=exp.Null(), negate=True))\n             else:\n                 if negate:\n                     self._retreat(self._index - 1)\n@@ -6007,8 +6010,12 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-        this = self.expression(exp.Is(this=this, expression=expression))\n-        this = self.expression(exp.Not(this=this)) if negate else this\n+        if negate and isinstance(expression, exp.Null) and not self.dialect.NORMALIZE_NOT_NULL:\n+            this = self.expression(exp.Is(this=this, expression=expression, negate=True))\n+        else:\n+            this = self.expression(exp.Is(this=this, expression=expression))\n+            this = self.expression(exp.Not(this=this)) if negate else this\n+\n         return self._parse_column_ops(this)\n \n     def _parse_in(self, this: exp.Expr | None, alias: bool = False) -> exp.In:\n@@ -7782,7 +7789,7 @@ class Parser:\n         if (\n             bracket_kind == TokenType.L_BRACE\n             and self._curr\n-            and self._curr.token_type == TokenType.VAR\n+            and self._curr.token_type != TokenType.VAR\n             and self._curr.text.lower() in self.ODBC_DATETIME_LITERALS\n         ):\n             return self._parse_odbc_datetime_literal()\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.NORMALIZE_NOT_NULL",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.expressions.core:Is.arg_types",
+    "kind": "dict",
+    "added": {
+     "'negate'": "False"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "2749",
+    "source": "exasol",
+    "dialect": "exasol",
+    "input": "SELECT {d'2024-01-01'}",
+    "before": "SELECT TO_DATE('2024-01-01')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "2750",
+    "source": "exasol",
+    "dialect": "exasol",
+    "input": "SELECT {ts'2024-01-01 12:00:00'}",
+    "before": "SELECT TO_TIMESTAMP('2024-01-01 12:00:00')",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7675",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT col IS NOT NULL::BOOLEAN FROM (SELECT 1 AS col) AS t",
+    "before": "SELECT CAST(NOT col IS NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t",
+    "after": "SELECT CAST(col IS NOT NULL AS BOOLEAN) FROM (SELECT 1 AS col) AS t"
+   },
+   {
+    "probe": "7739",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted NOTNULL",
+    "before": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE NOT deleted IS NULL",
+    "after": "SELECT id, email, CAST(deleted AS TEXT) FROM users WHERE deleted IS NOT NULL"
+   },
+   {
+    "probe": "8151",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "x IS NOT UNKNOWN",
+    "before": "NOT x IS NULL",
+    "after": "x IS NOT NULL"
+   },
+   {
+    "probe": "13487",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT NOT r IS NOT NULL FROM t",
+    "before": "SELECT NOT NOT r IS NULL FROM t",
+    "after": "SELECT NOT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13495",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r IS NOT NULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13503",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r NOTNULL FROM t",
+    "before": "SELECT NOT r IS NULL FROM t",
+    "after": "SELECT r IS NOT NULL FROM t"
+   },
+   {
+    "probe": "13507",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "r IS NOT NULL",
+    "before": "NOT r IS NULL",
+    "after": "r IS NOT NULL"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 2,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_exasol.py::TestExasol::test_odbc_date_literals",
+   "tests/dialects/test_tsql.py::TestTSQL::test_odbc_date_literals"
+  ]
+ }
+]

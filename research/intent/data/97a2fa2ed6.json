@@ -1,0 +1,1228 @@
+[
+ {
+  "task": "97a2fa2ed6",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "MySQL index options (KEY_BLOCK_SIZE, COMMENT, USING) written after a PRIMARY KEY in ALTER TABLE ... ADD or inside CREATE TABLE are misplaced or rejected, and table options such as KEY_BLOCK_SIZE and MAX_ROWS after the column list are not kept as table options. Index options must stay with their index and table options with the table.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'\n# expected:  ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\n\nparse_one(\"CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\", read=\"mysql\").sql(\"mysql\")\n# currently: CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)\n# expected:  CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\n```\n\nOther forms of the same constructs described above should work as well.",
+  "code_diff": "diff --git a/sqlglot/generators/doris.py b/sqlglot/generators/doris.py\nindex 538ea41..062fa82 100644\n--- a/sqlglot/generators/doris.py\n+++ b/sqlglot/generators/doris.py\n@@ -42,6 +42,7 @@ class DorisGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.BuildProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex bc2d983..46abe4a 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -281,6 +281,7 @@ class MySQLGenerator(generator.Generator):\n         exp.PartitionedByProperty: exp.Properties.Location.UNSUPPORTED,\n         exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionByListProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_SCHEMA,\n     }\n \n     LIMIT_FETCH = \"LIMIT\"\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 8080d7a..d3e43f1 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -93,6 +93,7 @@ class StarRocksGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.RollupProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     TRANSFORMS = {\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex b6af071..31671ab 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -709,6 +709,14 @@ class MySQLParser(parser.Parser):\n         in_props: bool = False,\n         named_primary_key: bool = False,\n     ) -> exp.PrimaryKeyColumnConstraint | exp.PrimaryKey:\n-        return super()._parse_primary_key(\n+        this = super()._parse_primary_key(\n             wrapped_optional=wrapped_optional, in_props=in_props, named_primary_key=True\n         )\n+        if isinstance(this, exp.PrimaryKey):\n+            # KEY_BLOCK_SIZE, COMMENT etc. after the key parts belong to the key, not the table\n+            this.set(\n+                \"options\",\n+                [*(this.args.get(\"options\") or []), *self._parse_index_constraint_options()],\n+            )\n+\n+        return this\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.properties.Property'>": [
+      "<PropertiesLocation.POST_WITH: 'POST_WITH'>",
+      "<PropertiesLocation.POST_SCHEMA: 'POST_SCHEMA'>"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15352",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15353",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15354",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15355",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15356",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15357",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15358",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15359",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15360",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15362",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15364",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15366",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15368",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15369",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15370",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15371",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT)"
+   }
+  ],
+  "new_probes": 20
+ },
+ {
+  "task": "97a2fa2ed6",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "MySQL index options (KEY_BLOCK_SIZE, COMMENT, USING) written after a PRIMARY KEY in ALTER TABLE ... ADD or inside CREATE TABLE are misplaced or rejected, and table options such as KEY_BLOCK_SIZE and MAX_ROWS after the column list are not kept as table options. Index options must stay with their index and table options with the table.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'\n# expected:  ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\n\nparse_one(\"CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\", read=\"mysql\").sql(\"mysql\")\n# currently: CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)\n# expected:  CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parsers/mysql.py",
+   "line": 230,
+   "op": "delete",
+   "code": "\"PERSIST\": lambda self: self._parse_set_item_assignment(\"PERSIST\"),"
+  },
+  "code_diff": "diff --git a/sqlglot/generators/doris.py b/sqlglot/generators/doris.py\nindex 538ea41..062fa82 100644\n--- a/sqlglot/generators/doris.py\n+++ b/sqlglot/generators/doris.py\n@@ -42,6 +42,7 @@ class DorisGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.BuildProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex bc2d983..46abe4a 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -281,6 +281,7 @@ class MySQLGenerator(generator.Generator):\n         exp.PartitionedByProperty: exp.Properties.Location.UNSUPPORTED,\n         exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionByListProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_SCHEMA,\n     }\n \n     LIMIT_FETCH = \"LIMIT\"\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 8080d7a..d3e43f1 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -93,6 +93,7 @@ class StarRocksGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.RollupProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     TRANSFORMS = {\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex b6af071..101ec97 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -227,7 +227,7 @@ class MySQLParser(parser.Parser):\n \n     SET_PARSERS = {\n         **parser.Parser.SET_PARSERS,\n-        \"PERSIST\": lambda self: self._parse_set_item_assignment(\"PERSIST\"),\n+\n         \"PERSIST_ONLY\": lambda self: self._parse_set_item_assignment(\"PERSIST_ONLY\"),\n         \"CHARACTER SET\": lambda self: self._parse_set_item_charset(\"CHARACTER SET\"),\n         \"CHARSET\": lambda self: self._parse_set_item_charset(\"CHARACTER SET\"),\n@@ -709,6 +709,14 @@ class MySQLParser(parser.Parser):\n         in_props: bool = False,\n         named_primary_key: bool = False,\n     ) -> exp.PrimaryKeyColumnConstraint | exp.PrimaryKey:\n-        return super()._parse_primary_key(\n+        this = super()._parse_primary_key(\n             wrapped_optional=wrapped_optional, in_props=in_props, named_primary_key=True\n         )\n+        if isinstance(this, exp.PrimaryKey):\n+            # KEY_BLOCK_SIZE, COMMENT etc. after the key parts belong to the key, not the table\n+            this.set(\n+                \"options\",\n+                [*(this.args.get(\"options\") or []), *self._parse_index_constraint_options()],\n+            )\n+\n+        return this\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.properties.Property'>": [
+      "<PropertiesLocation.POST_WITH: 'POST_WITH'>",
+      "<PropertiesLocation.POST_SCHEMA: 'POST_SCHEMA'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SET_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'PERSIST'": "<function MySQLParser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SET_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'PERSIST'": "{0: True}"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15352",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15353",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15354",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15355",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15356",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15357",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15358",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15359",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15360",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15362",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15364",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15366",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15368",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15369",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15370",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15371",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 2
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ },
+ {
+  "task": "97a2fa2ed6",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "MySQL index options (KEY_BLOCK_SIZE, COMMENT, USING) written after a PRIMARY KEY in ALTER TABLE ... ADD or inside CREATE TABLE are misplaced or rejected, and table options such as KEY_BLOCK_SIZE and MAX_ROWS after the column list are not kept as table options. Index options must stay with their index and table options with the table.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'\n# expected:  ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\n\nparse_one(\"CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\", read=\"mysql\").sql(\"mysql\")\n# currently: CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)\n# expected:  CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generators/doris.py",
+   "line": 31,
+   "op": "flip",
+   "code": "UPDATE_STATEMENT_SUPPORTS_FROM = True"
+  },
+  "code_diff": "diff --git a/sqlglot/generators/doris.py b/sqlglot/generators/doris.py\nindex 538ea41..3685f21 100644\n--- a/sqlglot/generators/doris.py\n+++ b/sqlglot/generators/doris.py\n@@ -28,7 +28,7 @@ class DorisGenerator(MySQLGenerator):\n     VARCHAR_REQUIRES_SIZE = False\n     WITH_PROPERTIES_PREFIX = \"PROPERTIES\"\n     RENAME_TABLE_WITH_DB = False\n-    UPDATE_STATEMENT_SUPPORTS_FROM = True\n+    UPDATE_STATEMENT_SUPPORTS_FROM = False\n \n     TYPE_MAPPING = {\n         **MySQLGenerator.TYPE_MAPPING,\n@@ -42,6 +42,7 @@ class DorisGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.BuildProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex bc2d983..46abe4a 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -281,6 +281,7 @@ class MySQLGenerator(generator.Generator):\n         exp.PartitionedByProperty: exp.Properties.Location.UNSUPPORTED,\n         exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionByListProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_SCHEMA,\n     }\n \n     LIMIT_FETCH = \"LIMIT\"\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 8080d7a..d3e43f1 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -93,6 +93,7 @@ class StarRocksGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.RollupProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     TRANSFORMS = {\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex b6af071..31671ab 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -709,6 +709,14 @@ class MySQLParser(parser.Parser):\n         in_props: bool = False,\n         named_primary_key: bool = False,\n     ) -> exp.PrimaryKeyColumnConstraint | exp.PrimaryKey:\n-        return super()._parse_primary_key(\n+        this = super()._parse_primary_key(\n             wrapped_optional=wrapped_optional, in_props=in_props, named_primary_key=True\n         )\n+        if isinstance(this, exp.PrimaryKey):\n+            # KEY_BLOCK_SIZE, COMMENT etc. after the key parts belong to the key, not the table\n+            this.set(\n+                \"options\",\n+                [*(this.args.get(\"options\") or []), *self._parse_index_constraint_options()],\n+            )\n+\n+        return this\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.UPDATE_STATEMENT_SUPPORTS_FROM",
+    "kind": "value",
+    "before": "True",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.properties.Property'>": [
+      "<PropertiesLocation.POST_WITH: 'POST_WITH'>",
+      "<PropertiesLocation.POST_SCHEMA: 'POST_SCHEMA'>"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15352",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15353",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15354",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15355",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15356",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15357",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15358",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15359",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15360",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15362",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15364",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15366",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15368",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15369",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15370",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15371",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres"
+  ]
+ },
+ {
+  "task": "97a2fa2ed6",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "MySQL index options (KEY_BLOCK_SIZE, COMMENT, USING) written after a PRIMARY KEY in ALTER TABLE ... ADD or inside CREATE TABLE are misplaced or rejected, and table options such as KEY_BLOCK_SIZE and MAX_ROWS after the column list are not kept as table options. Index options must stay with their index and table options with the table.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'\n# expected:  ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\n\nparse_one(\"CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\", read=\"mysql\").sql(\"mysql\")\n# currently: CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)\n# expected:  CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generators/mysql.py",
+   "line": 158,
+   "op": "delete",
+   "code": "exp.Chr: lambda self, e: self.chr_sql(e, \"CHAR\"),"
+  },
+  "code_diff": "diff --git a/sqlglot/generators/doris.py b/sqlglot/generators/doris.py\nindex 538ea41..062fa82 100644\n--- a/sqlglot/generators/doris.py\n+++ b/sqlglot/generators/doris.py\n@@ -42,6 +42,7 @@ class DorisGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.BuildProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex bc2d983..7a159da 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -155,7 +155,7 @@ class MySQLGenerator(generator.Generator):\n         exp.BitwiseOrAgg: rename_func(\"BIT_OR\"),\n         exp.BitwiseXorAgg: rename_func(\"BIT_XOR\"),\n         exp.BitwiseCount: rename_func(\"BIT_COUNT\"),\n-        exp.Chr: lambda self, e: self.chr_sql(e, \"CHAR\"),\n+\n         exp.CurrentDate: no_paren_current_date_sql,\n         exp.CurrentVersion: rename_func(\"VERSION\"),\n         exp.DateDiff: remove_ts_or_ds_to_date(\n@@ -281,6 +281,7 @@ class MySQLGenerator(generator.Generator):\n         exp.PartitionedByProperty: exp.Properties.Location.UNSUPPORTED,\n         exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionByListProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_SCHEMA,\n     }\n \n     LIMIT_FETCH = \"LIMIT\"\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 8080d7a..d3e43f1 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -93,6 +93,7 @@ class StarRocksGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.RollupProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     TRANSFORMS = {\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex b6af071..31671ab 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -709,6 +709,14 @@ class MySQLParser(parser.Parser):\n         in_props: bool = False,\n         named_primary_key: bool = False,\n     ) -> exp.PrimaryKeyColumnConstraint | exp.PrimaryKey:\n-        return super()._parse_primary_key(\n+        this = super()._parse_primary_key(\n             wrapped_optional=wrapped_optional, in_props=in_props, named_primary_key=True\n         )\n+        if isinstance(this, exp.PrimaryKey):\n+            # KEY_BLOCK_SIZE, COMMENT etc. after the key parts belong to the key, not the table\n+            this.set(\n+                \"options\",\n+                [*(this.args.get(\"options\") or []), *self._parse_index_constraint_options()],\n+            )\n+\n+        return this\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.string.Chr'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.properties.Property'>": [
+      "<PropertiesLocation.POST_WITH: 'POST_WITH'>",
+      "<PropertiesLocation.POST_SCHEMA: 'POST_SCHEMA'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.string.Chr'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.singlestore:SingleStoreGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.string.Chr'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.string.Chr'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "4399",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CHAR(0)",
+    "before": "CHAR(0)",
+    "after": "CHR(0)"
+   },
+   {
+    "probe": "4400",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CHAR(0)",
+    "before": "CHAR(0)",
+    "after": "CHR(0)"
+   },
+   {
+    "probe": "4401",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CHAR(0)",
+    "before": "CHAR(0)",
+    "after": "CHR(0)"
+   },
+   {
+    "probe": "4402",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CHAR(0)",
+    "before": "CHAR(0)",
+    "after": "CHR(0)"
+   },
+   {
+    "probe": "4403",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CHAR(10)",
+    "before": "CHAR(10)",
+    "after": "CHR(10)"
+   },
+   {
+    "probe": "4404",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CHAR(10)",
+    "before": "CHAR(10)",
+    "after": "CHR(10)"
+   },
+   {
+    "probe": "4405",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CHAR(10)",
+    "before": "CHAR(10)",
+    "after": "CHR(10)"
+   },
+   {
+    "probe": "4406",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CHAR(10)",
+    "before": "CHAR(10)",
+    "after": "CHR(10)"
+   },
+   {
+    "probe": "4407",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CHAR(77, 121, 83, 81, '76')",
+    "before": "CHAR(77, 121, 83, 81, '76')",
+    "after": "CHR(77, 121, 83, 81, '76')"
+   },
+   {
+    "probe": "4408",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CHAR(77, 121, 83, 81, '76')",
+    "before": "CHAR(77, 121, 83, 81, '76')",
+    "after": "CHR(77, 121, 83, 81, '76')"
+   },
+   {
+    "probe": "4409",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CHAR(77, 121, 83, 81, '76')",
+    "before": "CHAR(77, 121, 83, 81, '76')",
+    "after": "CHR(77, 121, 83, 81, '76')"
+   },
+   {
+    "probe": "4410",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CHAR(77, 121, 83, 81, '76')",
+    "before": "CHAR(77, 121, 83, 81, '76')",
+    "after": "CHR(77, 121, 83, 81, '76')"
+   },
+   {
+    "probe": "4411",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CHAR(77, 77.3, '77.3' USING utf8mb4)",
+    "before": "CHAR(77, 77.3, '77.3' USING utf8mb4)",
+    "after": "CHR(77, 77.3, '77.3' USING utf8mb4)"
+   },
+   {
+    "probe": "4412",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CHAR(77, 77.3, '77.3' USING utf8mb4)",
+    "before": "CHAR(77, 77.3, '77.3' USING utf8mb4)",
+    "after": "CHR(77, 77.3, '77.3' USING utf8mb4)"
+   },
+   {
+    "probe": "4413",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CHAR(77, 77.3, '77.3' USING utf8mb4)",
+    "before": "CHAR(77, 77.3, '77.3' USING utf8mb4)",
+    "after": "CHR(77, 77.3, '77.3' USING utf8mb4)"
+   },
+   {
+    "probe": "4414",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CHAR(77, 77.3, '77.3' USING utf8mb4)",
+    "before": "CHAR(77, 77.3, '77.3' USING utf8mb4)",
+    "after": "CHR(77, 77.3, '77.3' USING utf8mb4)"
+   },
+   {
+    "probe": "5263",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT CHAR(0xC3A9 USING `utf8mb4`)",
+    "before": "SELECT CHAR(x'C3A9' USING utf8mb4)",
+    "after": "SELECT CHR(x'C3A9' USING utf8mb4)"
+   },
+   {
+    "probe": "5264",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT CHAR(0xC3A9 USING `utf8mb4`)",
+    "before": "SELECT CHAR(x'C3A9' USING utf8mb4)",
+    "after": "SELECT CHR(x'C3A9' USING utf8mb4)"
+   },
+   {
+    "probe": "5265",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT CHAR(0xC3A9 USING `utf8mb4`)",
+    "before": "SELECT CHAR(x'C3A9' USING utf8mb4)",
+    "after": "SELECT CHR(x'C3A9' USING utf8mb4)"
+   },
+   {
+    "probe": "5266",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT CHAR(0xC3A9 USING `utf8mb4`)",
+    "before": "SELECT CHAR(x'C3A9' USING utf8mb4)",
+    "after": "SELECT CHR(x'C3A9' USING utf8mb4)"
+   },
+   {
+    "probe": "5267",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT CHAR(65 USING BINARY)",
+    "before": "SELECT CHAR(65 USING BINARY)",
+    "after": "SELECT CHR(65 USING BINARY)"
+   },
+   {
+    "probe": "5268",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT CHAR(65 USING BINARY)",
+    "before": "SELECT CHAR(65 USING BINARY)",
+    "after": "SELECT CHR(65 USING BINARY)"
+   },
+   {
+    "probe": "5269",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT CHAR(65 USING BINARY)",
+    "before": "SELECT CHAR(65 USING BINARY)",
+    "after": "SELECT CHR(65 USING BINARY)"
+   },
+   {
+    "probe": "5270",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT CHAR(65 USING BINARY)",
+    "before": "SELECT CHAR(65 USING BINARY)",
+    "after": "SELECT CHR(65 USING BINARY)"
+   },
+   {
+    "probe": "5271",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT CHAR(65 USING `binary`)",
+    "before": "SELECT CHAR(65 USING binary)",
+    "after": "SELECT CHR(65 USING binary)"
+   },
+   {
+    "probe": "5272",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT CHAR(65 USING `binary`)",
+    "before": "SELECT CHAR(65 USING binary)",
+    "after": "SELECT CHR(65 USING binary)"
+   },
+   {
+    "probe": "5273",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT CHAR(65 USING `binary`)",
+    "before": "SELECT CHAR(65 USING binary)",
+    "after": "SELECT CHR(65 USING binary)"
+   },
+   {
+    "probe": "5274",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT CHAR(65 USING `binary`)",
+    "before": "SELECT CHAR(65 USING binary)",
+    "after": "SELECT CHR(65 USING binary)"
+   },
+   {
+    "probe": "5275",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT CHAR(65 USING `my charset`)",
+    "before": "SELECT CHAR(65 USING `my charset`)",
+    "after": "SELECT CHR(65 USING `my charset`)"
+   },
+   {
+    "probe": "5276",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT CHAR(65 USING `my charset`)",
+    "before": "SELECT CHAR(65 USING `my charset`)",
+    "after": "SELECT CHR(65 USING `my charset`)"
+   },
+   {
+    "probe": "5277",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT CHAR(65 USING `my charset`)",
+    "before": "SELECT CHAR(65 USING `my charset`)",
+    "after": "SELECT CHR(65 USING `my charset`)"
+   },
+   {
+    "probe": "5278",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT CHAR(65 USING `my charset`)",
+    "before": "SELECT CHAR(65 USING `my charset`)",
+    "after": "SELECT CHR(65 USING `my charset`)"
+   },
+   {
+    "probe": "5279",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "before": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "after": "SELECT CHARSET(CHR(100 USING utf8))"
+   },
+   {
+    "probe": "5280",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "before": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "after": "SELECT CHARSET(CHR(100 USING utf8))"
+   },
+   {
+    "probe": "5281",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "before": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "after": "SELECT CHARSET(CHR(100 USING utf8))"
+   },
+   {
+    "probe": "5282",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "before": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "after": "SELECT CHARSET(CHR(100 USING utf8))"
+   },
+   {
+    "probe": "10674",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT CHAR(101)",
+    "before": "SELECT CHAR(101)",
+    "after": "SELECT CHR(101)"
+   },
+   {
+    "probe": "10675",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "before": "SELECT CHARSET(CHAR(100 USING utf8))",
+    "after": "SELECT CHARSET(CHR(100 USING utf8))"
+   },
+   {
+    "probe": "15352",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15353",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15354",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15355",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15356",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15357",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15358",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15359",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15360",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15362",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15364",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15366",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15368",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15369",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15370",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15371",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 38,
+   "imports": 4
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_canonical_functions",
+   "tests/dialects/test_mysql.py::TestMySQL::test_convert",
+   "tests/dialects/test_mysql.py::TestMySQL::test_identity",
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_singlestore",
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_string_functions"
+  ]
+ },
+ {
+  "task": "97a2fa2ed6",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "MySQL index options (KEY_BLOCK_SIZE, COMMENT, USING) written after a PRIMARY KEY in ALTER TABLE ... ADD or inside CREATE TABLE are misplaced or rejected, and table options such as KEY_BLOCK_SIZE and MAX_ROWS after the column list are not kept as table options. Index options must stay with their index and table options with the table.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'\n# expected:  ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'\n\nparse_one(\"CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\", read=\"mysql\").sql(\"mysql\")\n# currently: CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)\n# expected:  CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parsers/mysql.py",
+   "line": 122,
+   "op": "delete",
+   "code": "\"FROM_UNIXTIME\": build_formatted_time(exp.UnixToTime),"
+  },
+  "code_diff": "diff --git a/sqlglot/generators/doris.py b/sqlglot/generators/doris.py\nindex 538ea41..062fa82 100644\n--- a/sqlglot/generators/doris.py\n+++ b/sqlglot/generators/doris.py\n@@ -42,6 +42,7 @@ class DorisGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.BuildProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex bc2d983..46abe4a 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -281,6 +281,7 @@ class MySQLGenerator(generator.Generator):\n         exp.PartitionedByProperty: exp.Properties.Location.UNSUPPORTED,\n         exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionByListProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_SCHEMA,\n     }\n \n     LIMIT_FETCH = \"LIMIT\"\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 8080d7a..d3e43f1 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -93,6 +93,7 @@ class StarRocksGenerator(MySQLGenerator):\n         exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.RollupProperty: exp.Properties.Location.POST_SCHEMA,\n         exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,\n+        exp.Property: exp.Properties.Location.POST_WITH,\n     }\n \n     TRANSFORMS = {\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex b6af071..3049ca4 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -119,7 +119,7 @@ class MySQLParser(parser.Parser):\n         \"DAYOFWEEK\": lambda args: exp.DayOfWeek(this=exp.TsOrDsToDate(this=seq_get(args, 0))),\n         \"DAYOFYEAR\": lambda args: exp.DayOfYear(this=exp.TsOrDsToDate(this=seq_get(args, 0))),\n         \"FORMAT\": exp.NumberToStr.from_arg_list,\n-        \"FROM_UNIXTIME\": build_formatted_time(exp.UnixToTime),\n+\n         \"ISNULL\": isnull_to_is_null,\n         \"LENGTH\": lambda args: exp.Length(this=seq_get(args, 0), binary=True),\n         \"MAKETIME\": exp.TimeFromParts.from_arg_list,\n@@ -709,6 +709,14 @@ class MySQLParser(parser.Parser):\n         in_props: bool = False,\n         named_primary_key: bool = False,\n     ) -> exp.PrimaryKeyColumnConstraint | exp.PrimaryKey:\n-        return super()._parse_primary_key(\n+        this = super()._parse_primary_key(\n             wrapped_optional=wrapped_optional, in_props=in_props, named_primary_key=True\n         )\n+        if isinstance(this, exp.PrimaryKey):\n+            # KEY_BLOCK_SIZE, COMMENT etc. after the key parts belong to the key, not the table\n+            this.set(\n+                \"options\",\n+                [*(this.args.get(\"options\") or []), *self._parse_index_constraint_options()],\n+            )\n+\n+        return this\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.properties.Property'>": [
+      "<PropertiesLocation.POST_WITH: 'POST_WITH'>",
+      "<PropertiesLocation.POST_SCHEMA: 'POST_SCHEMA'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.FUNCTIONS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'FROM_UNIXTIME'": "<function build_formatted_time.<locals>._builder>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.FUNCTIONS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'FROM_UNIXTIME'": "<function build_formatted_time.<locals>._builder>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.starrocks:StarRocksParser.FUNCTIONS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'FROM_UNIXTIME'": "<function build_formatted_time.<locals>._builder>"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "5472",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT FROM_UNIXTIME(1711366265, '%Y %D %M')",
+    "before": "SELECT FROM_UNIXTIME(1711366265, '%Y %D %B')",
+    "after": "SELECT FROM_UNIXTIME(1711366265, '%Y %D %M')"
+   },
+   {
+    "probe": "5474",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT FROM_UNIXTIME(1711366265, '%Y %D %M')",
+    "before": "SELECT FROM_UNIXTIME(1711366265, '%Y %D %B')",
+    "after": "SELECT FROM_UNIXTIME(1711366265, '%Y %D %M')"
+   },
+   {
+    "probe": "15352",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15353",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15354",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT='c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15355",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), COMMENT 'c'",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) COMMENT 'c'"
+   },
+   {
+    "probe": "15356",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15357",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15358",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15359",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ADD PRIMARY KEY (a), 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ADD PRIMARY KEY (a) KEY_BLOCK_SIZE = 8"
+   },
+   {
+    "probe": "15360",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15362",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100",
+    "before": "CREATE TABLE t (a INT) ENGINE=InnoDB WITH (KEY_BLOCK_SIZE=8, MAX_ROWS=100)",
+    "after": "CREATE TABLE t (a INT) ENGINE=InnoDB KEY_BLOCK_SIZE=8 MAX_ROWS=100"
+   },
+   {
+    "probe": "15364",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15366",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8",
+    "before": "CREATE TABLE t (a INT) WITH (KEY_BLOCK_SIZE=8)",
+    "after": "CREATE TABLE t (a INT) KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15368",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15369",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15370",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')"
+   },
+   {
+    "probe": "15371",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, PRIMARY KEY (a) USING BTREE KEY_BLOCK_SIZE = 8 COMMENT 'c')",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 2,
+   "imports": 3
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_exasol.py::TestExasol::test_exasol",
+   "tests/dialects/test_mysql.py::TestMySQL::test_mysql_time"
+  ]
+ }
+]

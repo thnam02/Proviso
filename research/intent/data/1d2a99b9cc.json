@@ -1,0 +1,1568 @@
+[
+ {
+  "task": "1d2a99b9cc",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "fix(parser): ALTER DROP/ALTER COLUMN cleanups",
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 253237b..e95fbfd 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1914,6 +1914,9 @@ class Parser:\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n+    # Whether changing a column's type with ALTER COLUMN requires the TYPE keyword\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD: t.ClassVar = False\n+\n     # Whether all join types have the same precedence, i.e., they \"naturally\" produce a left-deep tree.\n     # In standard SQL, joins that use the JOIN keyword take higher precedence than comma-joins. That is\n     # to say, JOIN operators happen before comma operators. This is not the case in some dialects, such\n@@ -2435,11 +2438,14 @@ class Parser:\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n-            tables = (\n-                self.expression(exp.Column(this=self._parse_id_var()))\n+            # A dropped column named after a keyword, like `any` or `charset`, is only a name\n+            name = (\n+                None\n                 if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n                 else self._parse_column()\n+            ) or self._parse_id_var()\n+            tables = (\n+                self.expression(exp.Column(this=name)) if isinstance(name, exp.Identifier) else name\n             )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n@@ -9149,18 +9155,11 @@ class Parser:\n \n         if (\n             isinstance(drop, exp.Drop)\n-            and drop.args.get(\"kind\") == \"COLUMN\"\n+            and drop.kind == \"COLUMN\"\n             and not self.dialect.ALTER_TABLE_DROP_REQUIRED_FOR_EACH_COLUMN\n+            and self._match(TokenType.COMMA)\n         ):\n-            # Columns after a comma may omit the DROP keyword,\n-            # e.g. `ALTER TABLE t DROP COLUMN a, b` (GH#8485)\n-            while self._match(TokenType.COMMA):\n-                if not self._curr or self._curr.token_type not in self.ID_VAR_TOKENS:\n-                    break\n-                column = self._parse_column()\n-                if column is None:\n-                    break\n-                drop.append(\"tables\", column)\n+            drop.set(\"tables\", [*drop.args[\"tables\"], *self._parse_csv(self._parse_column)])\n \n         return drop\n \n@@ -9250,11 +9249,18 @@ class Parser:\n             )\n \n         self._match_text_seq(\"SET\", \"DATA\")\n-        self._match_text_seq(\"TYPE\")\n+        dtype = (\n+            self._parse_types()\n+            if self._match_text_seq(\"TYPE\") or not self.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD\n+            else None\n+        )\n+        if not dtype:\n+            return None\n+\n         return self.expression(\n             exp.AlterColumn(\n                 this=column,\n-                dtype=self._parse_types(),\n+                dtype=dtype,\n                 collate=self._match(TokenType.COLLATE) and self._parse_term(),\n                 using=self._match(TokenType.USING) and self._parse_disjunction(),\n                 exists=exists or None,\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 355cffb..39f103b 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -327,9 +327,9 @@ class MySQLParser(parser.Parser):\n \n     def _parse_alter_table_rename(self):\n         if self._match_texts((\"INDEX\", \"KEY\")):\n-            old = self._parse_field(any_token=True)\n+            old = self._parse_id_var()\n             self._match_text_seq(\"TO\")\n-            new = self._parse_field(any_token=True)\n+            new = self._parse_id_var()\n             return self.expression(exp.RenameIndex(this=old, to=new))\n         return super()._parse_alter_table_rename()\n \ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex dc41b3d..8aea993 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -85,6 +85,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n class PostgresParser(parser.Parser):\n     ALTER_DROP_REQUIRES_COLUMN = False\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD = True\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15056",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15057",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15058",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15059",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15060",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15061",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15062",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15063",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15064",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15065",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15066",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX `any` TO b"
+   },
+   {
+    "probe": "15067",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15068",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15069",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15071",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15072",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15073",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15074",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15075",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15076",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15077",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15078",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15079",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15080",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15081",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15082",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15083",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   }
+  ],
+  "new_probes": 28
+ },
+ {
+  "task": "1d2a99b9cc",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): ALTER DROP/ALTER COLUMN cleanups",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parser.py",
+   "line": 1578,
+   "op": "delete",
+   "code": "\"INITCAP\": lambda self: self._parse_initcap(),"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 253237b..3111280 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1575,7 +1575,7 @@ class Parser:\n         \"EXTRACT\": lambda self: self._parse_extract(),\n         \"FLOOR\": lambda self: self._parse_ceil_floor(exp.Floor),\n         \"GAP_FILL\": lambda self: self._parse_gap_fill(),\n-        \"INITCAP\": lambda self: self._parse_initcap(),\n+\n         \"JSON_OBJECT\": lambda self: self._parse_json_object(),\n         \"JSON_OBJECTAGG\": lambda self: self._parse_json_object(agg=True),\n         \"JSON_TABLE\": lambda self: self._parse_json_table(),\n@@ -1914,6 +1914,9 @@ class Parser:\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n+    # Whether changing a column's type with ALTER COLUMN requires the TYPE keyword\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD: t.ClassVar = False\n+\n     # Whether all join types have the same precedence, i.e., they \"naturally\" produce a left-deep tree.\n     # In standard SQL, joins that use the JOIN keyword take higher precedence than comma-joins. That is\n     # to say, JOIN operators happen before comma operators. This is not the case in some dialects, such\n@@ -2435,11 +2438,14 @@ class Parser:\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n-            tables = (\n-                self.expression(exp.Column(this=self._parse_id_var()))\n+            # A dropped column named after a keyword, like `any` or `charset`, is only a name\n+            name = (\n+                None\n                 if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n                 else self._parse_column()\n+            ) or self._parse_id_var()\n+            tables = (\n+                self.expression(exp.Column(this=name)) if isinstance(name, exp.Identifier) else name\n             )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n@@ -9149,18 +9155,11 @@ class Parser:\n \n         if (\n             isinstance(drop, exp.Drop)\n-            and drop.args.get(\"kind\") == \"COLUMN\"\n+            and drop.kind == \"COLUMN\"\n             and not self.dialect.ALTER_TABLE_DROP_REQUIRED_FOR_EACH_COLUMN\n+            and self._match(TokenType.COMMA)\n         ):\n-            # Columns after a comma may omit the DROP keyword,\n-            # e.g. `ALTER TABLE t DROP COLUMN a, b` (GH#8485)\n-            while self._match(TokenType.COMMA):\n-                if not self._curr or self._curr.token_type not in self.ID_VAR_TOKENS:\n-                    break\n-                column = self._parse_column()\n-                if column is None:\n-                    break\n-                drop.append(\"tables\", column)\n+            drop.set(\"tables\", [*drop.args[\"tables\"], *self._parse_csv(self._parse_column)])\n \n         return drop\n \n@@ -9250,11 +9249,18 @@ class Parser:\n             )\n \n         self._match_text_seq(\"SET\", \"DATA\")\n-        self._match_text_seq(\"TYPE\")\n+        dtype = (\n+            self._parse_types()\n+            if self._match_text_seq(\"TYPE\") or not self.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD\n+            else None\n+        )\n+        if not dtype:\n+            return None\n+\n         return self.expression(\n             exp.AlterColumn(\n                 this=column,\n-                dtype=self._parse_types(),\n+                dtype=dtype,\n                 collate=self._match(TokenType.COLLATE) and self._parse_term(),\n                 using=self._match(TokenType.USING) and self._parse_disjunction(),\n                 exists=exists or None,\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 355cffb..39f103b 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -327,9 +327,9 @@ class MySQLParser(parser.Parser):\n \n     def _parse_alter_table_rename(self):\n         if self._match_texts((\"INDEX\", \"KEY\")):\n-            old = self._parse_field(any_token=True)\n+            old = self._parse_id_var()\n             self._match_text_seq(\"TO\")\n-            new = self._parse_field(any_token=True)\n+            new = self._parse_id_var()\n             return self.expression(exp.RenameIndex(this=old, to=new))\n         return super()._parse_alter_table_rename()\n \ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex dc41b3d..8aea993 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -85,6 +85,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n class PostgresParser(parser.Parser):\n     ALTER_DROP_REQUIRES_COLUMN = False\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD = True\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.bigquery:BigQueryParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.clickhouse:ClickHouseParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.databricks:DatabricksParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.druid:DruidParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.duckdb:DuckDBParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.exasol:ExasolParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.hive:HiveParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.oracle:OracleParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.presto:PrestoParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.redshift:RedshiftParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.spark2:Spark2Parser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.spark:SparkParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.sqlite:SQLiteParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.teradata:TeradataParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.trino:TrinoParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.FUNCTION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'INITCAP'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parser:Parser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15056",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15057",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15058",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15059",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15060",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15061",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15062",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15063",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15064",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15065",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15066",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX `any` TO b"
+   },
+   {
+    "probe": "15067",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15068",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15069",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15071",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15072",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15073",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15074",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15075",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15076",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15077",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15078",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15079",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15080",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15081",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15082",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15083",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 22
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_dialect.py::TestDialect::test_initcap",
+   "tests/dialects/test_hive.py::TestHive::test_hive"
+  ]
+ },
+ {
+  "task": "1d2a99b9cc",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): ALTER DROP/ALTER COLUMN cleanups",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parser.py",
+   "line": 1318,
+   "op": "delete",
+   "code": "\"CLUSTERED\": lambda self: self._parse_clustered_by(),"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 253237b..e16ff69 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1315,7 +1315,7 @@ class Parser:\n         \"CHARSET\": lambda self, **kwargs: self._parse_character_set(**kwargs),\n         \"CHECKSUM\": lambda self: self._parse_checksum(),\n         \"CLUSTER BY\": lambda self: self._parse_cluster_property(),\n-        \"CLUSTERED\": lambda self: self._parse_clustered_by(),\n+\n         \"COLLATE\": lambda self, **kwargs: self._parse_property_assignment(\n             exp.CollateProperty, **kwargs\n         ),\n@@ -1914,6 +1914,9 @@ class Parser:\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n+    # Whether changing a column's type with ALTER COLUMN requires the TYPE keyword\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD: t.ClassVar = False\n+\n     # Whether all join types have the same precedence, i.e., they \"naturally\" produce a left-deep tree.\n     # In standard SQL, joins that use the JOIN keyword take higher precedence than comma-joins. That is\n     # to say, JOIN operators happen before comma operators. This is not the case in some dialects, such\n@@ -2435,11 +2438,14 @@ class Parser:\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n-            tables = (\n-                self.expression(exp.Column(this=self._parse_id_var()))\n+            # A dropped column named after a keyword, like `any` or `charset`, is only a name\n+            name = (\n+                None\n                 if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n                 else self._parse_column()\n+            ) or self._parse_id_var()\n+            tables = (\n+                self.expression(exp.Column(this=name)) if isinstance(name, exp.Identifier) else name\n             )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n@@ -9149,18 +9155,11 @@ class Parser:\n \n         if (\n             isinstance(drop, exp.Drop)\n-            and drop.args.get(\"kind\") == \"COLUMN\"\n+            and drop.kind == \"COLUMN\"\n             and not self.dialect.ALTER_TABLE_DROP_REQUIRED_FOR_EACH_COLUMN\n+            and self._match(TokenType.COMMA)\n         ):\n-            # Columns after a comma may omit the DROP keyword,\n-            # e.g. `ALTER TABLE t DROP COLUMN a, b` (GH#8485)\n-            while self._match(TokenType.COMMA):\n-                if not self._curr or self._curr.token_type not in self.ID_VAR_TOKENS:\n-                    break\n-                column = self._parse_column()\n-                if column is None:\n-                    break\n-                drop.append(\"tables\", column)\n+            drop.set(\"tables\", [*drop.args[\"tables\"], *self._parse_csv(self._parse_column)])\n \n         return drop\n \n@@ -9250,11 +9249,18 @@ class Parser:\n             )\n \n         self._match_text_seq(\"SET\", \"DATA\")\n-        self._match_text_seq(\"TYPE\")\n+        dtype = (\n+            self._parse_types()\n+            if self._match_text_seq(\"TYPE\") or not self.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD\n+            else None\n+        )\n+        if not dtype:\n+            return None\n+\n         return self.expression(\n             exp.AlterColumn(\n                 this=column,\n-                dtype=self._parse_types(),\n+                dtype=dtype,\n                 collate=self._match(TokenType.COLLATE) and self._parse_term(),\n                 using=self._match(TokenType.USING) and self._parse_disjunction(),\n                 exists=exists or None,\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 355cffb..39f103b 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -327,9 +327,9 @@ class MySQLParser(parser.Parser):\n \n     def _parse_alter_table_rename(self):\n         if self._match_texts((\"INDEX\", \"KEY\")):\n-            old = self._parse_field(any_token=True)\n+            old = self._parse_id_var()\n             self._match_text_seq(\"TO\")\n-            new = self._parse_field(any_token=True)\n+            new = self._parse_id_var()\n             return self.expression(exp.RenameIndex(this=old, to=new))\n         return super()._parse_alter_table_rename()\n \ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex dc41b3d..8aea993 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -85,6 +85,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n class PostgresParser(parser.Parser):\n     ALTER_DROP_REQUIRES_COLUMN = False\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD = True\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.bigquery:BigQueryParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.clickhouse:ClickHouseParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.hive:HiveParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.oracle:OracleParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.risingwave:RisingWaveParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.sqlite:SQLiteParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.starrocks:StarRocksParser.PROPERTY_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CLUSTERED'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parser:Parser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15056",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15057",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15058",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15059",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15060",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15061",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15062",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15063",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15064",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15065",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15066",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX `any` TO b"
+   },
+   {
+    "probe": "15067",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15068",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15069",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15071",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15072",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15073",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15074",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15075",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15076",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15077",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15078",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15079",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15080",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15081",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15082",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15083",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 12
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ },
+ {
+  "task": "1d2a99b9cc",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): ALTER DROP/ALTER COLUMN cleanups",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 3343,
+   "op": "flip",
+   "code": "target = self._parse_var_from_options(self.ISOLATED_LOADING_OPTIONS, raise_unmatched=False)"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 253237b..c8809e2 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1914,6 +1914,9 @@ class Parser:\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n+    # Whether changing a column's type with ALTER COLUMN requires the TYPE keyword\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD: t.ClassVar = False\n+\n     # Whether all join types have the same precedence, i.e., they \"naturally\" produce a left-deep tree.\n     # In standard SQL, joins that use the JOIN keyword take higher precedence than comma-joins. That is\n     # to say, JOIN operators happen before comma operators. This is not the case in some dialects, such\n@@ -2435,11 +2438,14 @@ class Parser:\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n-            tables = (\n-                self.expression(exp.Column(this=self._parse_id_var()))\n+            # A dropped column named after a keyword, like `any` or `charset`, is only a name\n+            name = (\n+                None\n                 if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n                 else self._parse_column()\n+            ) or self._parse_id_var()\n+            tables = (\n+                self.expression(exp.Column(this=name)) if isinstance(name, exp.Identifier) else name\n             )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n@@ -3334,7 +3340,7 @@ class Parser:\n             self._retreat(index)\n             return None\n \n-        target = self._parse_var_from_options(self.ISOLATED_LOADING_OPTIONS, raise_unmatched=False)\n+        target = self._parse_var_from_options(self.ISOLATED_LOADING_OPTIONS, raise_unmatched=True)\n         return self.expression(\n             exp.IsolatedLoadingProperty(no=no, concurrent=concurrent, target=target)\n         )\n@@ -9149,18 +9155,11 @@ class Parser:\n \n         if (\n             isinstance(drop, exp.Drop)\n-            and drop.args.get(\"kind\") == \"COLUMN\"\n+            and drop.kind == \"COLUMN\"\n             and not self.dialect.ALTER_TABLE_DROP_REQUIRED_FOR_EACH_COLUMN\n+            and self._match(TokenType.COMMA)\n         ):\n-            # Columns after a comma may omit the DROP keyword,\n-            # e.g. `ALTER TABLE t DROP COLUMN a, b` (GH#8485)\n-            while self._match(TokenType.COMMA):\n-                if not self._curr or self._curr.token_type not in self.ID_VAR_TOKENS:\n-                    break\n-                column = self._parse_column()\n-                if column is None:\n-                    break\n-                drop.append(\"tables\", column)\n+            drop.set(\"tables\", [*drop.args[\"tables\"], *self._parse_csv(self._parse_column)])\n \n         return drop\n \n@@ -9250,11 +9249,18 @@ class Parser:\n             )\n \n         self._match_text_seq(\"SET\", \"DATA\")\n-        self._match_text_seq(\"TYPE\")\n+        dtype = (\n+            self._parse_types()\n+            if self._match_text_seq(\"TYPE\") or not self.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD\n+            else None\n+        )\n+        if not dtype:\n+            return None\n+\n         return self.expression(\n             exp.AlterColumn(\n                 this=column,\n-                dtype=self._parse_types(),\n+                dtype=dtype,\n                 collate=self._match(TokenType.COLLATE) and self._parse_term(),\n                 using=self._match(TokenType.USING) and self._parse_disjunction(),\n                 exists=exists or None,\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 355cffb..39f103b 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -327,9 +327,9 @@ class MySQLParser(parser.Parser):\n \n     def _parse_alter_table_rename(self):\n         if self._match_texts((\"INDEX\", \"KEY\")):\n-            old = self._parse_field(any_token=True)\n+            old = self._parse_id_var()\n             self._match_text_seq(\"TO\")\n-            new = self._parse_field(any_token=True)\n+            new = self._parse_id_var()\n             return self.expression(exp.RenameIndex(this=old, to=new))\n         return super()._parse_alter_table_rename()\n \ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex dc41b3d..8aea993 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -85,6 +85,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n class PostgresParser(parser.Parser):\n     ALTER_DROP_REQUIRES_COLUMN = False\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD = True\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15056",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15057",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15058",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15059",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15060",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15061",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15062",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15063",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15064",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15065",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15066",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX `any` TO b"
+   },
+   {
+    "probe": "15067",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15068",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15069",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15071",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15072",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15073",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15074",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15075",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15076",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15077",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15078",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15079",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15080",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15081",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15082",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15083",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ },
+ {
+  "task": "1d2a99b9cc",
+  "variant": "bug",
+  "label": "no_effect",
+  "prompt": "fix(parser): ALTER DROP/ALTER COLUMN cleanups",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 10311,
+   "op": "flip",
+   "code": "select = self._parse_select(consume_pipe=False)"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 253237b..6862e0f 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1914,6 +1914,9 @@ class Parser:\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n+    # Whether changing a column's type with ALTER COLUMN requires the TYPE keyword\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD: t.ClassVar = False\n+\n     # Whether all join types have the same precedence, i.e., they \"naturally\" produce a left-deep tree.\n     # In standard SQL, joins that use the JOIN keyword take higher precedence than comma-joins. That is\n     # to say, JOIN operators happen before comma operators. This is not the case in some dialects, such\n@@ -2435,11 +2438,14 @@ class Parser:\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n-            tables = (\n-                self.expression(exp.Column(this=self._parse_id_var()))\n+            # A dropped column named after a keyword, like `any` or `charset`, is only a name\n+            name = (\n+                None\n                 if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n                 else self._parse_column()\n+            ) or self._parse_id_var()\n+            tables = (\n+                self.expression(exp.Column(this=name)) if isinstance(name, exp.Identifier) else name\n             )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n@@ -9149,18 +9155,11 @@ class Parser:\n \n         if (\n             isinstance(drop, exp.Drop)\n-            and drop.args.get(\"kind\") == \"COLUMN\"\n+            and drop.kind == \"COLUMN\"\n             and not self.dialect.ALTER_TABLE_DROP_REQUIRED_FOR_EACH_COLUMN\n+            and self._match(TokenType.COMMA)\n         ):\n-            # Columns after a comma may omit the DROP keyword,\n-            # e.g. `ALTER TABLE t DROP COLUMN a, b` (GH#8485)\n-            while self._match(TokenType.COMMA):\n-                if not self._curr or self._curr.token_type not in self.ID_VAR_TOKENS:\n-                    break\n-                column = self._parse_column()\n-                if column is None:\n-                    break\n-                drop.append(\"tables\", column)\n+            drop.set(\"tables\", [*drop.args[\"tables\"], *self._parse_csv(self._parse_column)])\n \n         return drop\n \n@@ -9250,11 +9249,18 @@ class Parser:\n             )\n \n         self._match_text_seq(\"SET\", \"DATA\")\n-        self._match_text_seq(\"TYPE\")\n+        dtype = (\n+            self._parse_types()\n+            if self._match_text_seq(\"TYPE\") or not self.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD\n+            else None\n+        )\n+        if not dtype:\n+            return None\n+\n         return self.expression(\n             exp.AlterColumn(\n                 this=column,\n-                dtype=self._parse_types(),\n+                dtype=dtype,\n                 collate=self._match(TokenType.COLLATE) and self._parse_term(),\n                 using=self._match(TokenType.USING) and self._parse_disjunction(),\n                 exists=exists or None,\n@@ -10302,7 +10308,7 @@ class Parser:\n         return new_select.with_(new_cte, as_=query, copy=False)\n \n     def _parse_pipe_syntax_select(self, query: exp.Select) -> exp.Select:\n-        select = self._parse_select(consume_pipe=False)\n+        select = self._parse_select(consume_pipe=True)\n         if not select:\n             return query\n \ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 355cffb..39f103b 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -327,9 +327,9 @@ class MySQLParser(parser.Parser):\n \n     def _parse_alter_table_rename(self):\n         if self._match_texts((\"INDEX\", \"KEY\")):\n-            old = self._parse_field(any_token=True)\n+            old = self._parse_id_var()\n             self._match_text_seq(\"TO\")\n-            new = self._parse_field(any_token=True)\n+            new = self._parse_id_var()\n             return self.expression(exp.RenameIndex(this=old, to=new))\n         return super()._parse_alter_table_rename()\n \ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex dc41b3d..8aea993 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -85,6 +85,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n class PostgresParser(parser.Parser):\n     ALTER_DROP_REQUIRES_COLUMN = False\n+    ALTER_COLUMN_TYPE_REQUIRES_KEYWORD = True\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_COLUMN_TYPE_REQUIRES_KEYWORD",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15056",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15057",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15058",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN `charset`"
+   },
+   {
+    "probe": "15059",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN charset"
+   },
+   {
+    "probe": "15060",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15061",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15062",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `charset` RESTRICT"
+   },
+   {
+    "probe": "15063",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN charset RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN , CHARACTER SET=RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN charset RESTRICT"
+   },
+   {
+    "probe": "15064",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15065",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15066",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX `any` TO b"
+   },
+   {
+    "probe": "15067",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t RENAME INDEX any TO b",
+    "before": "ALTER TABLE t RENAME INDEX ANY `TO` TO b",
+    "after": "ALTER TABLE t RENAME INDEX any TO b"
+   },
+   {
+    "probe": "15068",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15069",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15071",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b RESTART",
+    "before": "ALTER TABLE t ALTER COLUMN b SET DATA TYPE RESTART",
+    "after": "ALTER TABLE t ALTER COLUMN b RESTART"
+   },
+   {
+    "probe": "15072",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15073",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15074",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15075",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100",
+    "before": "ALTER TABLE t ALTER COLUMN b DROP DEFAULT, SET STATISTICS 100",
+    "after": "ALTER TABLE t ALTER COLUMN b SET STATISTICS 100"
+   },
+   {
+    "probe": "15076",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15077",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15078",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15079",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by"
+   },
+   {
+    "probe": "15080",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15081",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15082",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   },
+   {
+    "probe": "15083",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE",
+    "before": "ALTER TABLE t DROP COLUMN , PARTITION BY CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN partitioned_by CASCADE"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_pipe_syntax.py::TestPipeSyntax::test_distinct",
+   "tests/dialects/test_pipe_syntax.py::TestPipeSyntax::test_extend",
+   "tests/dialects/test_pipe_syntax.py::TestPipeSyntax::test_join",
+   "tests/dialects/test_pipe_syntax.py::TestPipeSyntax::test_limit",
+   "tests/dialects/test_pipe_syntax.py::TestPipeSyntax::test_order_by",
+   "tests/dialects/test_pipe_syntax.py::TestPipeSyntax::test_select",
+   "tests/dialects/test_pipe_syntax.py::TestPipeSyntax::test_set_operators",
+   "tests/dialects/test_pipe_syntax.py::TestPipeSyntax::test_tablesample"
+  ]
+ }
+]
