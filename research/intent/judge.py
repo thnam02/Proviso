@@ -53,7 +53,8 @@ def render_behaviour(c, max_keys=12, max_entries=8, max_groups=12, per_group=3):
             for o in os_[:per_group]:
                 lines.append(f"    input:  {o['input'][:200]}\n    before: {str(o['before'])[:200]}\n"
                              f"    after:  {str(o['after'])[:200]}")
-    return "\n".join(lines)
+    text = "\n".join(lines)
+    return text if len(text) < 20000 else text[:20000] + "\n[... behavioural diff truncated]"
 
 
 def prompt(c, view):
@@ -70,9 +71,10 @@ def prompt(c, view):
 
 def ask(model, text):
     with tempfile.TemporaryDirectory() as d:
-        r = subprocess.run(["claude", "-p", text, "--model", model, "--tools", "", "--output-format", "json",
+        # the prompt goes through stdin: a large behavioural diff exceeds the argument-length limit
+        r = subprocess.run(["claude", "-p", "--model", model, "--tools", "", "--output-format", "json",
                             "--system-prompt", SYSTEM, "--no-session-persistence"], cwd=d, capture_output=True,
-                           text=True, timeout=600)
+                           text=True, timeout=600, input=text)
     out = json.loads(r.stdout)
     res = out.get("result", "")
     s, e = res.find("{"), res.rfind("}")

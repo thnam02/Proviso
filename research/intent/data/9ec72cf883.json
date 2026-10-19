@@ -1,0 +1,1460 @@
+[
+ {
+  "task": "9ec72cf883",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "MySQL allows the index type before the key parts (UNIQUE KEY u USING BTREE (c)) and a UNIQUE without a name (UNIQUE USING BTREE (a)). sqlglot misparses these. They should parse, and be written with the index type after the key parts (UNIQUE u (c) USING BTREE); an index literally named `using` must still work.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\n# expected:  ALTER TABLE t ADD UNIQUE u (c) USING BTREE\n\nparse_one(\"CREATE TABLE t (a INT, UNIQUE USING BTREE (a))\", read=\"mysql\").sql(\"mysql\")\n# currently: ParseError: Expecting ). Line 1, Col: 43.\n# expected:  CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "code_diff": "diff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex fc497a0..8ce03e4 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -389,13 +389,26 @@ class MySQLParser(parser.Parser):\n         self._match_r_paren()\n         return self.expression(exp.ColumnPrefix(this=this, expression=expression))\n \n+    def _parse_index_constraint_part(self) -> exp.Expr | None:\n+        # key_part: {col_name [(length)] | (expr)}, so only a prefixed column is followed by \"(\"\n+        if (\n+            not self._match(TokenType.L_PAREN, advance=False)\n+            and self._next\n+            and self._next.token_type == TokenType.L_PAREN\n+        ):\n+            return self._parse_primary_key_part()\n+\n+        return self._parse_disjunction()\n+\n     def _parse_index_constraint(self, kind: str | None = None) -> exp.IndexColumnConstraint:\n         if kind:\n             self._match_texts((\"INDEX\", \"KEY\"))\n \n         this = self._parse_id_var(any_token=False)\n         index_type = self._match(TokenType.USING) and self._advance_any() and self._prev.text\n-        expressions = self._parse_wrapped_csv(self._parse_ordered)\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n \n         return self.expression(\n             exp.IndexColumnConstraint(\n@@ -440,13 +453,31 @@ class MySQLParser(parser.Parser):\n         return options\n \n     def _parse_unique(self) -> exp.UniqueColumnConstraint:\n-        unique = super()._parse_unique()\n+        self._match_texts((\"KEY\", \"INDEX\"))\n+        this = self._parse_unique_key()\n+        index_type = self._parse_index_type()\n+\n+        # UNIQUE [INDEX | KEY] [index_name] [index_type] (key_part,...) [index_option] ...\n+        if not self._match(TokenType.L_PAREN, advance=False):\n+            return self.expression(exp.UniqueColumnConstraint(this=this, index_type=index_type))\n+\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n+\n+        return self.expression(\n+            exp.UniqueColumnConstraint(\n+                this=self.expression(exp.Schema(this=this, expressions=expressions)),\n+                index_type=index_type or self._parse_index_type(),\n+                options=self._parse_index_constraint_options(),\n+            )\n+        )\n \n-        # UNIQUE [INDEX | KEY] [index_name] (key_part,...) [index_option] ...\n-        if isinstance(unique.this, exp.Schema):\n-            unique.set(\"options\", self._parse_index_constraint_options())\n+    def _parse_index_type(self) -> str | None:\n+        if self._match(TokenType.USING) and self._advance_any():\n+            return self._prev.text\n \n-        return unique\n+        return None\n \n     def _parse_show_mysql(\n         self,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_constraint_part",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_constraint_part>"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_type",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_type>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14159",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14160",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14161",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14162",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14167",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14168",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14169",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14170",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14171",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14172",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14173",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14174",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14179",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14180",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14181",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14182",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14183",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14184",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14185",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14186",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14187",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14188",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14189",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14190",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14195",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14196",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14197",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14198",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   }
+  ],
+  "new_probes": 44
+ },
+ {
+  "task": "9ec72cf883",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "MySQL allows the index type before the key parts (UNIQUE KEY u USING BTREE (c)) and a UNIQUE without a name (UNIQUE USING BTREE (a)). sqlglot misparses these. They should parse, and be written with the index type after the key parts (UNIQUE u (c) USING BTREE); an index literally named `using` must still work.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\n# expected:  ALTER TABLE t ADD UNIQUE u (c) USING BTREE\n\nparse_one(\"CREATE TABLE t (a INT, UNIQUE USING BTREE (a))\", read=\"mysql\").sql(\"mysql\")\n# currently: ParseError: Expecting ). Line 1, Col: 43.\n# expected:  CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parsers/mysql.py",
+   "line": 189,
+   "op": "delete",
+   "code": "\"EVENTS\": _show_parser(\"EVENTS\"),"
+  },
+  "code_diff": "diff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex fc497a0..55e11ca 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -186,7 +186,7 @@ class MySQLParser(parser.Parser):\n         \"STORAGE ENGINES\": _show_parser(\"ENGINES\"),\n         \"ENGINES\": _show_parser(\"ENGINES\"),\n         \"ERRORS\": _show_parser(\"ERRORS\"),\n-        \"EVENTS\": _show_parser(\"EVENTS\"),\n+\n         \"FUNCTION CODE\": _show_parser(\"FUNCTION CODE\", target=True),\n         \"FUNCTION STATUS\": _show_parser(\"FUNCTION STATUS\"),\n         \"GRANTS\": _show_parser(\"GRANTS\", target=\"FOR\"),\n@@ -389,13 +389,26 @@ class MySQLParser(parser.Parser):\n         self._match_r_paren()\n         return self.expression(exp.ColumnPrefix(this=this, expression=expression))\n \n+    def _parse_index_constraint_part(self) -> exp.Expr | None:\n+        # key_part: {col_name [(length)] | (expr)}, so only a prefixed column is followed by \"(\"\n+        if (\n+            not self._match(TokenType.L_PAREN, advance=False)\n+            and self._next\n+            and self._next.token_type == TokenType.L_PAREN\n+        ):\n+            return self._parse_primary_key_part()\n+\n+        return self._parse_disjunction()\n+\n     def _parse_index_constraint(self, kind: str | None = None) -> exp.IndexColumnConstraint:\n         if kind:\n             self._match_texts((\"INDEX\", \"KEY\"))\n \n         this = self._parse_id_var(any_token=False)\n         index_type = self._match(TokenType.USING) and self._advance_any() and self._prev.text\n-        expressions = self._parse_wrapped_csv(self._parse_ordered)\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n \n         return self.expression(\n             exp.IndexColumnConstraint(\n@@ -440,13 +453,31 @@ class MySQLParser(parser.Parser):\n         return options\n \n     def _parse_unique(self) -> exp.UniqueColumnConstraint:\n-        unique = super()._parse_unique()\n+        self._match_texts((\"KEY\", \"INDEX\"))\n+        this = self._parse_unique_key()\n+        index_type = self._parse_index_type()\n+\n+        # UNIQUE [INDEX | KEY] [index_name] [index_type] (key_part,...) [index_option] ...\n+        if not self._match(TokenType.L_PAREN, advance=False):\n+            return self.expression(exp.UniqueColumnConstraint(this=this, index_type=index_type))\n+\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n+\n+        return self.expression(\n+            exp.UniqueColumnConstraint(\n+                this=self.expression(exp.Schema(this=this, expressions=expressions)),\n+                index_type=index_type or self._parse_index_type(),\n+                options=self._parse_index_constraint_options(),\n+            )\n+        )\n \n-        # UNIQUE [INDEX | KEY] [index_name] (key_part,...) [index_option] ...\n-        if isinstance(unique.this, exp.Schema):\n-            unique.set(\"options\", self._parse_index_constraint_options())\n+    def _parse_index_type(self) -> str | None:\n+        if self._match(TokenType.USING) and self._advance_any():\n+            return self._prev.text\n \n-        return unique\n+        return None\n \n     def _parse_show_mysql(\n         self,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SHOW_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'EVENTS'": "<function _show_parser.<locals>._parse>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SHOW_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'EVENTS'": "{0: True}"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.SHOW_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'EVENTS'": "<function _show_parser.<locals>._parse>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.SHOW_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'EVENTS'": "{0: True}"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_constraint_part",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_constraint_part>"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_type",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_type>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14159",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14160",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14161",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14162",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14167",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14168",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14169",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14170",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14171",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14172",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14173",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14174",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14179",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14180",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14181",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14182",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14183",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14184",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14185",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14186",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14187",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14188",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14189",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14190",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14195",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14196",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14197",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14198",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 4
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_show_simple"
+  ]
+ },
+ {
+  "task": "9ec72cf883",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "MySQL allows the index type before the key parts (UNIQUE KEY u USING BTREE (c)) and a UNIQUE without a name (UNIQUE USING BTREE (a)). sqlglot misparses these. They should parse, and be written with the index type after the key parts (UNIQUE u (c) USING BTREE); an index literally named `using` must still work.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\n# expected:  ALTER TABLE t ADD UNIQUE u (c) USING BTREE\n\nparse_one(\"CREATE TABLE t (a INT, UNIQUE USING BTREE (a))\", read=\"mysql\").sql(\"mysql\")\n# currently: ParseError: Expecting ). Line 1, Col: 43.\n# expected:  CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parsers/mysql.py",
+   "line": 209,
+   "op": "delete",
+   "code": "\"GLOBAL STATUS\": _show_parser(\"STATUS\", global_=True),"
+  },
+  "code_diff": "diff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex fc497a0..e300737 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -206,7 +206,7 @@ class MySQLParser(parser.Parser):\n         \"SLAVE HOSTS\": _show_parser(\"REPLICAS\"),\n         \"REPLICA STATUS\": _show_parser(\"REPLICA STATUS\"),\n         \"SLAVE STATUS\": _show_parser(\"REPLICA STATUS\"),\n-        \"GLOBAL STATUS\": _show_parser(\"STATUS\", global_=True),\n+\n         \"SESSION STATUS\": _show_parser(\"STATUS\"),\n         \"STATUS\": _show_parser(\"STATUS\"),\n         \"TABLE STATUS\": _show_parser(\"TABLE STATUS\"),\n@@ -389,13 +389,26 @@ class MySQLParser(parser.Parser):\n         self._match_r_paren()\n         return self.expression(exp.ColumnPrefix(this=this, expression=expression))\n \n+    def _parse_index_constraint_part(self) -> exp.Expr | None:\n+        # key_part: {col_name [(length)] | (expr)}, so only a prefixed column is followed by \"(\"\n+        if (\n+            not self._match(TokenType.L_PAREN, advance=False)\n+            and self._next\n+            and self._next.token_type == TokenType.L_PAREN\n+        ):\n+            return self._parse_primary_key_part()\n+\n+        return self._parse_disjunction()\n+\n     def _parse_index_constraint(self, kind: str | None = None) -> exp.IndexColumnConstraint:\n         if kind:\n             self._match_texts((\"INDEX\", \"KEY\"))\n \n         this = self._parse_id_var(any_token=False)\n         index_type = self._match(TokenType.USING) and self._advance_any() and self._prev.text\n-        expressions = self._parse_wrapped_csv(self._parse_ordered)\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n \n         return self.expression(\n             exp.IndexColumnConstraint(\n@@ -440,13 +453,31 @@ class MySQLParser(parser.Parser):\n         return options\n \n     def _parse_unique(self) -> exp.UniqueColumnConstraint:\n-        unique = super()._parse_unique()\n+        self._match_texts((\"KEY\", \"INDEX\"))\n+        this = self._parse_unique_key()\n+        index_type = self._parse_index_type()\n+\n+        # UNIQUE [INDEX | KEY] [index_name] [index_type] (key_part,...) [index_option] ...\n+        if not self._match(TokenType.L_PAREN, advance=False):\n+            return self.expression(exp.UniqueColumnConstraint(this=this, index_type=index_type))\n+\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n+\n+        return self.expression(\n+            exp.UniqueColumnConstraint(\n+                this=self.expression(exp.Schema(this=this, expressions=expressions)),\n+                index_type=index_type or self._parse_index_type(),\n+                options=self._parse_index_constraint_options(),\n+            )\n+        )\n \n-        # UNIQUE [INDEX | KEY] [index_name] (key_part,...) [index_option] ...\n-        if isinstance(unique.this, exp.Schema):\n-            unique.set(\"options\", self._parse_index_constraint_options())\n+    def _parse_index_type(self) -> str | None:\n+        if self._match(TokenType.USING) and self._advance_any():\n+            return self._prev.text\n \n-        return unique\n+        return None\n \n     def _parse_show_mysql(\n         self,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SHOW_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'GLOBAL STATUS'": "<function _show_parser.<locals>._parse>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SHOW_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'GLOBAL'": [
+      "{'STATUS': {0: True}, 'VARIABLES': {0: True}}",
+      "{'VARIABLES': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.SHOW_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'GLOBAL STATUS'": "<function _show_parser.<locals>._parse>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.SHOW_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'GLOBAL'": [
+      "{'STATUS': {0: True}, 'VARIABLES': {0: True}}",
+      "{'VARIABLES': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_constraint_part",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_constraint_part>"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_type",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_type>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14159",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14160",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14161",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14162",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14167",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14168",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14169",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14170",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14171",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14172",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14173",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14174",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14179",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14180",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14181",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14182",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14183",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14184",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14185",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14186",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14187",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14188",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14189",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14190",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14195",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14196",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14197",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14198",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 4
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_show_like_or_where"
+  ]
+ },
+ {
+  "task": "9ec72cf883",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "MySQL allows the index type before the key parts (UNIQUE KEY u USING BTREE (c)) and a UNIQUE without a name (UNIQUE USING BTREE (a)). sqlglot misparses these. They should parse, and be written with the index type after the key parts (UNIQUE u (c) USING BTREE); an index literally named `using` must still work.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\n# expected:  ALTER TABLE t ADD UNIQUE u (c) USING BTREE\n\nparse_one(\"CREATE TABLE t (a INT, UNIQUE USING BTREE (a))\", read=\"mysql\").sql(\"mysql\")\n# currently: ParseError: Expecting ). Line 1, Col: 43.\n# expected:  CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parsers/mysql.py",
+   "line": 169,
+   "op": "delete",
+   "code": "\"MASTER LOGS\": _show_parser(\"BINARY LOGS\"),"
+  },
+  "code_diff": "diff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex fc497a0..8f82149 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -166,7 +166,7 @@ class MySQLParser(parser.Parser):\n \n     SHOW_PARSERS = {\n         \"BINARY LOGS\": _show_parser(\"BINARY LOGS\"),\n-        \"MASTER LOGS\": _show_parser(\"BINARY LOGS\"),\n+\n         \"BINLOG EVENTS\": _show_parser(\"BINLOG EVENTS\"),\n         \"CHARACTER SET\": _show_parser(\"CHARACTER SET\"),\n         \"CHARSET\": _show_parser(\"CHARACTER SET\"),\n@@ -389,13 +389,26 @@ class MySQLParser(parser.Parser):\n         self._match_r_paren()\n         return self.expression(exp.ColumnPrefix(this=this, expression=expression))\n \n+    def _parse_index_constraint_part(self) -> exp.Expr | None:\n+        # key_part: {col_name [(length)] | (expr)}, so only a prefixed column is followed by \"(\"\n+        if (\n+            not self._match(TokenType.L_PAREN, advance=False)\n+            and self._next\n+            and self._next.token_type == TokenType.L_PAREN\n+        ):\n+            return self._parse_primary_key_part()\n+\n+        return self._parse_disjunction()\n+\n     def _parse_index_constraint(self, kind: str | None = None) -> exp.IndexColumnConstraint:\n         if kind:\n             self._match_texts((\"INDEX\", \"KEY\"))\n \n         this = self._parse_id_var(any_token=False)\n         index_type = self._match(TokenType.USING) and self._advance_any() and self._prev.text\n-        expressions = self._parse_wrapped_csv(self._parse_ordered)\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n \n         return self.expression(\n             exp.IndexColumnConstraint(\n@@ -440,13 +453,31 @@ class MySQLParser(parser.Parser):\n         return options\n \n     def _parse_unique(self) -> exp.UniqueColumnConstraint:\n-        unique = super()._parse_unique()\n+        self._match_texts((\"KEY\", \"INDEX\"))\n+        this = self._parse_unique_key()\n+        index_type = self._parse_index_type()\n+\n+        # UNIQUE [INDEX | KEY] [index_name] [index_type] (key_part,...) [index_option] ...\n+        if not self._match(TokenType.L_PAREN, advance=False):\n+            return self.expression(exp.UniqueColumnConstraint(this=this, index_type=index_type))\n+\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n+\n+        return self.expression(\n+            exp.UniqueColumnConstraint(\n+                this=self.expression(exp.Schema(this=this, expressions=expressions)),\n+                index_type=index_type or self._parse_index_type(),\n+                options=self._parse_index_constraint_options(),\n+            )\n+        )\n \n-        # UNIQUE [INDEX | KEY] [index_name] (key_part,...) [index_option] ...\n-        if isinstance(unique.this, exp.Schema):\n-            unique.set(\"options\", self._parse_index_constraint_options())\n+    def _parse_index_type(self) -> str | None:\n+        if self._match(TokenType.USING) and self._advance_any():\n+            return self._prev.text\n \n-        return unique\n+        return None\n \n     def _parse_show_mysql(\n         self,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SHOW_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'MASTER LOGS'": "<function _show_parser.<locals>._parse>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SHOW_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'MASTER'": [
+      "{'LOGS': {0: True}, 'STATUS': {0: True}}",
+      "{'STATUS': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.SHOW_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'MASTER LOGS'": "<function _show_parser.<locals>._parse>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.SHOW_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'MASTER'": [
+      "{'LOGS': {0: True}, 'STATUS': {0: True}}",
+      "{'STATUS': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_constraint_part",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_constraint_part>"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_type",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_type>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14159",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14160",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14161",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14162",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14167",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14168",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14169",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14170",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14171",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14172",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14173",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14174",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14179",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14180",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14181",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14182",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14183",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14184",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14185",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14186",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14187",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14188",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14189",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14190",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14195",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14196",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14197",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14198",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 4
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_show_simple"
+  ]
+ },
+ {
+  "task": "9ec72cf883",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "MySQL allows the index type before the key parts (UNIQUE KEY u USING BTREE (c)) and a UNIQUE without a name (UNIQUE USING BTREE (a)). sqlglot misparses these. They should parse, and be written with the index type after the key parts (UNIQUE u (c) USING BTREE); an index literally named `using` must still work.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)\n# expected:  ALTER TABLE t ADD UNIQUE u (c) USING BTREE\n\nparse_one(\"CREATE TABLE t (a INT, UNIQUE USING BTREE (a))\", read=\"mysql\").sql(\"mysql\")\n# currently: ParseError: Expecting ). Line 1, Col: 43.\n# expected:  CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parsers/mysql.py",
+   "line": 190,
+   "op": "delete",
+   "code": "\"FUNCTION CODE\": _show_parser(\"FUNCTION CODE\", target=True),"
+  },
+  "code_diff": "diff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex fc497a0..bb6aa46 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -187,7 +187,7 @@ class MySQLParser(parser.Parser):\n         \"ENGINES\": _show_parser(\"ENGINES\"),\n         \"ERRORS\": _show_parser(\"ERRORS\"),\n         \"EVENTS\": _show_parser(\"EVENTS\"),\n-        \"FUNCTION CODE\": _show_parser(\"FUNCTION CODE\", target=True),\n+\n         \"FUNCTION STATUS\": _show_parser(\"FUNCTION STATUS\"),\n         \"GRANTS\": _show_parser(\"GRANTS\", target=\"FOR\"),\n         \"INDEX\": _show_parser(\"INDEX\", target=\"FROM\"),\n@@ -389,13 +389,26 @@ class MySQLParser(parser.Parser):\n         self._match_r_paren()\n         return self.expression(exp.ColumnPrefix(this=this, expression=expression))\n \n+    def _parse_index_constraint_part(self) -> exp.Expr | None:\n+        # key_part: {col_name [(length)] | (expr)}, so only a prefixed column is followed by \"(\"\n+        if (\n+            not self._match(TokenType.L_PAREN, advance=False)\n+            and self._next\n+            and self._next.token_type == TokenType.L_PAREN\n+        ):\n+            return self._parse_primary_key_part()\n+\n+        return self._parse_disjunction()\n+\n     def _parse_index_constraint(self, kind: str | None = None) -> exp.IndexColumnConstraint:\n         if kind:\n             self._match_texts((\"INDEX\", \"KEY\"))\n \n         this = self._parse_id_var(any_token=False)\n         index_type = self._match(TokenType.USING) and self._advance_any() and self._prev.text\n-        expressions = self._parse_wrapped_csv(self._parse_ordered)\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n \n         return self.expression(\n             exp.IndexColumnConstraint(\n@@ -440,13 +453,31 @@ class MySQLParser(parser.Parser):\n         return options\n \n     def _parse_unique(self) -> exp.UniqueColumnConstraint:\n-        unique = super()._parse_unique()\n+        self._match_texts((\"KEY\", \"INDEX\"))\n+        this = self._parse_unique_key()\n+        index_type = self._parse_index_type()\n+\n+        # UNIQUE [INDEX | KEY] [index_name] [index_type] (key_part,...) [index_option] ...\n+        if not self._match(TokenType.L_PAREN, advance=False):\n+            return self.expression(exp.UniqueColumnConstraint(this=this, index_type=index_type))\n+\n+        expressions = self._parse_wrapped_csv(\n+            lambda: self._parse_ordered(self._parse_index_constraint_part)\n+        )\n+\n+        return self.expression(\n+            exp.UniqueColumnConstraint(\n+                this=self.expression(exp.Schema(this=this, expressions=expressions)),\n+                index_type=index_type or self._parse_index_type(),\n+                options=self._parse_index_constraint_options(),\n+            )\n+        )\n \n-        # UNIQUE [INDEX | KEY] [index_name] (key_part,...) [index_option] ...\n-        if isinstance(unique.this, exp.Schema):\n-            unique.set(\"options\", self._parse_index_constraint_options())\n+    def _parse_index_type(self) -> str | None:\n+        if self._match(TokenType.USING) and self._advance_any():\n+            return self._prev.text\n \n-        return unique\n+        return None\n \n     def _parse_show_mysql(\n         self,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SHOW_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'FUNCTION CODE'": "<function _show_parser.<locals>._parse>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.SHOW_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'FUNCTION'": [
+      "{'CODE': {0: True}, 'STATUS': {0: True}}",
+      "{'STATUS': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.SHOW_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'FUNCTION CODE'": "<function _show_parser.<locals>._parse>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.SHOW_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'FUNCTION'": [
+      "{'CODE': {0: True}, 'STATUS': {0: True}}",
+      "{'STATUS': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_constraint_part",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_constraint_part>"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser._parse_index_type",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function MySQLParser._parse_index_type>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14159",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14160",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14161",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14162",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD INDEX k (c(20))",
+    "before": "ALTER TABLE t ADD INDEX k (C(20))",
+    "after": "ALTER TABLE t ADD INDEX k (c(20))"
+   },
+   {
+    "probe": "14167",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14168",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14169",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14170",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u (c(20))",
+    "before": "ALTER TABLE t ADD UNIQUE u (C(20))",
+    "after": "ALTER TABLE t ADD UNIQUE u (c(20))"
+   },
+   {
+    "probe": "14171",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14172",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14173",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14174",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "before": "ALTER TABLE t ADD UNIQUE KEY u USING BTREE (c)",
+    "after": "ALTER TABLE t ADD UNIQUE u (c) USING BTREE"
+   },
+   {
+    "probe": "14179",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14180",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14181",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14182",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE KEY u USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE u (a) USING BTREE)"
+   },
+   {
+    "probe": "14183",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14184",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14185",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14186",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (a INT, UNIQUE USING BTREE (a))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (a INT, UNIQUE (a) USING BTREE)"
+   },
+   {
+    "probe": "14187",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14188",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14189",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14190",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), KEY k (c(20)))",
+    "before": "CREATE TABLE t (c VARCHAR(64), INDEX k (C(20)))",
+    "after": "CREATE TABLE t (c VARCHAR(64), INDEX k (c(20)))"
+   },
+   {
+    "probe": "14195",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14196",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14197",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   },
+   {
+    "probe": "14198",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "CREATE TABLE t (c VARCHAR(64), UNIQUE KEY u (c(20) DESC))",
+    "before": "EXC: ParseError",
+    "after": "CREATE TABLE t (c VARCHAR(64), UNIQUE u (c(20) DESC))"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 4
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_show_name"
+  ]
+ }
+]
