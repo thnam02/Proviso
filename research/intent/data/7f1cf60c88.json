@@ -1,0 +1,439 @@
+[
+ {
+  "task": "7f1cf60c88",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "MySQL ALTER TABLE statements that only set table options or partitioning, without an ADD/DROP/... action, fall back to a Command or are split wrongly, e.g. ALTER TABLE t FORCE, ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 and ALTER TABLE t ENGINE=InnoDB PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1)). Actions should be optional: such statements should parse into exp.Alter, table options must be kept as options (generated comma-separated, after any actions), and partition definitions sqlglot cannot model should still fall back to a Command with the usual warning.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntype(parse_one(\"ALTER TABLE t FORCE\", read=\"mysql\")).__name__\n# currently: Command\n# expected:  Alter\n\nparse_one(\"ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8\n# expected:  ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8\n\nparse_one(\"ALTER TABLE t COMMENT='hi', ADD COLUMN c INT\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t COMMENT='hi', ADD COLUMN c INT\n# expected:  ALTER TABLE t ADD COLUMN c INT, COMMENT='hi'\n```\n\nOther forms of the same constructs described above should work as well.",
+  "code_diff": "diff --git a/sqlglot/expressions/ddl.py b/sqlglot/expressions/ddl.py\nindex 9bec04e..fd45c8c 100644\n--- a/sqlglot/expressions/ddl.py\n+++ b/sqlglot/expressions/ddl.py\n@@ -400,7 +400,7 @@ class Alter(Expression):\n     arg_types = {\n         \"this\": False,\n         \"kind\": True,\n-        \"actions\": True,\n+        \"actions\": False,\n         \"exists\": False,\n         \"only\": False,\n         \"options\": False,\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex d5877d8..c1a59ea 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -882,6 +882,10 @@ class Generator:\n         exp.Mod,\n     )\n \n+    # ALTER options that follow the others without a comma, e.g. MySQL's\n+    # ENGINE=InnoDB PARTITION BY LIST (...) or StarRocks' PARTITION BY ... DISTRIBUTED BY ...\n+    ALTER_PARTITION_OPTIONS: t.ClassVar[tuple[type[exp.Expr], ...]] = ()\n+\n     SAFE_JSON_PATH_KEY_RE: t.ClassVar = exp.SAFE_IDENTIFIER_RE\n \n     SENTINEL_LINE_BREAK = \"__SQLGLOT__LB__\"\n@@ -4415,10 +4419,12 @@ class Generator:\n         return f\"SET {exprs}\"\n \n     def alter_sql(self, expression: exp.Alter) -> str:\n-        actions = expression.args[\"actions\"]\n+        actions = expression.actions\n \n-        if not self.dialect.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN and isinstance(\n-            actions[0], exp.ColumnDef\n+        if (\n+            not self.dialect.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN\n+            and actions\n+            and isinstance(actions[0], exp.ColumnDef)\n         ):\n             actions_sql = self.expressions(expression, key=\"actions\", flat=True)\n             actions_sql = f\"ADD {actions_sql}\"\n@@ -4445,8 +4451,18 @@ class Generator:\n         on_cluster = self.sql(expression, \"cluster\")\n         on_cluster = f\" {on_cluster}\" if on_cluster else \"\"\n         only = \" ONLY\" if expression.args.get(\"only\") else \"\"\n-        options = self.expressions(expression, key=\"options\")\n-        options = f\", {options}\" if options else \"\"\n+        options = expression.args.get(\"options\") or []\n+        options_sql = self.expressions(\n+            sqls=[o for o in options if not isinstance(o, self.ALTER_PARTITION_OPTIONS)]\n+        )\n+        options_sql = f\", {options_sql}\" if options_sql and actions_sql else options_sql\n+        partitions_sql = self.expressions(\n+            sqls=[o for o in options if isinstance(o, self.ALTER_PARTITION_OPTIONS)],\n+            sep=\" \",\n+            flat=True,\n+        )\n+        if partitions_sql and (actions_sql or options_sql):\n+            partitions_sql = f\" {partitions_sql}\"\n         kind = self.sql(expression, \"kind\")\n         not_valid = \" NOT VALID\" if expression.args.get(\"not_valid\") else \"\"\n         check = \" WITH CHECK\" if expression.args.get(\"check\") else \"\"\n@@ -4458,7 +4474,7 @@ class Generator:\n         this = self.sql(expression, \"this\")\n         this = f\" {this}\" if this else \"\"\n \n-        return f\"ALTER {iceberg}{kind}{exists}{only}{this}{on_cluster}{check}{self.sep()}{actions_sql}{not_valid}{options}{cascade}\"\n+        return f\"ALTER {iceberg}{kind}{exists}{only}{this}{on_cluster}{check}{self.sep()}{actions_sql}{not_valid}{options_sql}{partitions_sql}{cascade}\"\n \n     def altersession_sql(self, expression: exp.AlterSession) -> str:\n         items_sql = self.expressions(expression, flat=True)\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex 0e89da4..bc2d983 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -143,6 +143,11 @@ class MySQLGenerator(generator.Generator):\n     SUPPORTS_MEDIAN = False\n     UPDATE_STATEMENT_SUPPORTS_FROM = False\n \n+    ALTER_PARTITION_OPTIONS: t.ClassVar[tuple[type[exp.Expr], ...]] = (\n+        exp.PartitionByListProperty,\n+        exp.PartitionByRangeProperty,\n+    )\n+\n     TRANSFORMS = {\n         **generator.Generator.TRANSFORMS,\n         exp.ArrayAgg: rename_func(\"GROUP_CONCAT\"),\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 640b4d9..8080d7a 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -69,6 +69,12 @@ class StarRocksGenerator(MySQLGenerator):\n     # StarRocks doesn't support renaming a table with a database.\n     RENAME_TABLE_WITH_DB = False\n \n+    ALTER_PARTITION_OPTIONS = (\n+        *MySQLGenerator.ALTER_PARTITION_OPTIONS,\n+        exp.DistributedByProperty,\n+        exp.PartitionedByProperty,\n+    )\n+\n     CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}\n \n     TYPE_MAPPING = {\ndiff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 350c8e0..b9dcb46 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1922,6 +1922,9 @@ class Parser:\n     # Whether an ALTER can combine different actions, e.g. ADD COLUMN a INT, DROP COLUMN b\n     ALTER_TABLE_MIXED_ACTIONS: t.ClassVar = False\n \n+    # Whether an ALTER TABLE needs an action, e.g. MySQL's ALTER TABLE t ENGINE=InnoDB has none\n+    ALTER_TABLE_REQUIRES_ACTION: t.ClassVar = True\n+\n     # Whether changing a column's type with ALTER COLUMN requires the TYPE keyword\n     ALTER_COLUMN_TYPE_REQUIRES_KEYWORD: t.ClassVar = False\n \n@@ -9421,19 +9424,32 @@ class Parser:\n             this = None\n             check = None\n             cluster = None\n+            parser = self.ALTER_PARSERS.get(alter_token.text.upper())\n         else:\n             this = self._parse_table(schema=True, parse_partition=self.ALTER_TABLE_PARTITIONS)\n             check = self._match_text_seq(\"WITH\", \"CHECK\")\n             cluster = self._parse_on_property() if self._match(TokenType.ON) else None\n+            parser = (\n+                self.ALTER_PARSERS[self._prev.text.upper()]\n+                if self._match_texts(self.ALTER_PARSERS)\n+                else None\n+            )\n \n-            if self._next:\n-                self._advance()\n+        options: list[exp.Expr] = []\n+        if (\n+            not parser\n+            and alter_token.token_type == TokenType.TABLE\n+            and not self.ALTER_TABLE_REQUIRES_ACTION\n+        ):\n+            # Table options may precede the actions, e.g. MySQL's ENGINE=InnoDB, ADD COLUMN a INT.\n+            # A clause the property parser rejects, like PARTITION BY RANGE ... MAXVALUE, stays a Command\n+            properties = self._try_parse(self._parse_properties)\n+            options = properties.expressions if properties else []\n \n-        parser = self.ALTER_PARSERS.get(self._prev.text.upper()) if self._prev else None\n-        actions = ensure_list(parser(self)) if parser else None\n-        if actions:\n+        actions = ensure_list(parser(self) if parser else None)\n+        if actions or options:\n             # More actions of a different kind may follow, e.g. ADD COLUMN a INT, DROP COLUMN b.\n-            # The comma before them may have already been consumed by the previous action's parser\n+            # The comma before them may have already been consumed by the previous parser\n             while (\n                 self.ALTER_TABLE_MIXED_ACTIONS\n                 and (self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA)\n@@ -9448,8 +9464,8 @@ class Parser:\n                 actions.extend(parsed)\n \n             not_valid = self._match_text_seq(\"NOT\", \"VALID\")\n-            properties = self._parse_properties()\n-            options = properties.expressions if properties else []\n+            if properties := self._try_parse(self._parse_properties):\n+                options.extend(properties.expressions)\n             cascade = self.dialect.ALTER_TABLE_SUPPORTS_CASCADE and self._match_text_seq(\"CASCADE\")\n \n             if not self._curr:\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 8d6de4e..b6af071 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -252,8 +252,7 @@ class MySQLParser(parser.Parser):\n         **parser.Parser.ALTER_PARSERS,\n         \"CHANGE\": lambda self: self._parse_alter_table_modify(rename=True),\n         \"MODIFY\": lambda self: self._parse_alter_table_modify(),\n-        \"AUTO_INCREMENT\": lambda self: self._parse_property_assignment(exp.AutoIncrementProperty),\n-        \"COMMENT\": lambda self: self._parse_property_assignment(exp.SchemaCommentProperty),\n+        \"FORCE\": lambda self: self.expression(exp.ForceProperty()),\n     }\n \n     ALTER_ALTER_PARSERS = {\n@@ -301,6 +300,7 @@ class MySQLParser(parser.Parser):\n \n     ALTER_DROP_REQUIRES_COLUMN = False\n     ALTER_TABLE_MIXED_ACTIONS = True\n+    ALTER_TABLE_REQUIRES_ACTION = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n     VALUES_FOLLOWED_BY_PAREN = False\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.expressions.ddl:Alter.arg_types",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'actions'": [
+      "True",
+      "False"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.expressions.ddl:Alter.required_args",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'actions'"
+    ]
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_PARSERS",
+    "kind": "dict",
+    "added": {
+     "'FORCE'": "<function MySQLParser.<lambda>>"
+    },
+    "removed": {
+     "'COMMENT'": "<function MySQLParser.<lambda>>",
+     "'AUTO_INCREMENT'": "<function MySQLParser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.ALTER_PARSERS",
+    "kind": "dict",
+    "added": {
+     "'FORCE'": "<function MySQLParser.<lambda>>"
+    },
+    "removed": {
+     "'COMMENT'": "<function MySQLParser.<lambda>>",
+     "'AUTO_INCREMENT'": "<function MySQLParser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generator:Generator.ALTER_PARTITION_OPTIONS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": []
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.ALTER_PARTITION_OPTIONS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "<class 'sqlglot.expressions.properties.PartitionByListProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionByRangeProperty'>"
+    ]
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.ALTER_PARTITION_OPTIONS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "<class 'sqlglot.expressions.properties.DistributedByProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionByListProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionByRangeProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionedByProperty'>"
+    ]
+   },
+   {
+    "key": "sqlglot.parser:Parser.ALTER_TABLE_REQUIRES_ACTION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_TABLE_REQUIRES_ACTION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15359",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15360",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, 'KEY_BLOCK_SIZE'=8"
+   },
+   {
+    "probe": "15361",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15362",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, 'KEY_BLOCK_SIZE'=8"
+   }
+  ],
+  "new_probes": 13
+ },
+ {
+  "task": "7f1cf60c88",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "MySQL ALTER TABLE statements that only set table options or partitioning, without an ADD/DROP/... action, fall back to a Command or are split wrongly, e.g. ALTER TABLE t FORCE, ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 and ALTER TABLE t ENGINE=InnoDB PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1)). Actions should be optional: such statements should parse into exp.Alter, table options must be kept as options (generated comma-separated, after any actions), and partition definitions sqlglot cannot model should still fall back to a Command with the usual warning.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntype(parse_one(\"ALTER TABLE t FORCE\", read=\"mysql\")).__name__\n# currently: Command\n# expected:  Alter\n\nparse_one(\"ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8\n# expected:  ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8\n\nparse_one(\"ALTER TABLE t COMMENT='hi', ADD COLUMN c INT\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t COMMENT='hi', ADD COLUMN c INT\n# expected:  ALTER TABLE t ADD COLUMN c INT, COMMENT='hi'\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/expressions/ddl.py",
+   "line": 54,
+   "op": "delete",
+   "code": "\"concurrently\": False,"
+  },
+  "code_diff": "diff --git a/sqlglot/expressions/ddl.py b/sqlglot/expressions/ddl.py\nindex 9bec04e..6832e90 100644\n--- a/sqlglot/expressions/ddl.py\n+++ b/sqlglot/expressions/ddl.py\n@@ -51,7 +51,7 @@ class Create(Expression, DDL):\n         \"no_schema_binding\": False,\n         \"begin\": False,\n         \"clone\": False,\n-        \"concurrently\": False,\n+\n         \"clustered\": False,\n     }\n \n@@ -400,7 +400,7 @@ class Alter(Expression):\n     arg_types = {\n         \"this\": False,\n         \"kind\": True,\n-        \"actions\": True,\n+        \"actions\": False,\n         \"exists\": False,\n         \"only\": False,\n         \"options\": False,\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex d5877d8..c1a59ea 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -882,6 +882,10 @@ class Generator:\n         exp.Mod,\n     )\n \n+    # ALTER options that follow the others without a comma, e.g. MySQL's\n+    # ENGINE=InnoDB PARTITION BY LIST (...) or StarRocks' PARTITION BY ... DISTRIBUTED BY ...\n+    ALTER_PARTITION_OPTIONS: t.ClassVar[tuple[type[exp.Expr], ...]] = ()\n+\n     SAFE_JSON_PATH_KEY_RE: t.ClassVar = exp.SAFE_IDENTIFIER_RE\n \n     SENTINEL_LINE_BREAK = \"__SQLGLOT__LB__\"\n@@ -4415,10 +4419,12 @@ class Generator:\n         return f\"SET {exprs}\"\n \n     def alter_sql(self, expression: exp.Alter) -> str:\n-        actions = expression.args[\"actions\"]\n+        actions = expression.actions\n \n-        if not self.dialect.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN and isinstance(\n-            actions[0], exp.ColumnDef\n+        if (\n+            not self.dialect.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN\n+            and actions\n+            and isinstance(actions[0], exp.ColumnDef)\n         ):\n             actions_sql = self.expressions(expression, key=\"actions\", flat=True)\n             actions_sql = f\"ADD {actions_sql}\"\n@@ -4445,8 +4451,18 @@ class Generator:\n         on_cluster = self.sql(expression, \"cluster\")\n         on_cluster = f\" {on_cluster}\" if on_cluster else \"\"\n         only = \" ONLY\" if expression.args.get(\"only\") else \"\"\n-        options = self.expressions(expression, key=\"options\")\n-        options = f\", {options}\" if options else \"\"\n+        options = expression.args.get(\"options\") or []\n+        options_sql = self.expressions(\n+            sqls=[o for o in options if not isinstance(o, self.ALTER_PARTITION_OPTIONS)]\n+        )\n+        options_sql = f\", {options_sql}\" if options_sql and actions_sql else options_sql\n+        partitions_sql = self.expressions(\n+            sqls=[o for o in options if isinstance(o, self.ALTER_PARTITION_OPTIONS)],\n+            sep=\" \",\n+            flat=True,\n+        )\n+        if partitions_sql and (actions_sql or options_sql):\n+            partitions_sql = f\" {partitions_sql}\"\n         kind = self.sql(expression, \"kind\")\n         not_valid = \" NOT VALID\" if expression.args.get(\"not_valid\") else \"\"\n         check = \" WITH CHECK\" if expression.args.get(\"check\") else \"\"\n@@ -4458,7 +4474,7 @@ class Generator:\n         this = self.sql(expression, \"this\")\n         this = f\" {this}\" if this else \"\"\n \n-        return f\"ALTER {iceberg}{kind}{exists}{only}{this}{on_cluster}{check}{self.sep()}{actions_sql}{not_valid}{options}{cascade}\"\n+        return f\"ALTER {iceberg}{kind}{exists}{only}{this}{on_cluster}{check}{self.sep()}{actions_sql}{not_valid}{options_sql}{partitions_sql}{cascade}\"\n \n     def altersession_sql(self, expression: exp.AlterSession) -> str:\n         items_sql = self.expressions(expression, flat=True)\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex 0e89da4..bc2d983 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -143,6 +143,11 @@ class MySQLGenerator(generator.Generator):\n     SUPPORTS_MEDIAN = False\n     UPDATE_STATEMENT_SUPPORTS_FROM = False\n \n+    ALTER_PARTITION_OPTIONS: t.ClassVar[tuple[type[exp.Expr], ...]] = (\n+        exp.PartitionByListProperty,\n+        exp.PartitionByRangeProperty,\n+    )\n+\n     TRANSFORMS = {\n         **generator.Generator.TRANSFORMS,\n         exp.ArrayAgg: rename_func(\"GROUP_CONCAT\"),\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 640b4d9..8080d7a 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -69,6 +69,12 @@ class StarRocksGenerator(MySQLGenerator):\n     # StarRocks doesn't support renaming a table with a database.\n     RENAME_TABLE_WITH_DB = False\n \n+    ALTER_PARTITION_OPTIONS = (\n+        *MySQLGenerator.ALTER_PARTITION_OPTIONS,\n+        exp.DistributedByProperty,\n+        exp.PartitionedByProperty,\n+    )\n+\n     CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}\n \n     TYPE_MAPPING = {\ndiff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 350c8e0..b9dcb46 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1922,6 +1922,9 @@ class Parser:\n     # Whether an ALTER can combine different actions, e.g. ADD COLUMN a INT, DROP COLUMN b\n     ALTER_TABLE_MIXED_ACTIONS: t.ClassVar = False\n \n+    # Whether an ALTER TABLE needs an action, e.g. MySQL's ALTER TABLE t ENGINE=InnoDB has none\n+    ALTER_TABLE_REQUIRES_ACTION: t.ClassVar = True\n+\n     # Whether changing a column's type with ALTER COLUMN requires the TYPE keyword\n     ALTER_COLUMN_TYPE_REQUIRES_KEYWORD: t.ClassVar = False\n \n@@ -9421,19 +9424,32 @@ class Parser:\n             this = None\n             check = None\n             cluster = None\n+            parser = self.ALTER_PARSERS.get(alter_token.text.upper())\n         else:\n             this = self._parse_table(schema=True, parse_partition=self.ALTER_TABLE_PARTITIONS)\n             check = self._match_text_seq(\"WITH\", \"CHECK\")\n             cluster = self._parse_on_property() if self._match(TokenType.ON) else None\n+            parser = (\n+                self.ALTER_PARSERS[self._prev.text.upper()]\n+                if self._match_texts(self.ALTER_PARSERS)\n+                else None\n+            )\n \n-            if self._next:\n-                self._advance()\n+        options: list[exp.Expr] = []\n+        if (\n+            not parser\n+            and alter_token.token_type == TokenType.TABLE\n+            and not self.ALTER_TABLE_REQUIRES_ACTION\n+        ):\n+            # Table options may precede the actions, e.g. MySQL's ENGINE=InnoDB, ADD COLUMN a INT.\n+            # A clause the property parser rejects, like PARTITION BY RANGE ... MAXVALUE, stays a Command\n+            properties = self._try_parse(self._parse_properties)\n+            options = properties.expressions if properties else []\n \n-        parser = self.ALTER_PARSERS.get(self._prev.text.upper()) if self._prev else None\n-        actions = ensure_list(parser(self)) if parser else None\n-        if actions:\n+        actions = ensure_list(parser(self) if parser else None)\n+        if actions or options:\n             # More actions of a different kind may follow, e.g. ADD COLUMN a INT, DROP COLUMN b.\n-            # The comma before them may have already been consumed by the previous action's parser\n+            # The comma before them may have already been consumed by the previous parser\n             while (\n                 self.ALTER_TABLE_MIXED_ACTIONS\n                 and (self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA)\n@@ -9448,8 +9464,8 @@ class Parser:\n                 actions.extend(parsed)\n \n             not_valid = self._match_text_seq(\"NOT\", \"VALID\")\n-            properties = self._parse_properties()\n-            options = properties.expressions if properties else []\n+            if properties := self._try_parse(self._parse_properties):\n+                options.extend(properties.expressions)\n             cascade = self.dialect.ALTER_TABLE_SUPPORTS_CASCADE and self._match_text_seq(\"CASCADE\")\n \n             if not self._curr:\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 8d6de4e..b6af071 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -252,8 +252,7 @@ class MySQLParser(parser.Parser):\n         **parser.Parser.ALTER_PARSERS,\n         \"CHANGE\": lambda self: self._parse_alter_table_modify(rename=True),\n         \"MODIFY\": lambda self: self._parse_alter_table_modify(),\n-        \"AUTO_INCREMENT\": lambda self: self._parse_property_assignment(exp.AutoIncrementProperty),\n-        \"COMMENT\": lambda self: self._parse_property_assignment(exp.SchemaCommentProperty),\n+        \"FORCE\": lambda self: self.expression(exp.ForceProperty()),\n     }\n \n     ALTER_ALTER_PARSERS = {\n@@ -301,6 +300,7 @@ class MySQLParser(parser.Parser):\n \n     ALTER_DROP_REQUIRES_COLUMN = False\n     ALTER_TABLE_MIXED_ACTIONS = True\n+    ALTER_TABLE_REQUIRES_ACTION = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n     VALUES_FOLLOWED_BY_PAREN = False\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.expressions.ddl:Alter.arg_types",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'actions'": [
+      "True",
+      "False"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.expressions.ddl:Alter.required_args",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'actions'"
+    ]
+   },
+   {
+    "key": "sqlglot.expressions.ddl:Create.arg_types",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'concurrently'": "False"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_PARSERS",
+    "kind": "dict",
+    "added": {
+     "'FORCE'": "<function MySQLParser.<lambda>>"
+    },
+    "removed": {
+     "'COMMENT'": "<function MySQLParser.<lambda>>",
+     "'AUTO_INCREMENT'": "<function MySQLParser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.ALTER_PARSERS",
+    "kind": "dict",
+    "added": {
+     "'FORCE'": "<function MySQLParser.<lambda>>"
+    },
+    "removed": {
+     "'COMMENT'": "<function MySQLParser.<lambda>>",
+     "'AUTO_INCREMENT'": "<function MySQLParser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generator:Generator.ALTER_PARTITION_OPTIONS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": []
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.ALTER_PARTITION_OPTIONS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "<class 'sqlglot.expressions.properties.PartitionByListProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionByRangeProperty'>"
+    ]
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.ALTER_PARTITION_OPTIONS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "<class 'sqlglot.expressions.properties.DistributedByProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionByListProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionByRangeProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionedByProperty'>"
+    ]
+   },
+   {
+    "key": "sqlglot.parser:Parser.ALTER_TABLE_REQUIRES_ACTION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_TABLE_REQUIRES_ACTION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15359",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15360",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, 'KEY_BLOCK_SIZE'=8"
+   },
+   {
+    "probe": "15361",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15362",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, 'KEY_BLOCK_SIZE'=8"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_athena.py::TestAthena::test_athena",
+   "tests/dialects/test_athena.py::TestAthena::test_ddl",
+   "tests/dialects/test_athena.py::TestAthena::test_ddl_quoting",
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_aggregate_function_column_with_any_keyword",
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse",
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_create_table_as_alias",
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_ddl",
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_refreshable_materialized_view",
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_sql_security",
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_table_functions",
+   "tests/dialects/test_databricks.py::TestDatabricks::test_databricks",
+   "tests/dialects/test_databricks.py::TestDatabricks::test_streaming_tables",
+   "tests/dialects/test_databricks.py::TestDatabricks::test_udf_environment_property",
+   "tests/dialects/test_databricks.py::TestDatabricks::test_udf_handler_property",
+   "tests/dialects/test_databricks.py::TestDatabricks::test_udf_parameter_style_property",
+   "tests/dialects/test_databricks.py::TestDatabricks::test_without_as",
+   "tests/dialects/test_dialect.py::TestDialect::test_cast",
+   "tests/dialects/test_dialect.py::TestDialect::test_create_sequence",
+   "tests/dialects/test_dialect.py::TestDialect::test_ddl",
+   "tests/dialects/test_dialect.py::TestDialect::test_limit"
+  ]
+ },
+ {
+  "task": "7f1cf60c88",
+  "variant": "bug",
+  "label": "no_effect",
+  "prompt": "MySQL ALTER TABLE statements that only set table options or partitioning, without an ADD/DROP/... action, fall back to a Command or are split wrongly, e.g. ALTER TABLE t FORCE, ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8 and ALTER TABLE t ENGINE=InnoDB PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1)). Actions should be optional: such statements should parse into exp.Alter, table options must be kept as options (generated comma-separated, after any actions), and partition definitions sqlglot cannot model should still fall back to a Command with the usual warning.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntype(parse_one(\"ALTER TABLE t FORCE\", read=\"mysql\")).__name__\n# currently: Command\n# expected:  Alter\n\nparse_one(\"ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8\n# expected:  ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8\n\nparse_one(\"ALTER TABLE t COMMENT='hi', ADD COLUMN c INT\", read=\"mysql\").sql(\"mysql\")\n# currently: ALTER TABLE t COMMENT='hi', ADD COLUMN c INT\n# expected:  ALTER TABLE t ADD COLUMN c INT, COMMENT='hi'\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/generator.py",
+   "line": 3230,
+   "op": "flip",
+   "code": "if p.output_name == column_name"
+  },
+  "code_diff": "diff --git a/sqlglot/expressions/ddl.py b/sqlglot/expressions/ddl.py\nindex 9bec04e..fd45c8c 100644\n--- a/sqlglot/expressions/ddl.py\n+++ b/sqlglot/expressions/ddl.py\n@@ -400,7 +400,7 @@ class Alter(Expression):\n     arg_types = {\n         \"this\": False,\n         \"kind\": True,\n-        \"actions\": True,\n+        \"actions\": False,\n         \"exists\": False,\n         \"only\": False,\n         \"options\": False,\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex d5877d8..bff7fd0 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -882,6 +882,10 @@ class Generator:\n         exp.Mod,\n     )\n \n+    # ALTER options that follow the others without a comma, e.g. MySQL's\n+    # ENGINE=InnoDB PARTITION BY LIST (...) or StarRocks' PARTITION BY ... DISTRIBUTED BY ...\n+    ALTER_PARTITION_OPTIONS: t.ClassVar[tuple[type[exp.Expr], ...]] = ()\n+\n     SAFE_JSON_PATH_KEY_RE: t.ClassVar = exp.SAFE_IDENTIFIER_RE\n \n     SENTINEL_LINE_BREAK = \"__SQLGLOT__LB__\"\n@@ -3223,7 +3227,7 @@ class Generator:\n         matched: list[exp.Expr] = [\n             p.this if isinstance(p, exp.Alias) else p\n             for p in ancestor.selects\n-            if p.output_name == column_name\n+            if p.output_name != column_name\n         ]\n         match = matched[0] if len(matched) == 1 else None\n \n@@ -4415,10 +4419,12 @@ class Generator:\n         return f\"SET {exprs}\"\n \n     def alter_sql(self, expression: exp.Alter) -> str:\n-        actions = expression.args[\"actions\"]\n+        actions = expression.actions\n \n-        if not self.dialect.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN and isinstance(\n-            actions[0], exp.ColumnDef\n+        if (\n+            not self.dialect.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN\n+            and actions\n+            and isinstance(actions[0], exp.ColumnDef)\n         ):\n             actions_sql = self.expressions(expression, key=\"actions\", flat=True)\n             actions_sql = f\"ADD {actions_sql}\"\n@@ -4445,8 +4451,18 @@ class Generator:\n         on_cluster = self.sql(expression, \"cluster\")\n         on_cluster = f\" {on_cluster}\" if on_cluster else \"\"\n         only = \" ONLY\" if expression.args.get(\"only\") else \"\"\n-        options = self.expressions(expression, key=\"options\")\n-        options = f\", {options}\" if options else \"\"\n+        options = expression.args.get(\"options\") or []\n+        options_sql = self.expressions(\n+            sqls=[o for o in options if not isinstance(o, self.ALTER_PARTITION_OPTIONS)]\n+        )\n+        options_sql = f\", {options_sql}\" if options_sql and actions_sql else options_sql\n+        partitions_sql = self.expressions(\n+            sqls=[o for o in options if isinstance(o, self.ALTER_PARTITION_OPTIONS)],\n+            sep=\" \",\n+            flat=True,\n+        )\n+        if partitions_sql and (actions_sql or options_sql):\n+            partitions_sql = f\" {partitions_sql}\"\n         kind = self.sql(expression, \"kind\")\n         not_valid = \" NOT VALID\" if expression.args.get(\"not_valid\") else \"\"\n         check = \" WITH CHECK\" if expression.args.get(\"check\") else \"\"\n@@ -4458,7 +4474,7 @@ class Generator:\n         this = self.sql(expression, \"this\")\n         this = f\" {this}\" if this else \"\"\n \n-        return f\"ALTER {iceberg}{kind}{exists}{only}{this}{on_cluster}{check}{self.sep()}{actions_sql}{not_valid}{options}{cascade}\"\n+        return f\"ALTER {iceberg}{kind}{exists}{only}{this}{on_cluster}{check}{self.sep()}{actions_sql}{not_valid}{options_sql}{partitions_sql}{cascade}\"\n \n     def altersession_sql(self, expression: exp.AlterSession) -> str:\n         items_sql = self.expressions(expression, flat=True)\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex 0e89da4..bc2d983 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -143,6 +143,11 @@ class MySQLGenerator(generator.Generator):\n     SUPPORTS_MEDIAN = False\n     UPDATE_STATEMENT_SUPPORTS_FROM = False\n \n+    ALTER_PARTITION_OPTIONS: t.ClassVar[tuple[type[exp.Expr], ...]] = (\n+        exp.PartitionByListProperty,\n+        exp.PartitionByRangeProperty,\n+    )\n+\n     TRANSFORMS = {\n         **generator.Generator.TRANSFORMS,\n         exp.ArrayAgg: rename_func(\"GROUP_CONCAT\"),\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 640b4d9..8080d7a 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -69,6 +69,12 @@ class StarRocksGenerator(MySQLGenerator):\n     # StarRocks doesn't support renaming a table with a database.\n     RENAME_TABLE_WITH_DB = False\n \n+    ALTER_PARTITION_OPTIONS = (\n+        *MySQLGenerator.ALTER_PARTITION_OPTIONS,\n+        exp.DistributedByProperty,\n+        exp.PartitionedByProperty,\n+    )\n+\n     CAST_MAPPING: t.ClassVar[dict[exp.DType, str]] = {}\n \n     TYPE_MAPPING = {\ndiff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 350c8e0..b9dcb46 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1922,6 +1922,9 @@ class Parser:\n     # Whether an ALTER can combine different actions, e.g. ADD COLUMN a INT, DROP COLUMN b\n     ALTER_TABLE_MIXED_ACTIONS: t.ClassVar = False\n \n+    # Whether an ALTER TABLE needs an action, e.g. MySQL's ALTER TABLE t ENGINE=InnoDB has none\n+    ALTER_TABLE_REQUIRES_ACTION: t.ClassVar = True\n+\n     # Whether changing a column's type with ALTER COLUMN requires the TYPE keyword\n     ALTER_COLUMN_TYPE_REQUIRES_KEYWORD: t.ClassVar = False\n \n@@ -9421,19 +9424,32 @@ class Parser:\n             this = None\n             check = None\n             cluster = None\n+            parser = self.ALTER_PARSERS.get(alter_token.text.upper())\n         else:\n             this = self._parse_table(schema=True, parse_partition=self.ALTER_TABLE_PARTITIONS)\n             check = self._match_text_seq(\"WITH\", \"CHECK\")\n             cluster = self._parse_on_property() if self._match(TokenType.ON) else None\n+            parser = (\n+                self.ALTER_PARSERS[self._prev.text.upper()]\n+                if self._match_texts(self.ALTER_PARSERS)\n+                else None\n+            )\n \n-            if self._next:\n-                self._advance()\n+        options: list[exp.Expr] = []\n+        if (\n+            not parser\n+            and alter_token.token_type == TokenType.TABLE\n+            and not self.ALTER_TABLE_REQUIRES_ACTION\n+        ):\n+            # Table options may precede the actions, e.g. MySQL's ENGINE=InnoDB, ADD COLUMN a INT.\n+            # A clause the property parser rejects, like PARTITION BY RANGE ... MAXVALUE, stays a Command\n+            properties = self._try_parse(self._parse_properties)\n+            options = properties.expressions if properties else []\n \n-        parser = self.ALTER_PARSERS.get(self._prev.text.upper()) if self._prev else None\n-        actions = ensure_list(parser(self)) if parser else None\n-        if actions:\n+        actions = ensure_list(parser(self) if parser else None)\n+        if actions or options:\n             # More actions of a different kind may follow, e.g. ADD COLUMN a INT, DROP COLUMN b.\n-            # The comma before them may have already been consumed by the previous action's parser\n+            # The comma before them may have already been consumed by the previous parser\n             while (\n                 self.ALTER_TABLE_MIXED_ACTIONS\n                 and (self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA)\n@@ -9448,8 +9464,8 @@ class Parser:\n                 actions.extend(parsed)\n \n             not_valid = self._match_text_seq(\"NOT\", \"VALID\")\n-            properties = self._parse_properties()\n-            options = properties.expressions if properties else []\n+            if properties := self._try_parse(self._parse_properties):\n+                options.extend(properties.expressions)\n             cascade = self.dialect.ALTER_TABLE_SUPPORTS_CASCADE and self._match_text_seq(\"CASCADE\")\n \n             if not self._curr:\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 8d6de4e..b6af071 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -252,8 +252,7 @@ class MySQLParser(parser.Parser):\n         **parser.Parser.ALTER_PARSERS,\n         \"CHANGE\": lambda self: self._parse_alter_table_modify(rename=True),\n         \"MODIFY\": lambda self: self._parse_alter_table_modify(),\n-        \"AUTO_INCREMENT\": lambda self: self._parse_property_assignment(exp.AutoIncrementProperty),\n-        \"COMMENT\": lambda self: self._parse_property_assignment(exp.SchemaCommentProperty),\n+        \"FORCE\": lambda self: self.expression(exp.ForceProperty()),\n     }\n \n     ALTER_ALTER_PARSERS = {\n@@ -301,6 +300,7 @@ class MySQLParser(parser.Parser):\n \n     ALTER_DROP_REQUIRES_COLUMN = False\n     ALTER_TABLE_MIXED_ACTIONS = True\n+    ALTER_TABLE_REQUIRES_ACTION = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n     VALUES_FOLLOWED_BY_PAREN = False\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.expressions.ddl:Alter.arg_types",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'actions'": [
+      "True",
+      "False"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.expressions.ddl:Alter.required_args",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'actions'"
+    ]
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_PARSERS",
+    "kind": "dict",
+    "added": {
+     "'FORCE'": "<function MySQLParser.<lambda>>"
+    },
+    "removed": {
+     "'COMMENT'": "<function MySQLParser.<lambda>>",
+     "'AUTO_INCREMENT'": "<function MySQLParser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.singlestore:SingleStoreParser.ALTER_PARSERS",
+    "kind": "dict",
+    "added": {
+     "'FORCE'": "<function MySQLParser.<lambda>>"
+    },
+    "removed": {
+     "'COMMENT'": "<function MySQLParser.<lambda>>",
+     "'AUTO_INCREMENT'": "<function MySQLParser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generator:Generator.ALTER_PARTITION_OPTIONS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": []
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.ALTER_PARTITION_OPTIONS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "<class 'sqlglot.expressions.properties.PartitionByListProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionByRangeProperty'>"
+    ]
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.ALTER_PARTITION_OPTIONS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "<class 'sqlglot.expressions.properties.DistributedByProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionByListProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionByRangeProperty'>",
+     "<class 'sqlglot.expressions.properties.PartitionedByProperty'>"
+    ]
+   },
+   {
+    "key": "sqlglot.parser:Parser.ALTER_TABLE_REQUIRES_ACTION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_TABLE_REQUIRES_ACTION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15359",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15360",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, 'KEY_BLOCK_SIZE'=8"
+   },
+   {
+    "probe": "15361",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "15362",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED, 'KEY_BLOCK_SIZE'=8"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_dialect.py::TestDialect::test_unsupported_null_ordering",
+   "tests/dialects/test_mysql.py::TestMySQL::test_null_ordering_simulation_resolves_ordered_against_projection",
+   "tests/dialects/test_tsql.py::TestTSQL::test_null_ordering_simulation_resolves_ordered_against_projection",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_order"
+  ]
+ }
+]
