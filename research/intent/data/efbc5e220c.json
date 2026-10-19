@@ -1,0 +1,3894 @@
+[
+ {
+  "task": "efbc5e220c",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "fix(postgres)!: add missing TO_CHAR format tokens (Mon, Month, Day, Dy, AM/PM, HH) (#7477)\n\nAdd bare (non-TM-prefixed) month names, weekday names, AM/PM meridiem\nindicators, and bare HH to Postgres TIME_MAPPING. These tokens are\nstandard PostgreSQL TO_CHAR format specifiers but were not being\nconverted during transpilation, causing issues when targeting dialects\nlike ClickHouse.\n\nPreviously, `Day` was mangled to `%uay` because the single-char `D`\nrule matched first. The trie correctly handles longer matches, so\n`Day` \u2192 `%A`, `Dy` \u2192 `%a` now take precedence over `D` \u2192 `%u`.\n\nAdd INVERSE_TIME_MAPPING to prefer the canonical bare forms (Mon, Day,\nDy, Month, AM, HH12) when generating Postgres SQL from the internal\nstrftime representation.\n\nFixes #7476",
+  "code_diff": "diff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 081bd1f..015643f 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -21,12 +21,20 @@ class Postgres(Dialect):\n     }\n \n     TIME_MAPPING = {\n+        \"AM\": \"%p\",  # AM/PM meridiem indicator\n+        \"A.M.\": \"%p\",  # AM/PM with periods\n         \"d\": \"%u\",  # 1-based day of week\n         \"D\": \"%u\",  # 1-based day of week\n+        \"day\": \"%A\",  # full weekday name (lowercase)\n+        \"Day\": \"%A\",  # full weekday name (capitalized)\n+        \"DAY\": \"%A\",  # full weekday name (uppercase)\n         \"dd\": \"%d\",  # day of month\n         \"DD\": \"%d\",  # day of month\n         \"ddd\": \"%j\",  # zero padded day of year\n         \"DDD\": \"%j\",  # zero padded day of year\n+        \"dy\": \"%a\",  # abbreviated weekday name (lowercase)\n+        \"Dy\": \"%a\",  # abbreviated weekday name (capitalized)\n+        \"DY\": \"%a\",  # abbreviated weekday name (uppercase)\n         \"FMDD\": \"%-d\",  # - is no leading zero for Python; same for FM in postgres\n         \"FMDDD\": \"%-j\",  # day of year\n         \"FMHH12\": \"%-I\",  # 9\n@@ -34,13 +42,27 @@ class Postgres(Dialect):\n         \"FMMI\": \"%-M\",  # Minute\n         \"FMMM\": \"%-m\",  # 1\n         \"FMSS\": \"%-S\",  # Second\n+        \"hh\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n+        \"HH\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n         \"HH12\": \"%I\",  # 09\n         \"HH24\": \"%H\",  # 09\n         \"mi\": \"%M\",  # zero padded minute\n         \"MI\": \"%M\",  # zero padded minute\n         \"mm\": \"%m\",  # 01\n         \"MM\": \"%m\",  # 01\n+        \"mon\": \"%b\",  # abbreviated month name (lowercase)\n+        \"Mon\": \"%b\",  # abbreviated month name (capitalized)\n+        \"MON\": \"%b\",  # abbreviated month name (uppercase)\n+        \"month\": \"%B\",  # full month name (lowercase)\n+        \"Month\": \"%B\",  # full month name (capitalized)\n+        \"MONTH\": \"%B\",  # full month name (uppercase)\n         \"OF\": \"%z\",  # utc offset\n+        \"PM\": \"%p\",  # PG treats AM/PM as synonymous; both print actual meridiem\n+        \"P.M.\": \"%p\",\n+        \"am\": \"%p\",\n+        \"a.m.\": \"%p\",\n+        \"pm\": \"%p\",\n+        \"p.m.\": \"%p\",\n         \"ss\": \"%S\",  # zero padded second\n         \"SS\": \"%S\",  # zero padded second\n         \"TMDay\": \"%A\",  # TM is locale dependent\n@@ -57,6 +79,17 @@ class Postgres(Dialect):\n         \"YYYY\": \"%Y\",  # 2015\n     }\n \n+    # Prefer bare forms (Mon, Day, Dy, Month) over TM-prefixed forms when\n+    # generating Postgres SQL from the internal strftime representation.\n+    INVERSE_TIME_MAPPING = {\n+        \"%A\": \"Day\",\n+        \"%a\": \"Dy\",\n+        \"%b\": \"Mon\",\n+        \"%B\": \"Month\",\n+        \"%I\": \"HH12\",\n+        \"%p\": \"AM\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\")]\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'AM'"
+    },
+    "removed": {},
+    "changed": {
+     "'%B'": [
+      "'TMMonth'",
+      "'Month'"
+     ],
+     "'%a'": [
+      "'TMDy'",
+      "'Dy'"
+     ],
+     "'%A'": [
+      "'TMDay'",
+      "'Day'"
+     ],
+     "'%b'": [
+      "'TMMon'",
+      "'Mon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'P.M.'": "'%p'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'HH'": "'%I'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'MON'": "'%b'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {
+     "'%I'": [
+      "'HH'",
+      "'HH12'"
+     ],
+     "'%b'": [
+      "'MON'",
+      "'TMMon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'P.M.'": "'%p'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "7008",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7009",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7010",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7011",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7012",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7013",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7014",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7015",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7017",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7018",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7019",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "12648",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12649",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12650",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12652",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12653",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12654",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12656",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12657",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12658",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12660",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12661",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12662",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12663",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12664",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12665",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12666",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12668",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12669",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12670",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12672",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12673",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12674",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   }
+  ],
+  "new_probes": 28
+ },
+ {
+  "task": "efbc5e220c",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(postgres)!: add missing TO_CHAR format tokens (Mon, Month, Day, Dy, AM/PM, HH) (#7477)\n\nAdd bare (non-TM-prefixed) month names, weekday names, AM/PM meridiem\nindicators, and bare HH to Postgres TIME_MAPPING. These tokens are\nstandard PostgreSQL TO_CHAR format specifiers but were not being\nconverted during transpilation, causing issues when targeting dialects\nlike ClickHouse.\n\nPreviously, `Day` was mangled to `%uay` because the single-char `D`\nrule matched first. The trie correctly handles longer matches, so\n`Day` \u2192 `%A`, `Dy` \u2192 `%a` now take precedence over `D` \u2192 `%u`.\n\nAdd INVERSE_TIME_MAPPING to prefer the canonical bare forms (Mon, Day,\nDy, Month, AM, HH12) when generating Postgres SQL from the internal\nstrftime representation.\n\nFixes #7476",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/dialects/postgres.py",
+   "line": 17,
+   "op": "flip",
+   "code": "TABLES_REFERENCEABLE_AS_COLUMNS = True"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 081bd1f..de45e27 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -14,19 +14,27 @@ class Postgres(Dialect):\n     NULL_ORDERING = \"nulls_are_large\"\n     TIME_FORMAT = \"'YYYY-MM-DD HH24:MI:SS'\"\n     TABLESAMPLE_SIZE_IS_PERCENT = True\n-    TABLES_REFERENCEABLE_AS_COLUMNS = True\n+    TABLES_REFERENCEABLE_AS_COLUMNS = False\n \n     DEFAULT_FUNCTIONS_COLUMN_NAMES = {\n         exp.ExplodingGenerateSeries: \"generate_series\",\n     }\n \n     TIME_MAPPING = {\n+        \"AM\": \"%p\",  # AM/PM meridiem indicator\n+        \"A.M.\": \"%p\",  # AM/PM with periods\n         \"d\": \"%u\",  # 1-based day of week\n         \"D\": \"%u\",  # 1-based day of week\n+        \"day\": \"%A\",  # full weekday name (lowercase)\n+        \"Day\": \"%A\",  # full weekday name (capitalized)\n+        \"DAY\": \"%A\",  # full weekday name (uppercase)\n         \"dd\": \"%d\",  # day of month\n         \"DD\": \"%d\",  # day of month\n         \"ddd\": \"%j\",  # zero padded day of year\n         \"DDD\": \"%j\",  # zero padded day of year\n+        \"dy\": \"%a\",  # abbreviated weekday name (lowercase)\n+        \"Dy\": \"%a\",  # abbreviated weekday name (capitalized)\n+        \"DY\": \"%a\",  # abbreviated weekday name (uppercase)\n         \"FMDD\": \"%-d\",  # - is no leading zero for Python; same for FM in postgres\n         \"FMDDD\": \"%-j\",  # day of year\n         \"FMHH12\": \"%-I\",  # 9\n@@ -34,13 +42,27 @@ class Postgres(Dialect):\n         \"FMMI\": \"%-M\",  # Minute\n         \"FMMM\": \"%-m\",  # 1\n         \"FMSS\": \"%-S\",  # Second\n+        \"hh\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n+        \"HH\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n         \"HH12\": \"%I\",  # 09\n         \"HH24\": \"%H\",  # 09\n         \"mi\": \"%M\",  # zero padded minute\n         \"MI\": \"%M\",  # zero padded minute\n         \"mm\": \"%m\",  # 01\n         \"MM\": \"%m\",  # 01\n+        \"mon\": \"%b\",  # abbreviated month name (lowercase)\n+        \"Mon\": \"%b\",  # abbreviated month name (capitalized)\n+        \"MON\": \"%b\",  # abbreviated month name (uppercase)\n+        \"month\": \"%B\",  # full month name (lowercase)\n+        \"Month\": \"%B\",  # full month name (capitalized)\n+        \"MONTH\": \"%B\",  # full month name (uppercase)\n         \"OF\": \"%z\",  # utc offset\n+        \"PM\": \"%p\",  # PG treats AM/PM as synonymous; both print actual meridiem\n+        \"P.M.\": \"%p\",\n+        \"am\": \"%p\",\n+        \"a.m.\": \"%p\",\n+        \"pm\": \"%p\",\n+        \"p.m.\": \"%p\",\n         \"ss\": \"%S\",  # zero padded second\n         \"SS\": \"%S\",  # zero padded second\n         \"TMDay\": \"%A\",  # TM is locale dependent\n@@ -57,6 +79,17 @@ class Postgres(Dialect):\n         \"YYYY\": \"%Y\",  # 2015\n     }\n \n+    # Prefer bare forms (Mon, Day, Dy, Month) over TM-prefixed forms when\n+    # generating Postgres SQL from the internal strftime representation.\n+    INVERSE_TIME_MAPPING = {\n+        \"%A\": \"Day\",\n+        \"%a\": \"Dy\",\n+        \"%b\": \"Mon\",\n+        \"%B\": \"Month\",\n+        \"%I\": \"HH12\",\n+        \"%p\": \"AM\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\")]\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'AM'"
+    },
+    "removed": {},
+    "changed": {
+     "'%B'": [
+      "'TMMonth'",
+      "'Month'"
+     ],
+     "'%a'": [
+      "'TMDy'",
+      "'Dy'"
+     ],
+     "'%A'": [
+      "'TMDay'",
+      "'Day'"
+     ],
+     "'%b'": [
+      "'TMMon'",
+      "'Mon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TABLES_REFERENCEABLE_AS_COLUMNS",
+    "kind": "value",
+    "before": "True",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'P.M.'": "'%p'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'HH'": "'%I'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'MON'": "'%b'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {
+     "'%I'": [
+      "'HH'",
+      "'HH12'"
+     ],
+     "'%b'": [
+      "'MON'",
+      "'TMMon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'P.M.'": "'%p'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "7008",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7009",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7010",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7011",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7012",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7013",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7014",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7015",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7017",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7018",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7019",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "12648",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12649",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12650",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12652",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12653",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12654",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12656",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12657",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12658",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12660",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12661",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12662",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12663",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12664",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12665",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12666",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12668",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12669",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12670",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12672",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12673",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12674",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ },
+ {
+  "task": "efbc5e220c",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(postgres)!: add missing TO_CHAR format tokens (Mon, Month, Day, Dy, AM/PM, HH) (#7477)\n\nAdd bare (non-TM-prefixed) month names, weekday names, AM/PM meridiem\nindicators, and bare HH to Postgres TIME_MAPPING. These tokens are\nstandard PostgreSQL TO_CHAR format specifiers but were not being\nconverted during transpilation, causing issues when targeting dialects\nlike ClickHouse.\n\nPreviously, `Day` was mangled to `%uay` because the single-char `D`\nrule matched first. The trie correctly handles longer matches, so\n`Day` \u2192 `%A`, `Dy` \u2192 `%a` now take precedence over `D` \u2192 `%u`.\n\nAdd INVERSE_TIME_MAPPING to prefer the canonical bare forms (Mon, Day,\nDy, Month, AM, HH12) when generating Postgres SQL from the internal\nstrftime representation.\n\nFixes #7476",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/dialects/postgres.py",
+   "line": 108,
+   "op": "delete",
+   "code": "\"<@\": TokenType.LT_AT,"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 081bd1f..5152aa6 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -21,12 +21,20 @@ class Postgres(Dialect):\n     }\n \n     TIME_MAPPING = {\n+        \"AM\": \"%p\",  # AM/PM meridiem indicator\n+        \"A.M.\": \"%p\",  # AM/PM with periods\n         \"d\": \"%u\",  # 1-based day of week\n         \"D\": \"%u\",  # 1-based day of week\n+        \"day\": \"%A\",  # full weekday name (lowercase)\n+        \"Day\": \"%A\",  # full weekday name (capitalized)\n+        \"DAY\": \"%A\",  # full weekday name (uppercase)\n         \"dd\": \"%d\",  # day of month\n         \"DD\": \"%d\",  # day of month\n         \"ddd\": \"%j\",  # zero padded day of year\n         \"DDD\": \"%j\",  # zero padded day of year\n+        \"dy\": \"%a\",  # abbreviated weekday name (lowercase)\n+        \"Dy\": \"%a\",  # abbreviated weekday name (capitalized)\n+        \"DY\": \"%a\",  # abbreviated weekday name (uppercase)\n         \"FMDD\": \"%-d\",  # - is no leading zero for Python; same for FM in postgres\n         \"FMDDD\": \"%-j\",  # day of year\n         \"FMHH12\": \"%-I\",  # 9\n@@ -34,13 +42,27 @@ class Postgres(Dialect):\n         \"FMMI\": \"%-M\",  # Minute\n         \"FMMM\": \"%-m\",  # 1\n         \"FMSS\": \"%-S\",  # Second\n+        \"hh\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n+        \"HH\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n         \"HH12\": \"%I\",  # 09\n         \"HH24\": \"%H\",  # 09\n         \"mi\": \"%M\",  # zero padded minute\n         \"MI\": \"%M\",  # zero padded minute\n         \"mm\": \"%m\",  # 01\n         \"MM\": \"%m\",  # 01\n+        \"mon\": \"%b\",  # abbreviated month name (lowercase)\n+        \"Mon\": \"%b\",  # abbreviated month name (capitalized)\n+        \"MON\": \"%b\",  # abbreviated month name (uppercase)\n+        \"month\": \"%B\",  # full month name (lowercase)\n+        \"Month\": \"%B\",  # full month name (capitalized)\n+        \"MONTH\": \"%B\",  # full month name (uppercase)\n         \"OF\": \"%z\",  # utc offset\n+        \"PM\": \"%p\",  # PG treats AM/PM as synonymous; both print actual meridiem\n+        \"P.M.\": \"%p\",\n+        \"am\": \"%p\",\n+        \"a.m.\": \"%p\",\n+        \"pm\": \"%p\",\n+        \"p.m.\": \"%p\",\n         \"ss\": \"%S\",  # zero padded second\n         \"SS\": \"%S\",  # zero padded second\n         \"TMDay\": \"%A\",  # TM is locale dependent\n@@ -57,6 +79,17 @@ class Postgres(Dialect):\n         \"YYYY\": \"%Y\",  # 2015\n     }\n \n+    # Prefer bare forms (Mon, Day, Dy, Month) over TM-prefixed forms when\n+    # generating Postgres SQL from the internal strftime representation.\n+    INVERSE_TIME_MAPPING = {\n+        \"%A\": \"Day\",\n+        \"%a\": \"Dy\",\n+        \"%b\": \"Mon\",\n+        \"%B\": \"Month\",\n+        \"%I\": \"HH12\",\n+        \"%p\": \"AM\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\")]\n@@ -72,7 +105,7 @@ class Postgres(Dialect):\n             \"~\": TokenType.RLIKE,\n             \"@@\": TokenType.DAT,\n             \"@>\": TokenType.AT_GT,\n-            \"<@\": TokenType.LT_AT,\n+\n             \"?&\": TokenType.QMARK_AMP,\n             \"?|\": TokenType.QMARK_PIPE,\n             \"#-\": TokenType.HASH_DASH,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'AM'"
+    },
+    "removed": {},
+    "changed": {
+     "'%B'": [
+      "'TMMonth'",
+      "'Month'"
+     ],
+     "'%a'": [
+      "'TMDy'",
+      "'Dy'"
+     ],
+     "'%A'": [
+      "'TMDay'",
+      "'Day'"
+     ],
+     "'%b'": [
+      "'TMMon'",
+      "'Mon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'P.M.'": "'%p'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'HH'": "'%I'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'MON'": "'%b'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'<@'": "<TokenType.LT_AT: 53>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.Tokenizer._KEYWORD_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'<'": [
+      "{'=': {0: True, '>': {0: True}}, '>': {0: True}, '-': {'>': {0: True}}, '@': {0: True}}",
+      "{'=': {0: True, '>': {0: True}}, '>': {0: True}, '-': {'>': {0: True}}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {
+     "'%I'": [
+      "'HH'",
+      "'HH12'"
+     ],
+     "'%b'": [
+      "'MON'",
+      "'TMMon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'P.M.'": "'%p'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'<@'": "<TokenType.LT_AT: 53>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.Tokenizer._KEYWORD_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'<'": [
+      "{'=': {0: True, '>': {0: True}}, '>': {0: True}, '-': {'>': {0: True}}, '@': {0: True}}",
+      "{'=': {0: True, '>': {0: True}}, '>': {0: True}, '-': {'>': {0: True}}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'<@'": "<TokenType.LT_AT: 53>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.Tokenizer._KEYWORD_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'<'": [
+      "{'=': {0: True, '>': {0: True}}, '>': {0: True}, '-': {'>': {0: True}}, '@': {0: True}}",
+      "{'=': {0: True, '>': {0: True}}, '>': {0: True}, '-': {'>': {0: True}}}"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "6660",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT ARRAY[1, 2, 3] <@ ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2] @> ARRAY[1, 2, 3]",
+    "after": "SELECT ARRAY[1, 2, 3] < ARRAY[1, 2]"
+   },
+   {
+    "probe": "6661",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT ARRAY[1, 2, 3] <@ ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2] @> ARRAY[1, 2, 3]",
+    "after": "SELECT ARRAY[1, 2, 3] < ARRAY[1, 2]"
+   },
+   {
+    "probe": "6662",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT ARRAY[1, 2, 3] <@ ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2] @> ARRAY[1, 2, 3]",
+    "after": "SELECT ARRAY[1, 2, 3] < ARRAY[1, 2]"
+   },
+   {
+    "probe": "6663",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT ARRAY[1, 2, 3] <@ ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2] @> ARRAY[1, 2, 3]",
+    "after": "SELECT ARRAY[1, 2, 3] < ARRAY[1, 2]"
+   },
+   {
+    "probe": "7008",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7009",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7010",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7011",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7012",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7013",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7014",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7015",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7017",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7018",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7019",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "12648",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12649",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12650",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12652",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12653",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12654",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12656",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12657",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12658",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12660",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12661",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12662",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12663",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12664",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12665",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12666",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12668",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12669",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12670",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12672",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12673",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12674",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 4,
+   "imports": 6
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_postgres.py::TestPostgres::test_ddl",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres"
+  ]
+ },
+ {
+  "task": "efbc5e220c",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(postgres)!: add missing TO_CHAR format tokens (Mon, Month, Day, Dy, AM/PM, HH) (#7477)\n\nAdd bare (non-TM-prefixed) month names, weekday names, AM/PM meridiem\nindicators, and bare HH to Postgres TIME_MAPPING. These tokens are\nstandard PostgreSQL TO_CHAR format specifiers but were not being\nconverted during transpilation, causing issues when targeting dialects\nlike ClickHouse.\n\nPreviously, `Day` was mangled to `%uay` because the single-char `D`\nrule matched first. The trie correctly handles longer matches, so\n`Day` \u2192 `%A`, `Dy` \u2192 `%a` now take precedence over `D` \u2192 `%u`.\n\nAdd INVERSE_TIME_MAPPING to prefer the canonical bare forms (Mon, Day,\nDy, Month, AM, HH12) when generating Postgres SQL from the internal\nstrftime representation.\n\nFixes #7476",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/dialects/postgres.py",
+   "line": 105,
+   "op": "delete",
+   "code": "\"~\": TokenType.RLIKE,"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 081bd1f..c7347f6 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -21,12 +21,20 @@ class Postgres(Dialect):\n     }\n \n     TIME_MAPPING = {\n+        \"AM\": \"%p\",  # AM/PM meridiem indicator\n+        \"A.M.\": \"%p\",  # AM/PM with periods\n         \"d\": \"%u\",  # 1-based day of week\n         \"D\": \"%u\",  # 1-based day of week\n+        \"day\": \"%A\",  # full weekday name (lowercase)\n+        \"Day\": \"%A\",  # full weekday name (capitalized)\n+        \"DAY\": \"%A\",  # full weekday name (uppercase)\n         \"dd\": \"%d\",  # day of month\n         \"DD\": \"%d\",  # day of month\n         \"ddd\": \"%j\",  # zero padded day of year\n         \"DDD\": \"%j\",  # zero padded day of year\n+        \"dy\": \"%a\",  # abbreviated weekday name (lowercase)\n+        \"Dy\": \"%a\",  # abbreviated weekday name (capitalized)\n+        \"DY\": \"%a\",  # abbreviated weekday name (uppercase)\n         \"FMDD\": \"%-d\",  # - is no leading zero for Python; same for FM in postgres\n         \"FMDDD\": \"%-j\",  # day of year\n         \"FMHH12\": \"%-I\",  # 9\n@@ -34,13 +42,27 @@ class Postgres(Dialect):\n         \"FMMI\": \"%-M\",  # Minute\n         \"FMMM\": \"%-m\",  # 1\n         \"FMSS\": \"%-S\",  # Second\n+        \"hh\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n+        \"HH\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n         \"HH12\": \"%I\",  # 09\n         \"HH24\": \"%H\",  # 09\n         \"mi\": \"%M\",  # zero padded minute\n         \"MI\": \"%M\",  # zero padded minute\n         \"mm\": \"%m\",  # 01\n         \"MM\": \"%m\",  # 01\n+        \"mon\": \"%b\",  # abbreviated month name (lowercase)\n+        \"Mon\": \"%b\",  # abbreviated month name (capitalized)\n+        \"MON\": \"%b\",  # abbreviated month name (uppercase)\n+        \"month\": \"%B\",  # full month name (lowercase)\n+        \"Month\": \"%B\",  # full month name (capitalized)\n+        \"MONTH\": \"%B\",  # full month name (uppercase)\n         \"OF\": \"%z\",  # utc offset\n+        \"PM\": \"%p\",  # PG treats AM/PM as synonymous; both print actual meridiem\n+        \"P.M.\": \"%p\",\n+        \"am\": \"%p\",\n+        \"a.m.\": \"%p\",\n+        \"pm\": \"%p\",\n+        \"p.m.\": \"%p\",\n         \"ss\": \"%S\",  # zero padded second\n         \"SS\": \"%S\",  # zero padded second\n         \"TMDay\": \"%A\",  # TM is locale dependent\n@@ -57,6 +79,17 @@ class Postgres(Dialect):\n         \"YYYY\": \"%Y\",  # 2015\n     }\n \n+    # Prefer bare forms (Mon, Day, Dy, Month) over TM-prefixed forms when\n+    # generating Postgres SQL from the internal strftime representation.\n+    INVERSE_TIME_MAPPING = {\n+        \"%A\": \"Day\",\n+        \"%a\": \"Dy\",\n+        \"%b\": \"Mon\",\n+        \"%B\": \"Month\",\n+        \"%I\": \"HH12\",\n+        \"%p\": \"AM\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\")]\n@@ -69,7 +102,7 @@ class Postgres(Dialect):\n \n         KEYWORDS = {\n             **tokens.Tokenizer.KEYWORDS,\n-            \"~\": TokenType.RLIKE,\n+\n             \"@@\": TokenType.DAT,\n             \"@>\": TokenType.AT_GT,\n             \"<@\": TokenType.LT_AT,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'AM'"
+    },
+    "removed": {},
+    "changed": {
+     "'%B'": [
+      "'TMMonth'",
+      "'Month'"
+     ],
+     "'%a'": [
+      "'TMDy'",
+      "'Dy'"
+     ],
+     "'%A'": [
+      "'TMDay'",
+      "'Day'"
+     ],
+     "'%b'": [
+      "'TMMon'",
+      "'Mon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'P.M.'": "'%p'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'HH'": "'%I'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'MON'": "'%b'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'~'": "<TokenType.RLIKE: 376>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.Tokenizer._KEYWORD_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'~'": [
+      "{'~': {'~': {0: True}, 0: True, '*': {0: True}}, '*': {0: True}, 0: True}",
+      "{'~': {'~': {0: True}, 0: True, '*': {0: True}}, '*': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {
+     "'%I'": [
+      "'HH'",
+      "'HH12'"
+     ],
+     "'%b'": [
+      "'MON'",
+      "'TMMon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'P.M.'": "'%p'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'~'": "<TokenType.RLIKE: 376>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.Tokenizer._KEYWORD_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'~'": [
+      "{'~': {'~': {0: True}, 0: True, '*': {0: True}}, '*': {0: True}, 0: True}",
+      "{'~': {'~': {0: True}, 0: True, '*': {0: True}}, '*': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'~'": "<TokenType.RLIKE: 376>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.Tokenizer._KEYWORD_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'~'": [
+      "{'~': {'~': {0: True}, 0: True, '*': {0: True}}, '*': {0: True}, 0: True}",
+      "{'~': {'~': {0: True}, 0: True, '*': {0: True}}, '*': {0: True}}"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "5480",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "'thomas' ~ '.*thomas.*'",
+    "before": "'thomas' ~ '.*thomas.*'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "5481",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "'thomas' ~ '.*thomas.*'",
+    "before": "'thomas' ~ '.*thomas.*'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "5482",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "'thomas' ~ '.*thomas.*'",
+    "before": "'thomas' ~ '.*thomas.*'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "5483",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "'thomas' ~ '.*thomas.*'",
+    "before": "'thomas' ~ '.*thomas.*'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7008",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7009",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7010",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7011",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7012",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7013",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7014",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7015",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7017",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7018",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7019",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7464",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "x !~ 'y'",
+    "before": "NOT x ~ 'y'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7465",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "x !~ 'y'",
+    "before": "NOT x ~ 'y'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7466",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "x !~ 'y'",
+    "before": "NOT x ~ 'y'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7467",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "x !~ 'y'",
+    "before": "NOT x ~ 'y'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7536",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "x ~ 'y'",
+    "before": "x ~ 'y'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7537",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "x ~ 'y'",
+    "before": "x ~ 'y'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7538",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "x ~ 'y'",
+    "before": "x ~ 'y'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7539",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "x ~ 'y'",
+    "before": "x ~ 'y'",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "12648",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12649",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12650",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12652",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12653",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12654",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12656",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12657",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12658",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12660",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12661",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12662",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12663",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12664",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12665",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12666",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12668",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12669",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12670",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12672",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12673",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12674",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 12,
+   "imports": 6
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres",
+   "tests/dialects/test_postgres.py::TestPostgres::test_regexp_binary"
+  ]
+ },
+ {
+  "task": "efbc5e220c",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(postgres)!: add missing TO_CHAR format tokens (Mon, Month, Day, Dy, AM/PM, HH) (#7477)\n\nAdd bare (non-TM-prefixed) month names, weekday names, AM/PM meridiem\nindicators, and bare HH to Postgres TIME_MAPPING. These tokens are\nstandard PostgreSQL TO_CHAR format specifiers but were not being\nconverted during transpilation, causing issues when targeting dialects\nlike ClickHouse.\n\nPreviously, `Day` was mangled to `%uay` because the single-char `D`\nrule matched first. The trie correctly handles longer matches, so\n`Day` \u2192 `%A`, `Dy` \u2192 `%a` now take precedence over `D` \u2192 `%u`.\n\nAdd INVERSE_TIME_MAPPING to prefer the canonical bare forms (Mon, Day,\nDy, Month, AM, HH12) when generating Postgres SQL from the internal\nstrftime representation.\n\nFixes #7476",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/dialects/postgres.py",
+   "line": 61,
+   "op": "delete",
+   "code": "\"P.M.\": \"%p\","
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/postgres.py b/sqlglot/dialects/postgres.py\nindex 081bd1f..f6b0154 100644\n--- a/sqlglot/dialects/postgres.py\n+++ b/sqlglot/dialects/postgres.py\n@@ -21,12 +21,20 @@ class Postgres(Dialect):\n     }\n \n     TIME_MAPPING = {\n+        \"AM\": \"%p\",  # AM/PM meridiem indicator\n+        \"A.M.\": \"%p\",  # AM/PM with periods\n         \"d\": \"%u\",  # 1-based day of week\n         \"D\": \"%u\",  # 1-based day of week\n+        \"day\": \"%A\",  # full weekday name (lowercase)\n+        \"Day\": \"%A\",  # full weekday name (capitalized)\n+        \"DAY\": \"%A\",  # full weekday name (uppercase)\n         \"dd\": \"%d\",  # day of month\n         \"DD\": \"%d\",  # day of month\n         \"ddd\": \"%j\",  # zero padded day of year\n         \"DDD\": \"%j\",  # zero padded day of year\n+        \"dy\": \"%a\",  # abbreviated weekday name (lowercase)\n+        \"Dy\": \"%a\",  # abbreviated weekday name (capitalized)\n+        \"DY\": \"%a\",  # abbreviated weekday name (uppercase)\n         \"FMDD\": \"%-d\",  # - is no leading zero for Python; same for FM in postgres\n         \"FMDDD\": \"%-j\",  # day of year\n         \"FMHH12\": \"%-I\",  # 9\n@@ -34,13 +42,27 @@ class Postgres(Dialect):\n         \"FMMI\": \"%-M\",  # Minute\n         \"FMMM\": \"%-m\",  # 1\n         \"FMSS\": \"%-S\",  # Second\n+        \"hh\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n+        \"HH\": \"%I\",  # 12-hour (HH defaults to 12-hour in PG)\n         \"HH12\": \"%I\",  # 09\n         \"HH24\": \"%H\",  # 09\n         \"mi\": \"%M\",  # zero padded minute\n         \"MI\": \"%M\",  # zero padded minute\n         \"mm\": \"%m\",  # 01\n         \"MM\": \"%m\",  # 01\n+        \"mon\": \"%b\",  # abbreviated month name (lowercase)\n+        \"Mon\": \"%b\",  # abbreviated month name (capitalized)\n+        \"MON\": \"%b\",  # abbreviated month name (uppercase)\n+        \"month\": \"%B\",  # full month name (lowercase)\n+        \"Month\": \"%B\",  # full month name (capitalized)\n+        \"MONTH\": \"%B\",  # full month name (uppercase)\n         \"OF\": \"%z\",  # utc offset\n+        \"PM\": \"%p\",  # PG treats AM/PM as synonymous; both print actual meridiem\n+\n+        \"am\": \"%p\",\n+        \"a.m.\": \"%p\",\n+        \"pm\": \"%p\",\n+        \"p.m.\": \"%p\",\n         \"ss\": \"%S\",  # zero padded second\n         \"SS\": \"%S\",  # zero padded second\n         \"TMDay\": \"%A\",  # TM is locale dependent\n@@ -57,6 +79,17 @@ class Postgres(Dialect):\n         \"YYYY\": \"%Y\",  # 2015\n     }\n \n+    # Prefer bare forms (Mon, Day, Dy, Month) over TM-prefixed forms when\n+    # generating Postgres SQL from the internal strftime representation.\n+    INVERSE_TIME_MAPPING = {\n+        \"%A\": \"Day\",\n+        \"%a\": \"Dy\",\n+        \"%b\": \"Mon\",\n+        \"%B\": \"Month\",\n+        \"%I\": \"HH12\",\n+        \"%p\": \"AM\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\")]\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'AM'"
+    },
+    "removed": {},
+    "changed": {
+     "'%B'": [
+      "'TMMonth'",
+      "'Month'"
+     ],
+     "'%a'": [
+      "'TMDy'",
+      "'Dy'"
+     ],
+     "'%A'": [
+      "'TMDay'",
+      "'Day'"
+     ],
+     "'%b'": [
+      "'TMMon'",
+      "'Mon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'HH'": "'%I'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'MON'": "'%b'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {
+     "'%I'": [
+      "'HH'",
+      "'HH12'"
+     ],
+     "'%b'": [
+      "'MON'",
+      "'TMMon'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'DAY'": "'%A'",
+     "'mon'": "'%b'",
+     "'Month'": "'%B'",
+     "'hh'": "'%I'",
+     "'Mon'": "'%b'",
+     "'Dy'": "'%a'",
+     "'p.m.'": "'%p'",
+     "'PM'": "'%p'",
+     "'DY'": "'%a'",
+     "'am'": "'%p'",
+     "'Day'": "'%A'",
+     "'month'": "'%B'",
+     "'pm'": "'%p'",
+     "'A.M.'": "'%p'",
+     "'a.m.'": "'%p'",
+     "'dy'": "'%a'",
+     "'AM'": "'%p'",
+     "'MONTH'": "'%B'",
+     "'day'": "'%A'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}, 'O': {'N': {0: True}}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}, 0: True}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.FORMAT_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%p'": "'p.m.'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'u': {0: True}, 'd': {0: True}, 'j': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: True}, 'M': {0: True}, 'm': {0: True}, 'S': {0: ...",
+      "{'p': {0: True}, 'u': {0: True}, 'A': {0: True}, 'd': {0: True}, 'j': {0: True}, 'a': {0: True}, '-': {'d': {0: True}, 'j': {0: True}, 'I': {0: True}, 'H': {0: ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.TIME_TRIE",
+    "kind": "dict",
+    "added": {
+     "'P'": "{'M': {0: True}}",
+     "'a'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'p'": "{'m': {0: True}, '.': {'m': {'.': {0: True}}}}",
+     "'A'": "{'M': {0: True}, '.': {'M': {'.': {0: True}}}}",
+     "'h'": "{'h': {0: True}}"
+    },
+    "removed": {},
+    "changed": {
+     "'M'": [
+      "{'I': {0: True}, 'M': {0: True}}",
+      "{'I': {0: True}, 'M': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}, 'O': {'N': {0: True, 'T': {'H': {0: True}}}}}"
+     ],
+     "'m'": [
+      "{'i': {0: True}, 'm': {0: True}}",
+      "{'i': {0: True}, 'm': {0: True}, 'o': {'n': {0: True, 't': {'h': {0: True}}}}}"
+     ],
+     "'H'": [
+      "{'H': {'1': {'2': {0: True}}, '2': {'4': {0: True}}}}",
+      "{'H': {0: True, '1': {'2': {0: True}}, '2': {'4': {0: True}}}}"
+     ],
+     "'d'": [
+      "{0: True, 'd': {0: True, 'd': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'd': {0: True, 'd': {0: True}}, 'y': {0: True}}"
+     ],
+     "'D'": [
+      "{0: True, 'D': {0: True, 'D': {0: True}}}",
+      "{0: True, 'a': {'y': {0: True}}, 'A': {'Y': {0: True}}, 'D': {0: True, 'D': {0: True}}, 'y': {0: True}, 'Y': {0: True}}"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "7008",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7009",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7010",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7011",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD Mon YYYY HH:MI AM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 AM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7012",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH12:MI AM')"
+   },
+   {
+    "probe": "7013",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7014",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7015",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "before": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD Mon YYYY HH:MI PM')",
+    "after": "SELECT TO_TIMESTAMP('05 Dec 2000 10:00 PM', 'DD TMMon YYYY HH12:MI p.m.')"
+   },
+   {
+    "probe": "7017",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7018",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT (TIMESTAMP 'epoch' + 1284352323.5 * INTERVAL '1 SECOND'), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "7019",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "before": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD Mon YYYY')",
+    "after": "SELECT TO_TIMESTAMP(1284352323.5), TO_TIMESTAMP('05 Dec 2000', 'DD TMMon YYYY')"
+   },
+   {
+    "probe": "12648",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12649",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12650",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "before": "SELECT TO_CHAR(dt, 'DD Mon YYYY HH24:MI')",
+    "after": "SELECT TO_CHAR(dt, 'DD TMMon YYYY HH24:MI')"
+   },
+   {
+    "probe": "12652",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12653",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12654",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Day')",
+    "before": "SELECT TO_CHAR(dt, 'Day')",
+    "after": "SELECT TO_CHAR(dt, 'TMDay')"
+   },
+   {
+    "probe": "12656",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12657",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12658",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Dy')",
+    "before": "SELECT TO_CHAR(dt, 'Dy')",
+    "after": "SELECT TO_CHAR(dt, 'TMDy')"
+   },
+   {
+    "probe": "12660",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12661",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12662",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "before": "SELECT TO_CHAR(dt, 'HH12:MI AM')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI p.m.')"
+   },
+   {
+    "probe": "12663",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12664",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12665",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12666",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "before": "SELECT TO_CHAR(dt, 'HH:MI')",
+    "after": "SELECT TO_CHAR(dt, 'HH12:MI')"
+   },
+   {
+    "probe": "12668",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12669",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12670",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Mon YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMon YYYY')"
+   },
+   {
+    "probe": "12672",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12673",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   },
+   {
+    "probe": "12674",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "before": "SELECT TO_CHAR(dt, 'Month YYYY')",
+    "after": "SELECT TO_CHAR(dt, 'TMMonth YYYY')"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 10
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ }
+]

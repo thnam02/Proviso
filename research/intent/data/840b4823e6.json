@@ -1,0 +1,637 @@
+[
+ {
+  "task": "840b4823e6",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST [GROK] (#8463)\n\n* fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST\n\n_parse_unnest stores the ordinality name on Unnest.offset after popping it\nfrom the table alias. Moving that alias onto Lateral then dropped the extra\ncolumn, so LATERAL UNNEST(...) AS r(v, idx) round-tripped as AS r(v).\n\n* fix(postgres): keep LATERAL UNNEST ordinality column in lateral_sql\n\n* refactor: gate lateral ordinality on UNNEST_WITH_ORDINALITY, simplify checks, add tests\n\n---------\n\nCo-authored-by: vaggelisd <daniasevangelos@gmail.com>",
+  "code_diff": "diff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex af24954..f9a6a4d 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -804,6 +804,15 @@ class Lateral(Expression, UDTF):\n         \"ordinality\": False,\n     }\n \n+    @property\n+    def selects(self) -> list[Expr]:\n+        columns = super().selects\n+        # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+        offset = self.this.args.get(\"offset\")\n+        if isinstance(offset, Identifier):\n+            columns = columns + [offset]\n+        return columns\n+\n \n class TableFromRows(Expression, UDTF):\n     arg_types = {\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 4a54834..249a3ad 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -2959,7 +2959,14 @@ class Generator:\n             op_sql = self.seg(f\"LATERAL VIEW{' OUTER' if expression.args.get('outer') else ''}\")\n             return f\"{op_sql}{self.sep()}{this}{table}{columns}\"\n \n-        alias = self.sql(expression, \"alias\")\n+        table_alias = expression.args.get(\"alias\")\n+        offset = expression.this.args.get(\"offset\")\n+        if self.UNNEST_WITH_ORDINALITY and table_alias and isinstance(offset, exp.Identifier):\n+            # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+            table_alias = table_alias.copy()\n+            table_alias.append(\"columns\", offset.copy())\n+\n+        alias = self.sql(table_alias)\n         alias = f\" AS {alias}\" if alias else \"\"\n \n         ordinality = expression.args.get(\"ordinality\") or \"\"\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "14891",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14892",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14893",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL  AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL  AS r(x, y, idx)"
+   },
+   {
+    "probe": "14894",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14895",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14896",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14897",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14898",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14899",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14900",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14901",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14902",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   }
+  ],
+  "new_probes": 16
+ },
+ {
+  "task": "840b4823e6",
+  "variant": "bug",
+  "label": "no_effect",
+  "prompt": "fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST [GROK] (#8463)\n\n* fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST\n\n_parse_unnest stores the ordinality name on Unnest.offset after popping it\nfrom the table alias. Moving that alias onto Lateral then dropped the extra\ncolumn, so LATERAL UNNEST(...) AS r(v, idx) round-tripped as AS r(v).\n\n* fix(postgres): keep LATERAL UNNEST ordinality column in lateral_sql\n\n* refactor: gate lateral ordinality on UNNEST_WITH_ORDINALITY, simplify checks, add tests\n\n---------\n\nCo-authored-by: vaggelisd <daniasevangelos@gmail.com>",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/expressions/query.py",
+   "line": 1228,
+   "op": "flip",
+   "code": "append: if `True`, add to any existing expressions."
+  },
+  "code_diff": "diff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex af24954..c82e4b5 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -804,6 +804,15 @@ class Lateral(Expression, UDTF):\n         \"ordinality\": False,\n     }\n \n+    @property\n+    def selects(self) -> list[Expr]:\n+        columns = super().selects\n+        # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+        offset = self.this.args.get(\"offset\")\n+        if isinstance(offset, Identifier):\n+            columns = columns + [offset]\n+        return columns\n+\n \n class TableFromRows(Expression, UDTF):\n     arg_types = {\n@@ -1216,7 +1225,7 @@ class Select(Expression, Query):\n                 If a `Group` instance is passed, this is used as-is.\n                 If another `Expr` instance is passed, it will be wrapped in a `Group`.\n                 If nothing is passed in then a group by is not applied to the expression\n-            append: if `True`, add to any existing expressions.\n+            append: if `False`, add to any existing expressions.\n                 Otherwise, this flattens all the `Group` expression into a single expression.\n             dialect: the dialect used to parse the input expression.\n             copy: if `False`, modify this expression instance in-place.\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 4a54834..249a3ad 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -2959,7 +2959,14 @@ class Generator:\n             op_sql = self.seg(f\"LATERAL VIEW{' OUTER' if expression.args.get('outer') else ''}\")\n             return f\"{op_sql}{self.sep()}{this}{table}{columns}\"\n \n-        alias = self.sql(expression, \"alias\")\n+        table_alias = expression.args.get(\"alias\")\n+        offset = expression.this.args.get(\"offset\")\n+        if self.UNNEST_WITH_ORDINALITY and table_alias and isinstance(offset, exp.Identifier):\n+            # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+            table_alias = table_alias.copy()\n+            table_alias.append(\"columns\", offset.copy())\n+\n+        alias = self.sql(table_alias)\n         alias = f\" AS {alias}\" if alias else \"\"\n \n         ordinality = expression.args.get(\"ordinality\") or \"\"\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "14891",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14892",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14893",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL  AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL  AS r(x, y, idx)"
+   },
+   {
+    "probe": "14894",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14895",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14896",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14897",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14898",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14899",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14900",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14901",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14902",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 0
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ },
+ {
+  "task": "840b4823e6",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST [GROK] (#8463)\n\n* fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST\n\n_parse_unnest stores the ordinality name on Unnest.offset after popping it\nfrom the table alias. Moving that alias onto Lateral then dropped the extra\ncolumn, so LATERAL UNNEST(...) AS r(v, idx) round-tripped as AS r(v).\n\n* fix(postgres): keep LATERAL UNNEST ordinality column in lateral_sql\n\n* refactor: gate lateral ordinality on UNNEST_WITH_ORDINALITY, simplify checks, add tests\n\n---------\n\nCo-authored-by: vaggelisd <daniasevangelos@gmail.com>",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/generator.py",
+   "line": 1211,
+   "op": "flip",
+   "code": "constraints = self.expressions(expression, key=\"constraints\", sep=\" \", flat=True)"
+  },
+  "code_diff": "diff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex af24954..f9a6a4d 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -804,6 +804,15 @@ class Lateral(Expression, UDTF):\n         \"ordinality\": False,\n     }\n \n+    @property\n+    def selects(self) -> list[Expr]:\n+        columns = super().selects\n+        # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+        offset = self.this.args.get(\"offset\")\n+        if isinstance(offset, Identifier):\n+            columns = columns + [offset]\n+        return columns\n+\n \n class TableFromRows(Expression, UDTF):\n     arg_types = {\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 4a54834..24d7888 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -1208,7 +1208,7 @@ class Generator:\n     def columndef_sql(self, expression: exp.ColumnDef, sep: str = \" \") -> str:\n         column = self.sql(expression, \"this\")\n         kind = self.sql(expression, \"kind\")\n-        constraints = self.expressions(expression, key=\"constraints\", sep=\" \", flat=True)\n+        constraints = self.expressions(expression, key=\"constraints\", sep=\" \", flat=False)\n         exists = \"IF NOT EXISTS \" if expression.args.get(\"exists\") else \"\"\n         kind = f\"{sep}{kind}\" if kind else \"\"\n         constraints = f\" {constraints}\" if constraints else \"\"\n@@ -2959,7 +2959,14 @@ class Generator:\n             op_sql = self.seg(f\"LATERAL VIEW{' OUTER' if expression.args.get('outer') else ''}\")\n             return f\"{op_sql}{self.sep()}{this}{table}{columns}\"\n \n-        alias = self.sql(expression, \"alias\")\n+        table_alias = expression.args.get(\"alias\")\n+        offset = expression.this.args.get(\"offset\")\n+        if self.UNNEST_WITH_ORDINALITY and table_alias and isinstance(offset, exp.Identifier):\n+            # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+            table_alias = table_alias.copy()\n+            table_alias.append(\"columns\", offset.copy())\n+\n+        alias = self.sql(table_alias)\n         alias = f\" AS {alias}\" if alias else \"\"\n \n         ordinality = expression.args.get(\"ordinality\") or \"\"\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "6890",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE TABLE tbl (id INT NOT NULL GENERATED ALWAYS AS IDENTITY (START WITH 10) PRIMARY KEY)",
+    "before": "CREATE TABLE tbl (id INT NOT NULL)",
+    "after": "CREATE TABLE tbl (id INT NOT NULL )"
+   },
+   {
+    "probe": "6934",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE TABLE z (a INT GENERATED BY DEFAULT AS IDENTITY NOT NULL UNIQUE PRIMARY KEY)",
+    "before": "CREATE TABLE z (a INT NOT NULL)",
+    "after": "CREATE TABLE z (a INT NOT NULL )"
+   },
+   {
+    "probe": "14891",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14892",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14893",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL  AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL  AS r(x, y, idx)"
+   },
+   {
+    "probe": "14894",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14895",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14896",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14897",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14898",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14899",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14900",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14901",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14902",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 2,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_ddl",
+   "tests/dialects/test_mysql.py::TestMySQL::test_mysql",
+   "tests/dialects/test_oracle.py::TestOracle::test_xml_table",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake",
+   "tests/dialects/test_sqlite.py::TestSQLite::test_unsupported_auto_increment"
+  ]
+ },
+ {
+  "task": "840b4823e6",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST [GROK] (#8463)\n\n* fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST\n\n_parse_unnest stores the ordinality name on Unnest.offset after popping it\nfrom the table alias. Moving that alias onto Lateral then dropped the extra\ncolumn, so LATERAL UNNEST(...) AS r(v, idx) round-tripped as AS r(v).\n\n* fix(postgres): keep LATERAL UNNEST ordinality column in lateral_sql\n\n* refactor: gate lateral ordinality on UNNEST_WITH_ORDINALITY, simplify checks, add tests\n\n---------\n\nCo-authored-by: vaggelisd <daniasevangelos@gmail.com>",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generator.py",
+   "line": 677,
+   "op": "delete",
+   "code": "\"QUARTERS\": \"QUARTER\","
+  },
+  "code_diff": "diff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex af24954..f9a6a4d 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -804,6 +804,15 @@ class Lateral(Expression, UDTF):\n         \"ordinality\": False,\n     }\n \n+    @property\n+    def selects(self) -> list[Expr]:\n+        columns = super().selects\n+        # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+        offset = self.this.args.get(\"offset\")\n+        if isinstance(offset, Identifier):\n+            columns = columns + [offset]\n+        return columns\n+\n \n class TableFromRows(Expression, UDTF):\n     arg_types = {\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 4a54834..ef6bf3e 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -674,7 +674,7 @@ class Generator:\n         \"DAYS\": \"DAY\",\n         \"WEEKS\": \"WEEK\",\n         \"MONTHS\": \"MONTH\",\n-        \"QUARTERS\": \"QUARTER\",\n+\n         \"YEARS\": \"YEAR\",\n     }\n \n@@ -2959,7 +2959,14 @@ class Generator:\n             op_sql = self.seg(f\"LATERAL VIEW{' OUTER' if expression.args.get('outer') else ''}\")\n             return f\"{op_sql}{self.sep()}{this}{table}{columns}\"\n \n-        alias = self.sql(expression, \"alias\")\n+        table_alias = expression.args.get(\"alias\")\n+        offset = expression.this.args.get(\"offset\")\n+        if self.UNNEST_WITH_ORDINALITY and table_alias and isinstance(offset, exp.Identifier):\n+            # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+            table_alias = table_alias.copy()\n+            table_alias.append(\"columns\", offset.copy())\n+\n+        alias = self.sql(table_alias)\n         alias = f\" AS {alias}\" if alias else \"\"\n \n         ordinality = expression.args.get(\"ordinality\") or \"\"\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generator:Generator.TIME_PART_SINGULARS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'QUARTERS'": "'QUARTER'"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14891",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14892",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14893",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL  AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL  AS r(x, y, idx)"
+   },
+   {
+    "probe": "14894",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14895",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14896",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14897",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14898",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14899",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14900",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14901",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14902",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ },
+ {
+  "task": "840b4823e6",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST [GROK] (#8463)\n\n* fix(postgres): keep WITH ORDINALITY alias columns on LATERAL UNNEST\n\n_parse_unnest stores the ordinality name on Unnest.offset after popping it\nfrom the table alias. Moving that alias onto Lateral then dropped the extra\ncolumn, so LATERAL UNNEST(...) AS r(v, idx) round-tripped as AS r(v).\n\n* fix(postgres): keep LATERAL UNNEST ordinality column in lateral_sql\n\n* refactor: gate lateral ordinality on UNNEST_WITH_ORDINALITY, simplify checks, add tests\n\n---------\n\nCo-authored-by: vaggelisd <daniasevangelos@gmail.com>",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/expressions/query.py",
+   "line": 1790,
+   "op": "delete",
+   "code": "\"with_\": False,"
+  },
+  "code_diff": "diff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex af24954..819e8f3 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -804,6 +804,15 @@ class Lateral(Expression, UDTF):\n         \"ordinality\": False,\n     }\n \n+    @property\n+    def selects(self) -> list[Expr]:\n+        columns = super().selects\n+        # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+        offset = self.this.args.get(\"offset\")\n+        if isinstance(offset, Identifier):\n+            columns = columns + [offset]\n+        return columns\n+\n \n class TableFromRows(Expression, UDTF):\n     arg_types = {\n@@ -1778,7 +1787,7 @@ class Pivot(Expression):\n         \"include_nulls\": False,\n         \"default_on_null\": False,\n         \"into\": False,\n-        \"with_\": False,\n+\n         \"identify_pivot_strings\": False,\n         \"prefixed_pivot_columns\": False,\n         \"pivot_column_naming\": False,\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 4a54834..249a3ad 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -2959,7 +2959,14 @@ class Generator:\n             op_sql = self.seg(f\"LATERAL VIEW{' OUTER' if expression.args.get('outer') else ''}\")\n             return f\"{op_sql}{self.sep()}{this}{table}{columns}\"\n \n-        alias = self.sql(expression, \"alias\")\n+        table_alias = expression.args.get(\"alias\")\n+        offset = expression.this.args.get(\"offset\")\n+        if self.UNNEST_WITH_ORDINALITY and table_alias and isinstance(offset, exp.Identifier):\n+            # UNNEST ... WITH ORDINALITY stores the ordinality column's name in Unnest.offset\n+            table_alias = table_alias.copy()\n+            table_alias.append(\"columns\", offset.copy())\n+\n+        alias = self.sql(table_alias)\n         alias = f\" AS {alias}\" if alias else \"\"\n \n         ordinality = expression.args.get(\"ordinality\") or \"\"\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.expressions.query:Pivot.arg_types",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'with_'": "False"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "2663",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "WITH cities(country, name, year, population) AS (SELECT 'NL', 'Amsterdam', 2000, 1005 UNION ALL SELECT 'US', 'Seattle', 2020, 738) PIVOT cities ON year USING SUM(population)",
+    "before": "WITH cities(country, name, year, population) AS (SELECT 'NL', 'Amsterdam', 2000, 1005 UNION ALL SELECT 'US', 'Seattle', 2020, 738) PIVOT cities ON year USING SUM(population)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "14891",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14892",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14893",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL  AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL  AS r(x, y, idx)"
+   },
+   {
+    "probe": "14894",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)",
+    "before": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y)",
+    "after": "SELECT * FROM t, LATERAL UNNEST(t.a, t.b) WITH ORDINALITY AS r(x, y, idx)"
+   },
+   {
+    "probe": "14895",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14896",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14897",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14898",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t CROSS JOIN LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14899",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14900",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   },
+   {
+    "probe": "14901",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL t.a AS r(v, idx)"
+   },
+   {
+    "probe": "14902",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)",
+    "before": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v)",
+    "after": "SELECT r.v, r.idx FROM t, LATERAL UNNEST(t.a) WITH ORDINALITY AS r(v, idx)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 1,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_simplified_pivot_unpivot"
+  ]
+ }
+]

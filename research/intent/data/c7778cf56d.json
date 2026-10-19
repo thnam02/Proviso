@@ -1,0 +1,1495 @@
+[
+ {
+  "task": "c7778cf56d",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "fix(parser): bare ALTER DROP refactor and indexes named concurrently",
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 29b0291..17ab0fd 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -2411,20 +2411,26 @@ class Parser:\n \n     def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = not kind and self._match(TokenType.TEMPORARY)\n-        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n-        if not kind or (iceberg and kind and kind != \"TABLE\"):\n+        if not kind:\n+            temporary = self._match(TokenType.TEMPORARY)\n+            materialized = self._match_text_seq(\"MATERIALIZED\")\n+            iceberg = self._match_text_seq(\"ICEBERG\")\n+            kind = self._prev.text.upper() if self._match_set(self.CREATABLES) else None\n+        else:\n+            temporary = False\n+            materialized = False\n+            iceberg = False\n+\n+        if not kind or (iceberg and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n         concurrently = (\n-            kind != \"COLUMN\"\n-            and bool(self._next)\n-            and self._next.token_type != TokenType.COMMA\n+            kind == \"INDEX\"\n+            and self._next.token_type in self.ID_VAR_TOKENS\n             and self._match_text_seq(\"CONCURRENTLY\")\n         )\n+\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n@@ -8159,11 +8165,7 @@ class Parser:\n \n             condition = self._parse_disjunction()\n \n-            if not condition:\n-                self._retreat(index)\n-                return None\n-\n-            if not self._match(TokenType.THEN):\n+            if not condition or not self._match(TokenType.THEN):\n                 self._retreat(index)\n                 return None\n \n@@ -9128,24 +9130,19 @@ class Parser:\n             # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n             index = self._index\n             self._parse_exists()\n-            name = self._curr\n-            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n-                TokenType.COLUMN,\n-                TokenType.CONSTRAINT,\n-            ):\n-                self._advance()\n-                if (\n+            if (\n+                self._curr.token_type not in (TokenType.COLUMN, TokenType.CONSTRAINT)\n+                and self._match_set(self.ID_VAR_TOKENS)\n+                and (\n                     not self._curr\n                     or self._match(TokenType.COMMA, advance=False)\n                     or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n-                ):\n-                    kind = \"COLUMN\"\n+                )\n+            ):\n+                kind = \"COLUMN\"\n             self._retreat(index)\n \n-        drop = self._parse_drop(kind=kind)\n-        if drop and not isinstance(drop, exp.Command):\n-            drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n-        return drop\n+        return self._parse_drop(kind=kind)\n \n     def _parse_alter_drop_action(self) -> exp.Expr | None:\n         return self._parse_drop_column()\ndiff --git a/sqlglot/parsers/doris.py b/sqlglot/parsers/doris.py\nindex 0336720..32848d4 100644\n--- a/sqlglot/parsers/doris.py\n+++ b/sqlglot/parsers/doris.py\n@@ -25,6 +25,9 @@ def _build_date_trunc(args: list[exp.Expr]) -> exp.Expr:\n \n \n class DorisParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     FUNCTIONS = {\n         **MySQLParser.FUNCTIONS,\n         \"ADDDATE\": build_date_delta_with_interval(exp.DateAdd, default_unit=\"DAY\"),\ndiff --git a/sqlglot/parsers/starrocks.py b/sqlglot/parsers/starrocks.py\nindex 48e482f..6a170a9 100644\n--- a/sqlglot/parsers/starrocks.py\n+++ b/sqlglot/parsers/starrocks.py\n@@ -9,6 +9,9 @@ from sqlglot.tokens import TokenType\n \n \n class StarRocksParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     # StarRocks supports LEFT SEMI JOIN and LEFT ANTI JOIN natively\n     # https://docs.starrocks.io/docs/sql-reference/sql-statements/table_bucket_part_index/SELECT/SELECT_JOIN/\n     TABLE_ALIAS_TOKENS = MySQLParser.TABLE_ALIAS_TOKENS - {TokenType.ANTI, TokenType.SEMI}\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.starrocks:StarRocksParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "3996",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "3998",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "4004",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4006",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4008",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4010",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4012",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4014",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4016",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4018",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4020",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4022",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4024",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4026",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4028",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4030",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4032",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN `date`",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4034",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN date",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4036",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN `materialized`",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "4038",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN materialized",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "15021",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15023",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15025",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN `temporary`",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15027",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN temporary",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15028",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15029",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15030",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX `concurrently` ON t"
+   },
+   {
+    "probe": "15031",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   }
+  ],
+  "new_probes": 12
+ },
+ {
+  "task": "c7778cf56d",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): bare ALTER DROP refactor and indexes named concurrently",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 5648,
+   "op": "flip",
+   "code": "elements[\"totals\"] = True  # type: ignore"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 29b0291..3b5e7a0 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -2411,20 +2411,26 @@ class Parser:\n \n     def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = not kind and self._match(TokenType.TEMPORARY)\n-        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n-        if not kind or (iceberg and kind and kind != \"TABLE\"):\n+        if not kind:\n+            temporary = self._match(TokenType.TEMPORARY)\n+            materialized = self._match_text_seq(\"MATERIALIZED\")\n+            iceberg = self._match_text_seq(\"ICEBERG\")\n+            kind = self._prev.text.upper() if self._match_set(self.CREATABLES) else None\n+        else:\n+            temporary = False\n+            materialized = False\n+            iceberg = False\n+\n+        if not kind or (iceberg and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n         concurrently = (\n-            kind != \"COLUMN\"\n-            and bool(self._next)\n-            and self._next.token_type != TokenType.COMMA\n+            kind == \"INDEX\"\n+            and self._next.token_type in self.ID_VAR_TOKENS\n             and self._match_text_seq(\"CONCURRENTLY\")\n         )\n+\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n@@ -5639,7 +5645,7 @@ class Parser:\n                 elements[\"grouping_sets\"].append(grouping_sets)\n                 break\n             elif self._match_text_seq(\"TOTALS\"):\n-                elements[\"totals\"] = True  # type: ignore\n+                elements[\"totals\"] = False  # type: ignore\n \n             if before_with_index <= self._index <= before_with_index + 1:\n                 self._retreat(before_with_index)\n@@ -8159,11 +8165,7 @@ class Parser:\n \n             condition = self._parse_disjunction()\n \n-            if not condition:\n-                self._retreat(index)\n-                return None\n-\n-            if not self._match(TokenType.THEN):\n+            if not condition or not self._match(TokenType.THEN):\n                 self._retreat(index)\n                 return None\n \n@@ -9128,24 +9130,19 @@ class Parser:\n             # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n             index = self._index\n             self._parse_exists()\n-            name = self._curr\n-            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n-                TokenType.COLUMN,\n-                TokenType.CONSTRAINT,\n-            ):\n-                self._advance()\n-                if (\n+            if (\n+                self._curr.token_type not in (TokenType.COLUMN, TokenType.CONSTRAINT)\n+                and self._match_set(self.ID_VAR_TOKENS)\n+                and (\n                     not self._curr\n                     or self._match(TokenType.COMMA, advance=False)\n                     or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n-                ):\n-                    kind = \"COLUMN\"\n+                )\n+            ):\n+                kind = \"COLUMN\"\n             self._retreat(index)\n \n-        drop = self._parse_drop(kind=kind)\n-        if drop and not isinstance(drop, exp.Command):\n-            drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n-        return drop\n+        return self._parse_drop(kind=kind)\n \n     def _parse_alter_drop_action(self) -> exp.Expr | None:\n         return self._parse_drop_column()\ndiff --git a/sqlglot/parsers/doris.py b/sqlglot/parsers/doris.py\nindex 0336720..32848d4 100644\n--- a/sqlglot/parsers/doris.py\n+++ b/sqlglot/parsers/doris.py\n@@ -25,6 +25,9 @@ def _build_date_trunc(args: list[exp.Expr]) -> exp.Expr:\n \n \n class DorisParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     FUNCTIONS = {\n         **MySQLParser.FUNCTIONS,\n         \"ADDDATE\": build_date_delta_with_interval(exp.DateAdd, default_unit=\"DAY\"),\ndiff --git a/sqlglot/parsers/starrocks.py b/sqlglot/parsers/starrocks.py\nindex 48e482f..6a170a9 100644\n--- a/sqlglot/parsers/starrocks.py\n+++ b/sqlglot/parsers/starrocks.py\n@@ -9,6 +9,9 @@ from sqlglot.tokens import TokenType\n \n \n class StarRocksParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     # StarRocks supports LEFT SEMI JOIN and LEFT ANTI JOIN natively\n     # https://docs.starrocks.io/docs/sql-reference/sql-statements/table_bucket_part_index/SELECT/SELECT_JOIN/\n     TABLE_ALIAS_TOKENS = MySQLParser.TABLE_ALIAS_TOKENS - {TokenType.ANTI, TokenType.SEMI}\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.starrocks:StarRocksParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "1392",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT x, COUNT() FROM y GROUP BY x WITH TOTALS",
+    "before": "SELECT x, COUNT() FROM y GROUP BY x WITH TOTALS",
+    "after": "SELECT x, COUNT() FROM y GROUP BY x"
+   },
+   {
+    "probe": "1393",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT x, COUNT() FROM y GROUP BY x WITH TOTALS LIMIT 1",
+    "before": "SELECT x, COUNT() FROM y GROUP BY x WITH TOTALS LIMIT 1",
+    "after": "SELECT x, COUNT() FROM y GROUP BY x LIMIT 1"
+   },
+   {
+    "probe": "3996",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "3998",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "4004",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4006",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4008",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4010",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4012",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4014",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4016",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4018",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4020",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4022",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4024",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4026",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4028",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4030",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4032",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN `date`",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4034",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN date",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4036",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN `materialized`",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "4038",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN materialized",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "15021",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15023",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15025",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN `temporary`",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15027",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN temporary",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15028",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15029",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15030",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX `concurrently` ON t"
+   },
+   {
+    "probe": "15031",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 2,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse"
+  ]
+ },
+ {
+  "task": "c7778cf56d",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): bare ALTER DROP refactor and indexes named concurrently",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parser.py",
+   "line": 1296,
+   "op": "delete",
+   "code": "\"PIVOT\": lambda self, query: self._parse_pipe_syntax_pivot(query),"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 29b0291..8d9f53d 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1293,7 +1293,7 @@ class Parser:\n         \"ORDER BY\": lambda self, query: query.order_by(\n             self._parse_order(), append=False, copy=False\n         ),\n-        \"PIVOT\": lambda self, query: self._parse_pipe_syntax_pivot(query),\n+\n         \"SELECT\": lambda self, query: self._parse_pipe_syntax_select(query),\n         \"TABLESAMPLE\": lambda self, query: self._parse_pipe_syntax_tablesample(query),\n         \"UNPIVOT\": lambda self, query: self._parse_pipe_syntax_pivot(query),\n@@ -2411,20 +2411,26 @@ class Parser:\n \n     def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = not kind and self._match(TokenType.TEMPORARY)\n-        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n-        if not kind or (iceberg and kind and kind != \"TABLE\"):\n+        if not kind:\n+            temporary = self._match(TokenType.TEMPORARY)\n+            materialized = self._match_text_seq(\"MATERIALIZED\")\n+            iceberg = self._match_text_seq(\"ICEBERG\")\n+            kind = self._prev.text.upper() if self._match_set(self.CREATABLES) else None\n+        else:\n+            temporary = False\n+            materialized = False\n+            iceberg = False\n+\n+        if not kind or (iceberg and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n         concurrently = (\n-            kind != \"COLUMN\"\n-            and bool(self._next)\n-            and self._next.token_type != TokenType.COMMA\n+            kind == \"INDEX\"\n+            and self._next.token_type in self.ID_VAR_TOKENS\n             and self._match_text_seq(\"CONCURRENTLY\")\n         )\n+\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n@@ -8159,11 +8165,7 @@ class Parser:\n \n             condition = self._parse_disjunction()\n \n-            if not condition:\n-                self._retreat(index)\n-                return None\n-\n-            if not self._match(TokenType.THEN):\n+            if not condition or not self._match(TokenType.THEN):\n                 self._retreat(index)\n                 return None\n \n@@ -9128,24 +9130,19 @@ class Parser:\n             # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n             index = self._index\n             self._parse_exists()\n-            name = self._curr\n-            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n-                TokenType.COLUMN,\n-                TokenType.CONSTRAINT,\n-            ):\n-                self._advance()\n-                if (\n+            if (\n+                self._curr.token_type not in (TokenType.COLUMN, TokenType.CONSTRAINT)\n+                and self._match_set(self.ID_VAR_TOKENS)\n+                and (\n                     not self._curr\n                     or self._match(TokenType.COMMA, advance=False)\n                     or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n-                ):\n-                    kind = \"COLUMN\"\n+                )\n+            ):\n+                kind = \"COLUMN\"\n             self._retreat(index)\n \n-        drop = self._parse_drop(kind=kind)\n-        if drop and not isinstance(drop, exp.Command):\n-            drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n-        return drop\n+        return self._parse_drop(kind=kind)\n \n     def _parse_alter_drop_action(self) -> exp.Expr | None:\n         return self._parse_drop_column()\ndiff --git a/sqlglot/parsers/doris.py b/sqlglot/parsers/doris.py\nindex 0336720..32848d4 100644\n--- a/sqlglot/parsers/doris.py\n+++ b/sqlglot/parsers/doris.py\n@@ -25,6 +25,9 @@ def _build_date_trunc(args: list[exp.Expr]) -> exp.Expr:\n \n \n class DorisParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     FUNCTIONS = {\n         **MySQLParser.FUNCTIONS,\n         \"ADDDATE\": build_date_delta_with_interval(exp.DateAdd, default_unit=\"DAY\"),\ndiff --git a/sqlglot/parsers/starrocks.py b/sqlglot/parsers/starrocks.py\nindex 48e482f..6a170a9 100644\n--- a/sqlglot/parsers/starrocks.py\n+++ b/sqlglot/parsers/starrocks.py\n@@ -9,6 +9,9 @@ from sqlglot.tokens import TokenType\n \n \n class StarRocksParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     # StarRocks supports LEFT SEMI JOIN and LEFT ANTI JOIN natively\n     # https://docs.starrocks.io/docs/sql-reference/sql-statements/table_bucket_part_index/SELECT/SELECT_JOIN/\n     TABLE_ALIAS_TOKENS = MySQLParser.TABLE_ALIAS_TOKENS - {TokenType.ANTI, TokenType.SEMI}\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.PIPE_SYNTAX_TRANSFORM_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'PIVOT'": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.starrocks:StarRocksParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "3996",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "3998",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "4004",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4006",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4008",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4010",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4012",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4014",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4016",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4018",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4020",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4022",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4024",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4026",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4028",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4030",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4032",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN `date`",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4034",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN date",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4036",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN `materialized`",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "4038",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN materialized",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "15021",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15023",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15025",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN `temporary`",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15027",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN temporary",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15028",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15029",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15030",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX `concurrently` ON t"
+   },
+   {
+    "probe": "15031",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_pipe_syntax.py::TestPipeSyntax::test_pivot_unpivot"
+  ]
+ },
+ {
+  "task": "c7778cf56d",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): bare ALTER DROP refactor and indexes named concurrently",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 6075,
+   "op": "flip",
+   "code": "if isinstance(this, exp.Column) and len(this.parts) == 1:"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 29b0291..b701af6 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -2411,20 +2411,26 @@ class Parser:\n \n     def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = not kind and self._match(TokenType.TEMPORARY)\n-        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n-        if not kind or (iceberg and kind and kind != \"TABLE\"):\n+        if not kind:\n+            temporary = self._match(TokenType.TEMPORARY)\n+            materialized = self._match_text_seq(\"MATERIALIZED\")\n+            iceberg = self._match_text_seq(\"ICEBERG\")\n+            kind = self._prev.text.upper() if self._match_set(self.CREATABLES) else None\n+        else:\n+            temporary = False\n+            materialized = False\n+            iceberg = False\n+\n+        if not kind or (iceberg and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n         concurrently = (\n-            kind != \"COLUMN\"\n-            and bool(self._next)\n-            and self._next.token_type != TokenType.COMMA\n+            kind == \"INDEX\"\n+            and self._next.token_type in self.ID_VAR_TOKENS\n             and self._match_text_seq(\"CONCURRENTLY\")\n         )\n+\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n@@ -6066,7 +6072,7 @@ class Parser:\n             )\n \n         while self._match_set(self.ASSIGNMENT):\n-            if isinstance(this, exp.Column) and len(this.parts) == 1:\n+            if isinstance(this, exp.Column) and len(this.parts) != 1:\n                 this = this.this\n \n             comments = self._prev_comments\n@@ -8159,11 +8165,7 @@ class Parser:\n \n             condition = self._parse_disjunction()\n \n-            if not condition:\n-                self._retreat(index)\n-                return None\n-\n-            if not self._match(TokenType.THEN):\n+            if not condition or not self._match(TokenType.THEN):\n                 self._retreat(index)\n                 return None\n \n@@ -9128,24 +9130,19 @@ class Parser:\n             # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n             index = self._index\n             self._parse_exists()\n-            name = self._curr\n-            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n-                TokenType.COLUMN,\n-                TokenType.CONSTRAINT,\n-            ):\n-                self._advance()\n-                if (\n+            if (\n+                self._curr.token_type not in (TokenType.COLUMN, TokenType.CONSTRAINT)\n+                and self._match_set(self.ID_VAR_TOKENS)\n+                and (\n                     not self._curr\n                     or self._match(TokenType.COMMA, advance=False)\n                     or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n-                ):\n-                    kind = \"COLUMN\"\n+                )\n+            ):\n+                kind = \"COLUMN\"\n             self._retreat(index)\n \n-        drop = self._parse_drop(kind=kind)\n-        if drop and not isinstance(drop, exp.Command):\n-            drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n-        return drop\n+        return self._parse_drop(kind=kind)\n \n     def _parse_alter_drop_action(self) -> exp.Expr | None:\n         return self._parse_drop_column()\ndiff --git a/sqlglot/parsers/doris.py b/sqlglot/parsers/doris.py\nindex 0336720..32848d4 100644\n--- a/sqlglot/parsers/doris.py\n+++ b/sqlglot/parsers/doris.py\n@@ -25,6 +25,9 @@ def _build_date_trunc(args: list[exp.Expr]) -> exp.Expr:\n \n \n class DorisParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     FUNCTIONS = {\n         **MySQLParser.FUNCTIONS,\n         \"ADDDATE\": build_date_delta_with_interval(exp.DateAdd, default_unit=\"DAY\"),\ndiff --git a/sqlglot/parsers/starrocks.py b/sqlglot/parsers/starrocks.py\nindex 48e482f..6a170a9 100644\n--- a/sqlglot/parsers/starrocks.py\n+++ b/sqlglot/parsers/starrocks.py\n@@ -9,6 +9,9 @@ from sqlglot.tokens import TokenType\n \n \n class StarRocksParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     # StarRocks supports LEFT SEMI JOIN and LEFT ANTI JOIN natively\n     # https://docs.starrocks.io/docs/sql-reference/sql-statements/table_bucket_part_index/SELECT/SELECT_JOIN/\n     TABLE_ALIAS_TOKENS = MySQLParser.TABLE_ALIAS_TOKENS - {TokenType.ANTI, TokenType.SEMI}\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.starrocks:StarRocksParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "3996",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "3998",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "4004",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4006",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4008",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4010",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4012",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4014",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4016",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4018",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4020",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4022",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4024",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4026",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4028",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4030",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4032",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN `date`",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4034",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN date",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4036",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN `materialized`",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "4038",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN materialized",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "15021",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15023",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15025",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN `temporary`",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15027",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN temporary",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15028",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15029",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15030",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX `concurrently` ON t"
+   },
+   {
+    "probe": "15031",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb"
+  ]
+ },
+ {
+  "task": "c7778cf56d",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): bare ALTER DROP refactor and indexes named concurrently",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parser.py",
+   "line": 1262,
+   "op": "delete",
+   "code": "TokenType.AT_GT: binary_range_parser(exp.ArrayContainsAll),"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 29b0291..4b7ad40 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1259,7 +1259,7 @@ class Parser:\n     }\n \n     RANGE_PARSERS: t.ClassVar = {\n-        TokenType.AT_GT: binary_range_parser(exp.ArrayContainsAll),\n+\n         TokenType.BETWEEN: lambda self, this: self._parse_between(this),\n         TokenType.GLOB: binary_range_parser(exp.Glob),\n         TokenType.ILIKE: binary_range_parser(exp.ILike),\n@@ -2411,20 +2411,26 @@ class Parser:\n \n     def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = not kind and self._match(TokenType.TEMPORARY)\n-        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n-        if not kind or (iceberg and kind and kind != \"TABLE\"):\n+        if not kind:\n+            temporary = self._match(TokenType.TEMPORARY)\n+            materialized = self._match_text_seq(\"MATERIALIZED\")\n+            iceberg = self._match_text_seq(\"ICEBERG\")\n+            kind = self._prev.text.upper() if self._match_set(self.CREATABLES) else None\n+        else:\n+            temporary = False\n+            materialized = False\n+            iceberg = False\n+\n+        if not kind or (iceberg and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n         concurrently = (\n-            kind != \"COLUMN\"\n-            and bool(self._next)\n-            and self._next.token_type != TokenType.COMMA\n+            kind == \"INDEX\"\n+            and self._next.token_type in self.ID_VAR_TOKENS\n             and self._match_text_seq(\"CONCURRENTLY\")\n         )\n+\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n@@ -8159,11 +8165,7 @@ class Parser:\n \n             condition = self._parse_disjunction()\n \n-            if not condition:\n-                self._retreat(index)\n-                return None\n-\n-            if not self._match(TokenType.THEN):\n+            if not condition or not self._match(TokenType.THEN):\n                 self._retreat(index)\n                 return None\n \n@@ -9128,24 +9130,19 @@ class Parser:\n             # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n             index = self._index\n             self._parse_exists()\n-            name = self._curr\n-            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n-                TokenType.COLUMN,\n-                TokenType.CONSTRAINT,\n-            ):\n-                self._advance()\n-                if (\n+            if (\n+                self._curr.token_type not in (TokenType.COLUMN, TokenType.CONSTRAINT)\n+                and self._match_set(self.ID_VAR_TOKENS)\n+                and (\n                     not self._curr\n                     or self._match(TokenType.COMMA, advance=False)\n                     or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n-                ):\n-                    kind = \"COLUMN\"\n+                )\n+            ):\n+                kind = \"COLUMN\"\n             self._retreat(index)\n \n-        drop = self._parse_drop(kind=kind)\n-        if drop and not isinstance(drop, exp.Command):\n-            drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n-        return drop\n+        return self._parse_drop(kind=kind)\n \n     def _parse_alter_drop_action(self) -> exp.Expr | None:\n         return self._parse_drop_column()\ndiff --git a/sqlglot/parsers/doris.py b/sqlglot/parsers/doris.py\nindex 0336720..32848d4 100644\n--- a/sqlglot/parsers/doris.py\n+++ b/sqlglot/parsers/doris.py\n@@ -25,6 +25,9 @@ def _build_date_trunc(args: list[exp.Expr]) -> exp.Expr:\n \n \n class DorisParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     FUNCTIONS = {\n         **MySQLParser.FUNCTIONS,\n         \"ADDDATE\": build_date_delta_with_interval(exp.DateAdd, default_unit=\"DAY\"),\ndiff --git a/sqlglot/parsers/starrocks.py b/sqlglot/parsers/starrocks.py\nindex 48e482f..6a170a9 100644\n--- a/sqlglot/parsers/starrocks.py\n+++ b/sqlglot/parsers/starrocks.py\n@@ -9,6 +9,9 @@ from sqlglot.tokens import TokenType\n \n \n class StarRocksParser(MySQLParser):\n+    # Unlike MySQL, dropping a column requires the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN = True\n+\n     # StarRocks supports LEFT SEMI JOIN and LEFT ANTI JOIN natively\n     # https://docs.starrocks.io/docs/sql-reference/sql-statements/table_bucket_part_index/SELECT/SELECT_JOIN/\n     TABLE_ALIAS_TOKENS = MySQLParser.TABLE_ALIAS_TOKENS - {TokenType.ANTI, TokenType.SEMI}\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.bigquery:BigQueryParser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.clickhouse:ClickHouseParser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.duckdb:DuckDBParser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.exasol:ExasolParser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.sqlite:SQLiteParser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.RANGE_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<TokenType.AT_GT: 56>": "<function binary_range_parser.<locals>._parse_binary_range>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.doris:DorisParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.starrocks:StarRocksParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "False",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "2538",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT [1, 2, 3] @> [1, 2]",
+    "before": "SELECT [1, 2, 3] @> [1, 2]",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "2692",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "3996",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "3998",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP b"
+   },
+   {
+    "probe": "4004",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4006",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP COLUMN b",
+    "after": "ALTER TABLE t DROP b"
+   },
+   {
+    "probe": "4008",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4010",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b RESTRICT",
+    "after": "ALTER TABLE t DROP b RESTRICT"
+   },
+   {
+    "probe": "4012",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4014",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "4016",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4018",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c",
+    "after": "ALTER TABLE t DROP b, DROP c"
+   },
+   {
+    "probe": "4020",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4022",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT",
+    "after": "ALTER TABLE t DROP b, DROP view RESTRICT"
+   },
+   {
+    "probe": "4024",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4026",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP COLUMN concurrently",
+    "after": "ALTER TABLE t DROP concurrently"
+   },
+   {
+    "probe": "4028",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4030",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP COLUMN concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP concurrently RESTRICT"
+   },
+   {
+    "probe": "4032",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN `date`",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4034",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP COLUMN date",
+    "after": "ALTER TABLE t DROP date"
+   },
+   {
+    "probe": "4036",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN `materialized`",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "4038",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP COLUMN materialized",
+    "after": "ALTER TABLE t DROP materialized"
+   },
+   {
+    "probe": "7709",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7710",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7711",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "7712",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "8729",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "8730",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "8731",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "8732",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "15021",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15023",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP iceberg",
+    "before": "ALTER TABLE t DROP COLUMN iceberg",
+    "after": "ALTER TABLE t DROP iceberg"
+   },
+   {
+    "probe": "15025",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN `temporary`",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15027",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP temporary",
+    "before": "ALTER TABLE t DROP COLUMN temporary",
+    "after": "ALTER TABLE t DROP temporary"
+   },
+   {
+    "probe": "15028",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15029",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   },
+   {
+    "probe": "15030",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX `concurrently` ON t"
+   },
+   {
+    "probe": "15031",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "EXC: ParseError",
+    "after": "DROP INDEX concurrently ON t"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 10,
+   "imports": 10
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres",
+   "tests/dialects/test_starrocks.py::TestStarrocks::test_array_contains_all"
+  ]
+ }
+]

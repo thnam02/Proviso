@@ -1,0 +1,2006 @@
+[
+ {
+  "task": "f5dd70bff7",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "Integer division (x DIV y in Hive, Spark and MySQL, x // y in DuckDB, DIV(x, y) in BigQuery) truncates towards zero, but sqlglot's rewrite for dialects without an integer-division operator does not preserve that: Presto gets CAST(CAST(x AS DOUBLE) / y AS INTEGER), which rounds instead of truncating and can overflow, and the generic integer-division cast (also produced by the Python expression builder, x // 1) uses INT instead of BIGINT. Separately, a one-argument TRUNC(n) from Oracle or Snowflake transpiled to MySQL must give a valid TRUNCATE call with an explicit 0 decimals argument.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT x DIV y\", read=\"hive\", write=\"presto\")[0]\n# currently: SELECT CAST(CAST(x AS DOUBLE) / y AS INTEGER)\n# expected:  SELECT CAST(TRUNCATE(CAST(x AS DOUBLE) / y) AS BIGINT)\n\n(exp.column(\"x\") // 1).sql()\n# currently: CAST(x / 1 AS INT)\n# expected:  CAST(x / 1 AS BIGINT)\n\ntranspile(\"SELECT TRUNC(3.14159)\", read=\"oracle\", write=\"mysql\")[0]\n# currently: SELECT TRUNCATE(3.14159)\n# expected:  SELECT TRUNCATE(3.14159, 0)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "code_diff": "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\nindex a6e8c1d..6574aee 100644\n--- a/sqlglot/executor/env.py\n+++ b/sqlglot/executor/env.py\n@@ -196,6 +196,12 @@ def _like(this, e, flags=0):\n     )\n \n \n+@null_if_any\n+def intdiv(this, e):\n+    quotient = abs(this) // abs(e)\n+    return quotient if (this < 0) == (e < 0) else -quotient\n+\n+\n @null_if_any\n def interval(this, unit):\n     plural = unit + \"S\"\n@@ -277,7 +283,7 @@ ENV = {\n     \"IF\": lambda predicate, true, false: true if predicate else false,\n     \"IN\": sql_in,\n     \"INT\": null_if_any(int),\n-    \"INTDIV\": null_if_any(lambda e, this: e // this),\n+    \"INTDIV\": intdiv,\n     \"INTERVAL\": interval,\n     \"JSONEXTRACT\": jsonextract,\n     \"LEFT\": null_if_any(lambda this, e: this[:e]),\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 59be01c..d5877d8 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -382,6 +382,12 @@ class Generator:\n     # Whether comparing against booleans (e.g. x IS TRUE) is supported\n     IS_BOOL_ALLOWED = True\n \n+    # Whether casting a fractional number to an integer rounds it instead of truncating it\n+    CAST_TO_INT_ROUNDS = False\n+\n+    # Whether the native integer division operator returns NULL for a zero divisor instead of raising\n+    SAFE_INT_DIVISION = False\n+\n     # Whether to include the \"SET\" keyword in the \"INSERT ... ON DUPLICATE KEY UPDATE\" statement\n     DUPLICATE_KEY_UPDATE_WITH_SET = True\n \n@@ -4515,12 +4521,14 @@ class Generator:\n         return f\"{this_sql} HAVING {kind} {expression_sql}\"\n \n     def intdiv_sql(self, expression: exp.IntDiv) -> str:\n-        return self.sql(\n-            exp.Cast(\n-                this=exp.Div(this=expression.this, expression=expression.expression),\n-                to=exp.DataType(this=exp.DType.INT),\n-            )\n-        )\n+        return self._truncated_div_sql(expression.this, expression.expression)\n+\n+    def _truncated_div_sql(self, this: exp.Expr, divisor: exp.Expr) -> str:\n+        div: exp.Expr = exp.Div(this=this, expression=divisor)\n+        if self.CAST_TO_INT_ROUNDS:\n+            div = exp.Trunc(this=div)\n+\n+        return self.sql(exp.Cast(this=div, to=exp.DataType(this=exp.DType.BIGINT)))\n \n     def dpipe_sql(self, expression: exp.DPipe) -> str:\n         if self.dialect.STRICT_STRING_CONCAT and expression.args.get(\"safe\"):\n@@ -4539,12 +4547,14 @@ class Generator:\n \n         elif not self.dialect.TYPED_DIVISION and expression.args.get(\"typed\"):\n             if l.is_type(*exp.DataType.INTEGER_TYPES) and r.is_type(*exp.DataType.INTEGER_TYPES):\n-                return self.sql(\n-                    exp.cast(\n-                        l / r,\n-                        to=exp.DType.BIGINT,\n-                    )\n-                )\n+                # Native integer division depends on the target's operand types, which may differ\n+                # from the source's (e.g. FLOOR(int) is DOUBLE in DuckDB), unless the operands are\n+                # integer literals or casts\n+                if all(e.is_int or isinstance(e, exp.Cast) for e in (l, r)) and (\n+                    expression.args.get(\"safe\") or not self.SAFE_INT_DIVISION\n+                ):\n+                    return self.sql(exp.IntDiv(this=l, expression=r))\n+                return self._truncated_div_sql(l, r)\n \n         return self.binary(expression, \"/\")\n \ndiff --git a/sqlglot/generators/bigquery.py b/sqlglot/generators/bigquery.py\nindex 2e7b8ba..7d56316 100644\n--- a/sqlglot/generators/bigquery.py\n+++ b/sqlglot/generators/bigquery.py\n@@ -256,6 +256,7 @@ class BigQueryGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     UNNEST_WITH_ORDINALITY = False\n+    CAST_TO_INT_ROUNDS = True\n     COLLATE_IS_FUNC = True\n     LIMIT_ONLY_LITERALS = True\n     SUPPORTS_TABLE_ALIAS_COLUMNS = False\ndiff --git a/sqlglot/generators/dremio.py b/sqlglot/generators/dremio.py\nindex 4494344..b4c04c3 100644\n--- a/sqlglot/generators/dremio.py\n+++ b/sqlglot/generators/dremio.py\n@@ -34,6 +34,7 @@ class DremioGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\n \ndiff --git a/sqlglot/generators/drill.py b/sqlglot/generators/drill.py\nindex 0d50eae..3cd4d65 100644\n--- a/sqlglot/generators/drill.py\n+++ b/sqlglot/generators/drill.py\n@@ -30,6 +30,7 @@ class DrillGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n     SUPPORTS_LIKE_QUANTIFIERS = False\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\ndiff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py\nindex 5d748a4..02400f9 100644\n--- a/sqlglot/generators/duckdb.py\n+++ b/sqlglot/generators/duckdb.py\n@@ -1550,6 +1550,8 @@ class DuckDBGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     SEMI_ANTI_JOIN_WITH_SIDE = False\n+    CAST_TO_INT_ROUNDS = True\n+    SAFE_INT_DIVISION = True\n     TABLESAMPLE_KEYWORDS = \"USING SAMPLE\"\n     TABLESAMPLE_SEED_KEYWORD = \"REPEATABLE\"\n     LAST_DAY_SUPPORTS_DATE_PART = False\ndiff --git a/sqlglot/generators/materialize.py b/sqlglot/generators/materialize.py\nindex 3d86ef0..9b2ad4f 100644\n--- a/sqlglot/generators/materialize.py\n+++ b/sqlglot/generators/materialize.py\n@@ -14,9 +14,14 @@ from sqlglot.transforms import (\n class MaterializeGenerator(PostgresGenerator):\n     SUPPORTS_CREATE_TABLE_LIKE = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.ToMap},\n+        **{\n+            k: v\n+            for k, v in PostgresGenerator.TRANSFORMS.items()\n+            if k not in (exp.ToMap, exp.IntDiv)\n+        },\n         exp.AutoIncrementColumnConstraint: lambda self, e: \"\",\n         exp.Create: preprocess(\n             [\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex 920c151..f55fe23 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -123,6 +123,7 @@ class MySQLGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     LOCKING_READS_SUPPORTED = True\n+    CAST_TO_INT_ROUNDS = True\n     NULL_ORDERING_SUPPORTED: bool | None = None\n     JOIN_HINTS = False\n     TABLE_HINTS = True\n@@ -169,6 +170,7 @@ class MySQLGenerator(generator.Generator):\n         exp.ILike: no_ilike_sql,\n         # https://dev.mysql.com/doc/refman/9.7/en/flow-control-functions.html#function_if\n         exp.If: if_sql(false_value=\"NULL\"),\n+        exp.IntDiv: lambda self, e: self.binary(e, \"DIV\"),\n         exp.JSONExtractScalar: arrow_json_extract_sql,\n         exp.Length: length_or_char_length_sql,\n         exp.LogicalOr: rename_func(\"MAX\"),\n@@ -213,7 +215,9 @@ class MySQLGenerator(generator.Generator):\n             lambda self, e: self.func(\"DATE_FORMAT\", e.this, self.format_time(e))\n         ),\n         exp.Trim: trim_sql,\n-        exp.Trunc: rename_func(\"TRUNCATE\"),\n+        exp.Trunc: lambda self, e: self.func(\n+            \"TRUNCATE\", e.this, e.args.get(\"decimals\") or exp.Literal.number(0)\n+        ),\n         exp.TryCast: no_trycast_sql,\n         exp.TsOrDsAdd: date_add_sql(\"ADD\"),\n         exp.TsOrDsDiff: lambda self, e: self.func(\"DATEDIFF\", e.this, e.expression),\ndiff --git a/sqlglot/generators/oracle.py b/sqlglot/generators/oracle.py\nindex c1751cd..5f2c8d8 100644\n--- a/sqlglot/generators/oracle.py\n+++ b/sqlglot/generators/oracle.py\n@@ -26,6 +26,7 @@ class OracleGenerator(generator.Generator):\n     SUPPORTS_UESCAPE = False\n     LOCKING_READS_SUPPORTED = True\n     SUPPORTS_MERGE_WHERE = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     DATA_TYPE_SPECIFIERS_ALLOWED = True\ndiff --git a/sqlglot/generators/postgres.py b/sqlglot/generators/postgres.py\nindex c174f5c..6047a67 100644\n--- a/sqlglot/generators/postgres.py\n+++ b/sqlglot/generators/postgres.py\n@@ -536,7 +536,11 @@ class PostgresGenerator(generator.Generator):\n         this = expression.this\n \n         # Postgres casts DIV() to decimal for transpilation but when roundtripping it's superfluous\n-        if isinstance(this, exp.IntDiv) and expression.to == exp.DType.DECIMAL.into_expr():\n+        if (\n+            isinstance(this, exp.IntDiv)\n+            and exp.IntDiv in self.TRANSFORMS\n+            and expression.to == exp.DType.DECIMAL.into_expr()\n+        ):\n             return self.sql(this)\n \n         return super().cast_sql(expression, safe_prefix=safe_prefix)\ndiff --git a/sqlglot/generators/presto.py b/sqlglot/generators/presto.py\nindex bc47887..d0a853d 100644\n--- a/sqlglot/generators/presto.py\n+++ b/sqlglot/generators/presto.py\n@@ -261,6 +261,7 @@ class PrestoGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     JOIN_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     TABLE_HINTS = False\n     QUERY_HINTS = False\n     IS_BOOL_ALLOWED = False\ndiff --git a/sqlglot/generators/redshift.py b/sqlglot/generators/redshift.py\nindex 9185d83..c88c052 100644\n--- a/sqlglot/generators/redshift.py\n+++ b/sqlglot/generators/redshift.py\n@@ -20,6 +20,7 @@ from sqlglot.helper import seq_get\n class RedshiftGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     QUERY_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     VALUES_AS_TABLE = False\n     TZ_TO_WITH_TIME_ZONE = True\n     NVL2_SUPPORTED = True\n@@ -66,6 +67,7 @@ class RedshiftGenerator(PostgresGenerator):\n                 exp.LastDay,\n                 exp.SHA2,\n                 exp.Getbit,\n+                exp.IntDiv,\n                 exp.Round,\n                 exp.TryCast,\n             }\ndiff --git a/sqlglot/generators/risingwave.py b/sqlglot/generators/risingwave.py\nindex a870680..bb4ccba 100644\n--- a/sqlglot/generators/risingwave.py\n+++ b/sqlglot/generators/risingwave.py\n@@ -8,9 +8,10 @@ from sqlglot.generators.postgres import PostgresGenerator\n class RisingWaveGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **PostgresGenerator.TRANSFORMS,\n+        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.IntDiv},\n         exp.FileFormatProperty: lambda self, e: f\"FORMAT {self.sql(e, 'this')}\",\n     }\n \ndiff --git a/sqlglot/generators/snowflake.py b/sqlglot/generators/snowflake.py\nindex c75b2c8..8639ff2 100644\n--- a/sqlglot/generators/snowflake.py\n+++ b/sqlglot/generators/snowflake.py\n@@ -360,6 +360,7 @@ class SnowflakeGenerator(generator.Generator):\n     PARAMETER_TOKEN = \"$\"\n     MATCHED_BY_SOURCE = False\n     SINGLE_STRING_INTERVAL = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     QUERY_HINTS = False\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 08a73f2..640b4d9 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -62,6 +62,7 @@ class StarRocksGenerator(MySQLGenerator):\n     WITH_PROPERTIES_PREFIX = \"PROPERTIES\"\n     UPDATE_STATEMENT_SUPPORTS_FROM = True\n     INSERT_OVERWRITE = \" OVERWRITE\"\n+    CAST_TO_INT_ROUNDS = False\n \n     # StarRocks doesn't support \"IS TRUE/FALSE\" syntax.\n     IS_BOOL_ALLOWED = False\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.executor.context:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.env:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.python:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.singlestore:SingleStoreGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.env:intdiv",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function intdiv>"
+   },
+   {
+    "key": "sqlglot.generator:Generator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator.SAFE_INT_DIVISION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator._truncated_div_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator._truncated_div_sql>"
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.dremio:DremioGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.drill:DrillGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.SAFE_INT_DIVISION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.oracle:OracleGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.presto:PrestoGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.snowflake:SnowflakeGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "6543",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6544",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6545",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6779",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6780",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6781",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   }
+  ],
+  "new_probes": 0
+ },
+ {
+  "task": "f5dd70bff7",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Integer division (x DIV y in Hive, Spark and MySQL, x // y in DuckDB, DIV(x, y) in BigQuery) truncates towards zero, but sqlglot's rewrite for dialects without an integer-division operator does not preserve that: Presto gets CAST(CAST(x AS DOUBLE) / y AS INTEGER), which rounds instead of truncating and can overflow, and the generic integer-division cast (also produced by the Python expression builder, x // 1) uses INT instead of BIGINT. Separately, a one-argument TRUNC(n) from Oracle or Snowflake transpiled to MySQL must give a valid TRUNCATE call with an explicit 0 decimals argument.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT x DIV y\", read=\"hive\", write=\"presto\")[0]\n# currently: SELECT CAST(CAST(x AS DOUBLE) / y AS INTEGER)\n# expected:  SELECT CAST(TRUNCATE(CAST(x AS DOUBLE) / y) AS BIGINT)\n\n(exp.column(\"x\") // 1).sql()\n# currently: CAST(x / 1 AS INT)\n# expected:  CAST(x / 1 AS BIGINT)\n\ntranspile(\"SELECT TRUNC(3.14159)\", read=\"oracle\", write=\"mysql\")[0]\n# currently: SELECT TRUNCATE(3.14159)\n# expected:  SELECT TRUNCATE(3.14159, 0)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generator.py",
+   "line": 259,
+   "op": "delete",
+   "code": "exp.SecurityIntegrationProperty: lambda *_: \"SECURITY\","
+  },
+  "code_diff": "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\nindex a6e8c1d..6574aee 100644\n--- a/sqlglot/executor/env.py\n+++ b/sqlglot/executor/env.py\n@@ -196,6 +196,12 @@ def _like(this, e, flags=0):\n     )\n \n \n+@null_if_any\n+def intdiv(this, e):\n+    quotient = abs(this) // abs(e)\n+    return quotient if (this < 0) == (e < 0) else -quotient\n+\n+\n @null_if_any\n def interval(this, unit):\n     plural = unit + \"S\"\n@@ -277,7 +283,7 @@ ENV = {\n     \"IF\": lambda predicate, true, false: true if predicate else false,\n     \"IN\": sql_in,\n     \"INT\": null_if_any(int),\n-    \"INTDIV\": null_if_any(lambda e, this: e // this),\n+    \"INTDIV\": intdiv,\n     \"INTERVAL\": interval,\n     \"JSONEXTRACT\": jsonextract,\n     \"LEFT\": null_if_any(lambda this, e: this[:e]),\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 59be01c..860dca6 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -256,7 +256,7 @@ class Generator:\n         exp.SafeFunc: lambda self, e: f\"SAFE.{self.sql(e, 'this')}\",\n         exp.SampleProperty: lambda self, e: f\"SAMPLE BY {self.sql(e, 'this')}\",\n         exp.SecureProperty: lambda *_: \"SECURE\",\n-        exp.SecurityIntegrationProperty: lambda *_: \"SECURITY\",\n+\n         exp.SetConfigProperty: lambda self, e: self.sql(e, \"this\"),\n         exp.SetProperty: lambda _, e: f\"{'MULTI' if e.args.get('multi') else ''}SET\",\n         exp.SettingsProperty: lambda self, e: f\"SETTINGS{self.seg('')}{(self.expressions(e))}\",\n@@ -382,6 +382,12 @@ class Generator:\n     # Whether comparing against booleans (e.g. x IS TRUE) is supported\n     IS_BOOL_ALLOWED = True\n \n+    # Whether casting a fractional number to an integer rounds it instead of truncating it\n+    CAST_TO_INT_ROUNDS = False\n+\n+    # Whether the native integer division operator returns NULL for a zero divisor instead of raising\n+    SAFE_INT_DIVISION = False\n+\n     # Whether to include the \"SET\" keyword in the \"INSERT ... ON DUPLICATE KEY UPDATE\" statement\n     DUPLICATE_KEY_UPDATE_WITH_SET = True\n \n@@ -4515,12 +4521,14 @@ class Generator:\n         return f\"{this_sql} HAVING {kind} {expression_sql}\"\n \n     def intdiv_sql(self, expression: exp.IntDiv) -> str:\n-        return self.sql(\n-            exp.Cast(\n-                this=exp.Div(this=expression.this, expression=expression.expression),\n-                to=exp.DataType(this=exp.DType.INT),\n-            )\n-        )\n+        return self._truncated_div_sql(expression.this, expression.expression)\n+\n+    def _truncated_div_sql(self, this: exp.Expr, divisor: exp.Expr) -> str:\n+        div: exp.Expr = exp.Div(this=this, expression=divisor)\n+        if self.CAST_TO_INT_ROUNDS:\n+            div = exp.Trunc(this=div)\n+\n+        return self.sql(exp.Cast(this=div, to=exp.DataType(this=exp.DType.BIGINT)))\n \n     def dpipe_sql(self, expression: exp.DPipe) -> str:\n         if self.dialect.STRICT_STRING_CONCAT and expression.args.get(\"safe\"):\n@@ -4539,12 +4547,14 @@ class Generator:\n \n         elif not self.dialect.TYPED_DIVISION and expression.args.get(\"typed\"):\n             if l.is_type(*exp.DataType.INTEGER_TYPES) and r.is_type(*exp.DataType.INTEGER_TYPES):\n-                return self.sql(\n-                    exp.cast(\n-                        l / r,\n-                        to=exp.DType.BIGINT,\n-                    )\n-                )\n+                # Native integer division depends on the target's operand types, which may differ\n+                # from the source's (e.g. FLOOR(int) is DOUBLE in DuckDB), unless the operands are\n+                # integer literals or casts\n+                if all(e.is_int or isinstance(e, exp.Cast) for e in (l, r)) and (\n+                    expression.args.get(\"safe\") or not self.SAFE_INT_DIVISION\n+                ):\n+                    return self.sql(exp.IntDiv(this=l, expression=r))\n+                return self._truncated_div_sql(l, r)\n \n         return self.binary(expression, \"/\")\n \ndiff --git a/sqlglot/generators/bigquery.py b/sqlglot/generators/bigquery.py\nindex 2e7b8ba..7d56316 100644\n--- a/sqlglot/generators/bigquery.py\n+++ b/sqlglot/generators/bigquery.py\n@@ -256,6 +256,7 @@ class BigQueryGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     UNNEST_WITH_ORDINALITY = False\n+    CAST_TO_INT_ROUNDS = True\n     COLLATE_IS_FUNC = True\n     LIMIT_ONLY_LITERALS = True\n     SUPPORTS_TABLE_ALIAS_COLUMNS = False\ndiff --git a/sqlglot/generators/dremio.py b/sqlglot/generators/dremio.py\nindex 4494344..b4c04c3 100644\n--- a/sqlglot/generators/dremio.py\n+++ b/sqlglot/generators/dremio.py\n@@ -34,6 +34,7 @@ class DremioGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\n \ndiff --git a/sqlglot/generators/drill.py b/sqlglot/generators/drill.py\nindex 0d50eae..3cd4d65 100644\n--- a/sqlglot/generators/drill.py\n+++ b/sqlglot/generators/drill.py\n@@ -30,6 +30,7 @@ class DrillGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n     SUPPORTS_LIKE_QUANTIFIERS = False\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\ndiff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py\nindex 5d748a4..02400f9 100644\n--- a/sqlglot/generators/duckdb.py\n+++ b/sqlglot/generators/duckdb.py\n@@ -1550,6 +1550,8 @@ class DuckDBGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     SEMI_ANTI_JOIN_WITH_SIDE = False\n+    CAST_TO_INT_ROUNDS = True\n+    SAFE_INT_DIVISION = True\n     TABLESAMPLE_KEYWORDS = \"USING SAMPLE\"\n     TABLESAMPLE_SEED_KEYWORD = \"REPEATABLE\"\n     LAST_DAY_SUPPORTS_DATE_PART = False\ndiff --git a/sqlglot/generators/materialize.py b/sqlglot/generators/materialize.py\nindex 3d86ef0..9b2ad4f 100644\n--- a/sqlglot/generators/materialize.py\n+++ b/sqlglot/generators/materialize.py\n@@ -14,9 +14,14 @@ from sqlglot.transforms import (\n class MaterializeGenerator(PostgresGenerator):\n     SUPPORTS_CREATE_TABLE_LIKE = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.ToMap},\n+        **{\n+            k: v\n+            for k, v in PostgresGenerator.TRANSFORMS.items()\n+            if k not in (exp.ToMap, exp.IntDiv)\n+        },\n         exp.AutoIncrementColumnConstraint: lambda self, e: \"\",\n         exp.Create: preprocess(\n             [\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex 920c151..f55fe23 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -123,6 +123,7 @@ class MySQLGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     LOCKING_READS_SUPPORTED = True\n+    CAST_TO_INT_ROUNDS = True\n     NULL_ORDERING_SUPPORTED: bool | None = None\n     JOIN_HINTS = False\n     TABLE_HINTS = True\n@@ -169,6 +170,7 @@ class MySQLGenerator(generator.Generator):\n         exp.ILike: no_ilike_sql,\n         # https://dev.mysql.com/doc/refman/9.7/en/flow-control-functions.html#function_if\n         exp.If: if_sql(false_value=\"NULL\"),\n+        exp.IntDiv: lambda self, e: self.binary(e, \"DIV\"),\n         exp.JSONExtractScalar: arrow_json_extract_sql,\n         exp.Length: length_or_char_length_sql,\n         exp.LogicalOr: rename_func(\"MAX\"),\n@@ -213,7 +215,9 @@ class MySQLGenerator(generator.Generator):\n             lambda self, e: self.func(\"DATE_FORMAT\", e.this, self.format_time(e))\n         ),\n         exp.Trim: trim_sql,\n-        exp.Trunc: rename_func(\"TRUNCATE\"),\n+        exp.Trunc: lambda self, e: self.func(\n+            \"TRUNCATE\", e.this, e.args.get(\"decimals\") or exp.Literal.number(0)\n+        ),\n         exp.TryCast: no_trycast_sql,\n         exp.TsOrDsAdd: date_add_sql(\"ADD\"),\n         exp.TsOrDsDiff: lambda self, e: self.func(\"DATEDIFF\", e.this, e.expression),\ndiff --git a/sqlglot/generators/oracle.py b/sqlglot/generators/oracle.py\nindex c1751cd..5f2c8d8 100644\n--- a/sqlglot/generators/oracle.py\n+++ b/sqlglot/generators/oracle.py\n@@ -26,6 +26,7 @@ class OracleGenerator(generator.Generator):\n     SUPPORTS_UESCAPE = False\n     LOCKING_READS_SUPPORTED = True\n     SUPPORTS_MERGE_WHERE = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     DATA_TYPE_SPECIFIERS_ALLOWED = True\ndiff --git a/sqlglot/generators/postgres.py b/sqlglot/generators/postgres.py\nindex c174f5c..6047a67 100644\n--- a/sqlglot/generators/postgres.py\n+++ b/sqlglot/generators/postgres.py\n@@ -536,7 +536,11 @@ class PostgresGenerator(generator.Generator):\n         this = expression.this\n \n         # Postgres casts DIV() to decimal for transpilation but when roundtripping it's superfluous\n-        if isinstance(this, exp.IntDiv) and expression.to == exp.DType.DECIMAL.into_expr():\n+        if (\n+            isinstance(this, exp.IntDiv)\n+            and exp.IntDiv in self.TRANSFORMS\n+            and expression.to == exp.DType.DECIMAL.into_expr()\n+        ):\n             return self.sql(this)\n \n         return super().cast_sql(expression, safe_prefix=safe_prefix)\ndiff --git a/sqlglot/generators/presto.py b/sqlglot/generators/presto.py\nindex bc47887..d0a853d 100644\n--- a/sqlglot/generators/presto.py\n+++ b/sqlglot/generators/presto.py\n@@ -261,6 +261,7 @@ class PrestoGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     JOIN_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     TABLE_HINTS = False\n     QUERY_HINTS = False\n     IS_BOOL_ALLOWED = False\ndiff --git a/sqlglot/generators/redshift.py b/sqlglot/generators/redshift.py\nindex 9185d83..c88c052 100644\n--- a/sqlglot/generators/redshift.py\n+++ b/sqlglot/generators/redshift.py\n@@ -20,6 +20,7 @@ from sqlglot.helper import seq_get\n class RedshiftGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     QUERY_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     VALUES_AS_TABLE = False\n     TZ_TO_WITH_TIME_ZONE = True\n     NVL2_SUPPORTED = True\n@@ -66,6 +67,7 @@ class RedshiftGenerator(PostgresGenerator):\n                 exp.LastDay,\n                 exp.SHA2,\n                 exp.Getbit,\n+                exp.IntDiv,\n                 exp.Round,\n                 exp.TryCast,\n             }\ndiff --git a/sqlglot/generators/risingwave.py b/sqlglot/generators/risingwave.py\nindex a870680..bb4ccba 100644\n--- a/sqlglot/generators/risingwave.py\n+++ b/sqlglot/generators/risingwave.py\n@@ -8,9 +8,10 @@ from sqlglot.generators.postgres import PostgresGenerator\n class RisingWaveGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **PostgresGenerator.TRANSFORMS,\n+        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.IntDiv},\n         exp.FileFormatProperty: lambda self, e: f\"FORMAT {self.sql(e, 'this')}\",\n     }\n \ndiff --git a/sqlglot/generators/snowflake.py b/sqlglot/generators/snowflake.py\nindex c75b2c8..8639ff2 100644\n--- a/sqlglot/generators/snowflake.py\n+++ b/sqlglot/generators/snowflake.py\n@@ -360,6 +360,7 @@ class SnowflakeGenerator(generator.Generator):\n     PARAMETER_TOKEN = \"$\"\n     MATCHED_BY_SOURCE = False\n     SINGLE_STRING_INTERVAL = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     QUERY_HINTS = False\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 08a73f2..640b4d9 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -62,6 +62,7 @@ class StarRocksGenerator(MySQLGenerator):\n     WITH_PROPERTIES_PREFIX = \"PROPERTIES\"\n     UPDATE_STATEMENT_SUPPORTS_FROM = True\n     INSERT_OVERWRITE = \" OVERWRITE\"\n+    CAST_TO_INT_ROUNDS = False\n \n     # StarRocks doesn't support \"IS TRUE/FALSE\" syntax.\n     IS_BOOL_ALLOWED = False\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.executor.context:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.env:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.python:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generator:Generator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.athena:AthenaTrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.clickhouse:ClickHouseGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.databricks:DatabricksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.dremio:DremioGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.drill:DrillGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.druid:DruidGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.dune:DuneGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.exasol:ExasolGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.fabric:FabricGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.hive:HiveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>",
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.oracle:OracleGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.postgres:PostgresGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.presto:PrestoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>",
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>",
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.singlestore:SingleStoreGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.snowflake:SnowflakeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.spark2:Spark2Generator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.spark:SparkGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.sqlite:SQLiteGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.tableau:TableauGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.teradata:TeradataGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.trino:TrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.tsql:TSQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.SecurityIntegrationProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.executor.env:intdiv",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function intdiv>"
+   },
+   {
+    "key": "sqlglot.generator:Generator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator.SAFE_INT_DIVISION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator._truncated_div_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator._truncated_div_sql>"
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.dremio:DremioGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "6543",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6544",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6545",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6779",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6780",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6781",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 31
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_describe"
+  ]
+ },
+ {
+  "task": "f5dd70bff7",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Integer division (x DIV y in Hive, Spark and MySQL, x // y in DuckDB, DIV(x, y) in BigQuery) truncates towards zero, but sqlglot's rewrite for dialects without an integer-division operator does not preserve that: Presto gets CAST(CAST(x AS DOUBLE) / y AS INTEGER), which rounds instead of truncating and can overflow, and the generic integer-division cast (also produced by the Python expression builder, x // 1) uses INT instead of BIGINT. Separately, a one-argument TRUNC(n) from Oracle or Snowflake transpiled to MySQL must give a valid TRUNCATE call with an explicit 0 decimals argument.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT x DIV y\", read=\"hive\", write=\"presto\")[0]\n# currently: SELECT CAST(CAST(x AS DOUBLE) / y AS INTEGER)\n# expected:  SELECT CAST(TRUNCATE(CAST(x AS DOUBLE) / y) AS BIGINT)\n\n(exp.column(\"x\") // 1).sql()\n# currently: CAST(x / 1 AS INT)\n# expected:  CAST(x / 1 AS BIGINT)\n\ntranspile(\"SELECT TRUNC(3.14159)\", read=\"oracle\", write=\"mysql\")[0]\n# currently: SELECT TRUNCATE(3.14159)\n# expected:  SELECT TRUNCATE(3.14159, 0)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generators/duckdb.py",
+   "line": 1704,
+   "op": "delete",
+   "code": "exp.JSONValueArray: _json_extract_value_array_sql,"
+  },
+  "code_diff": "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\nindex a6e8c1d..6574aee 100644\n--- a/sqlglot/executor/env.py\n+++ b/sqlglot/executor/env.py\n@@ -196,6 +196,12 @@ def _like(this, e, flags=0):\n     )\n \n \n+@null_if_any\n+def intdiv(this, e):\n+    quotient = abs(this) // abs(e)\n+    return quotient if (this < 0) == (e < 0) else -quotient\n+\n+\n @null_if_any\n def interval(this, unit):\n     plural = unit + \"S\"\n@@ -277,7 +283,7 @@ ENV = {\n     \"IF\": lambda predicate, true, false: true if predicate else false,\n     \"IN\": sql_in,\n     \"INT\": null_if_any(int),\n-    \"INTDIV\": null_if_any(lambda e, this: e // this),\n+    \"INTDIV\": intdiv,\n     \"INTERVAL\": interval,\n     \"JSONEXTRACT\": jsonextract,\n     \"LEFT\": null_if_any(lambda this, e: this[:e]),\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 59be01c..d5877d8 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -382,6 +382,12 @@ class Generator:\n     # Whether comparing against booleans (e.g. x IS TRUE) is supported\n     IS_BOOL_ALLOWED = True\n \n+    # Whether casting a fractional number to an integer rounds it instead of truncating it\n+    CAST_TO_INT_ROUNDS = False\n+\n+    # Whether the native integer division operator returns NULL for a zero divisor instead of raising\n+    SAFE_INT_DIVISION = False\n+\n     # Whether to include the \"SET\" keyword in the \"INSERT ... ON DUPLICATE KEY UPDATE\" statement\n     DUPLICATE_KEY_UPDATE_WITH_SET = True\n \n@@ -4515,12 +4521,14 @@ class Generator:\n         return f\"{this_sql} HAVING {kind} {expression_sql}\"\n \n     def intdiv_sql(self, expression: exp.IntDiv) -> str:\n-        return self.sql(\n-            exp.Cast(\n-                this=exp.Div(this=expression.this, expression=expression.expression),\n-                to=exp.DataType(this=exp.DType.INT),\n-            )\n-        )\n+        return self._truncated_div_sql(expression.this, expression.expression)\n+\n+    def _truncated_div_sql(self, this: exp.Expr, divisor: exp.Expr) -> str:\n+        div: exp.Expr = exp.Div(this=this, expression=divisor)\n+        if self.CAST_TO_INT_ROUNDS:\n+            div = exp.Trunc(this=div)\n+\n+        return self.sql(exp.Cast(this=div, to=exp.DataType(this=exp.DType.BIGINT)))\n \n     def dpipe_sql(self, expression: exp.DPipe) -> str:\n         if self.dialect.STRICT_STRING_CONCAT and expression.args.get(\"safe\"):\n@@ -4539,12 +4547,14 @@ class Generator:\n \n         elif not self.dialect.TYPED_DIVISION and expression.args.get(\"typed\"):\n             if l.is_type(*exp.DataType.INTEGER_TYPES) and r.is_type(*exp.DataType.INTEGER_TYPES):\n-                return self.sql(\n-                    exp.cast(\n-                        l / r,\n-                        to=exp.DType.BIGINT,\n-                    )\n-                )\n+                # Native integer division depends on the target's operand types, which may differ\n+                # from the source's (e.g. FLOOR(int) is DOUBLE in DuckDB), unless the operands are\n+                # integer literals or casts\n+                if all(e.is_int or isinstance(e, exp.Cast) for e in (l, r)) and (\n+                    expression.args.get(\"safe\") or not self.SAFE_INT_DIVISION\n+                ):\n+                    return self.sql(exp.IntDiv(this=l, expression=r))\n+                return self._truncated_div_sql(l, r)\n \n         return self.binary(expression, \"/\")\n \ndiff --git a/sqlglot/generators/bigquery.py b/sqlglot/generators/bigquery.py\nindex 2e7b8ba..7d56316 100644\n--- a/sqlglot/generators/bigquery.py\n+++ b/sqlglot/generators/bigquery.py\n@@ -256,6 +256,7 @@ class BigQueryGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     UNNEST_WITH_ORDINALITY = False\n+    CAST_TO_INT_ROUNDS = True\n     COLLATE_IS_FUNC = True\n     LIMIT_ONLY_LITERALS = True\n     SUPPORTS_TABLE_ALIAS_COLUMNS = False\ndiff --git a/sqlglot/generators/dremio.py b/sqlglot/generators/dremio.py\nindex 4494344..b4c04c3 100644\n--- a/sqlglot/generators/dremio.py\n+++ b/sqlglot/generators/dremio.py\n@@ -34,6 +34,7 @@ class DremioGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\n \ndiff --git a/sqlglot/generators/drill.py b/sqlglot/generators/drill.py\nindex 0d50eae..3cd4d65 100644\n--- a/sqlglot/generators/drill.py\n+++ b/sqlglot/generators/drill.py\n@@ -30,6 +30,7 @@ class DrillGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n     SUPPORTS_LIKE_QUANTIFIERS = False\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\ndiff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py\nindex 5d748a4..9ea4c33 100644\n--- a/sqlglot/generators/duckdb.py\n+++ b/sqlglot/generators/duckdb.py\n@@ -1550,6 +1550,8 @@ class DuckDBGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     SEMI_ANTI_JOIN_WITH_SIDE = False\n+    CAST_TO_INT_ROUNDS = True\n+    SAFE_INT_DIVISION = True\n     TABLESAMPLE_KEYWORDS = \"USING SAMPLE\"\n     TABLESAMPLE_SEED_KEYWORD = \"REPEATABLE\"\n     LAST_DAY_SUPPORTS_DATE_PART = False\n@@ -1699,7 +1701,7 @@ class DuckDBGenerator(generator.Generator):\n         exp.JSONExtract: _arrow_json_extract_sql,\n         exp.JSONExtractArray: _json_extract_value_array_sql,\n         exp.JSONFormat: _json_format_sql,\n-        exp.JSONValueArray: _json_extract_value_array_sql,\n+\n         exp.Lateral: _explode_to_unnest_sql,\n         exp.LogicalOr: lambda self, e: self.func(\"BOOL_OR\", _cast_to_boolean(e.this)),\n         exp.LogicalAnd: lambda self, e: self.func(\"BOOL_AND\", _cast_to_boolean(e.this)),\ndiff --git a/sqlglot/generators/materialize.py b/sqlglot/generators/materialize.py\nindex 3d86ef0..9b2ad4f 100644\n--- a/sqlglot/generators/materialize.py\n+++ b/sqlglot/generators/materialize.py\n@@ -14,9 +14,14 @@ from sqlglot.transforms import (\n class MaterializeGenerator(PostgresGenerator):\n     SUPPORTS_CREATE_TABLE_LIKE = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.ToMap},\n+        **{\n+            k: v\n+            for k, v in PostgresGenerator.TRANSFORMS.items()\n+            if k not in (exp.ToMap, exp.IntDiv)\n+        },\n         exp.AutoIncrementColumnConstraint: lambda self, e: \"\",\n         exp.Create: preprocess(\n             [\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex 920c151..f55fe23 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -123,6 +123,7 @@ class MySQLGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     LOCKING_READS_SUPPORTED = True\n+    CAST_TO_INT_ROUNDS = True\n     NULL_ORDERING_SUPPORTED: bool | None = None\n     JOIN_HINTS = False\n     TABLE_HINTS = True\n@@ -169,6 +170,7 @@ class MySQLGenerator(generator.Generator):\n         exp.ILike: no_ilike_sql,\n         # https://dev.mysql.com/doc/refman/9.7/en/flow-control-functions.html#function_if\n         exp.If: if_sql(false_value=\"NULL\"),\n+        exp.IntDiv: lambda self, e: self.binary(e, \"DIV\"),\n         exp.JSONExtractScalar: arrow_json_extract_sql,\n         exp.Length: length_or_char_length_sql,\n         exp.LogicalOr: rename_func(\"MAX\"),\n@@ -213,7 +215,9 @@ class MySQLGenerator(generator.Generator):\n             lambda self, e: self.func(\"DATE_FORMAT\", e.this, self.format_time(e))\n         ),\n         exp.Trim: trim_sql,\n-        exp.Trunc: rename_func(\"TRUNCATE\"),\n+        exp.Trunc: lambda self, e: self.func(\n+            \"TRUNCATE\", e.this, e.args.get(\"decimals\") or exp.Literal.number(0)\n+        ),\n         exp.TryCast: no_trycast_sql,\n         exp.TsOrDsAdd: date_add_sql(\"ADD\"),\n         exp.TsOrDsDiff: lambda self, e: self.func(\"DATEDIFF\", e.this, e.expression),\ndiff --git a/sqlglot/generators/oracle.py b/sqlglot/generators/oracle.py\nindex c1751cd..5f2c8d8 100644\n--- a/sqlglot/generators/oracle.py\n+++ b/sqlglot/generators/oracle.py\n@@ -26,6 +26,7 @@ class OracleGenerator(generator.Generator):\n     SUPPORTS_UESCAPE = False\n     LOCKING_READS_SUPPORTED = True\n     SUPPORTS_MERGE_WHERE = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     DATA_TYPE_SPECIFIERS_ALLOWED = True\ndiff --git a/sqlglot/generators/postgres.py b/sqlglot/generators/postgres.py\nindex c174f5c..6047a67 100644\n--- a/sqlglot/generators/postgres.py\n+++ b/sqlglot/generators/postgres.py\n@@ -536,7 +536,11 @@ class PostgresGenerator(generator.Generator):\n         this = expression.this\n \n         # Postgres casts DIV() to decimal for transpilation but when roundtripping it's superfluous\n-        if isinstance(this, exp.IntDiv) and expression.to == exp.DType.DECIMAL.into_expr():\n+        if (\n+            isinstance(this, exp.IntDiv)\n+            and exp.IntDiv in self.TRANSFORMS\n+            and expression.to == exp.DType.DECIMAL.into_expr()\n+        ):\n             return self.sql(this)\n \n         return super().cast_sql(expression, safe_prefix=safe_prefix)\ndiff --git a/sqlglot/generators/presto.py b/sqlglot/generators/presto.py\nindex bc47887..d0a853d 100644\n--- a/sqlglot/generators/presto.py\n+++ b/sqlglot/generators/presto.py\n@@ -261,6 +261,7 @@ class PrestoGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     JOIN_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     TABLE_HINTS = False\n     QUERY_HINTS = False\n     IS_BOOL_ALLOWED = False\ndiff --git a/sqlglot/generators/redshift.py b/sqlglot/generators/redshift.py\nindex 9185d83..c88c052 100644\n--- a/sqlglot/generators/redshift.py\n+++ b/sqlglot/generators/redshift.py\n@@ -20,6 +20,7 @@ from sqlglot.helper import seq_get\n class RedshiftGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     QUERY_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     VALUES_AS_TABLE = False\n     TZ_TO_WITH_TIME_ZONE = True\n     NVL2_SUPPORTED = True\n@@ -66,6 +67,7 @@ class RedshiftGenerator(PostgresGenerator):\n                 exp.LastDay,\n                 exp.SHA2,\n                 exp.Getbit,\n+                exp.IntDiv,\n                 exp.Round,\n                 exp.TryCast,\n             }\ndiff --git a/sqlglot/generators/risingwave.py b/sqlglot/generators/risingwave.py\nindex a870680..bb4ccba 100644\n--- a/sqlglot/generators/risingwave.py\n+++ b/sqlglot/generators/risingwave.py\n@@ -8,9 +8,10 @@ from sqlglot.generators.postgres import PostgresGenerator\n class RisingWaveGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **PostgresGenerator.TRANSFORMS,\n+        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.IntDiv},\n         exp.FileFormatProperty: lambda self, e: f\"FORMAT {self.sql(e, 'this')}\",\n     }\n \ndiff --git a/sqlglot/generators/snowflake.py b/sqlglot/generators/snowflake.py\nindex c75b2c8..8639ff2 100644\n--- a/sqlglot/generators/snowflake.py\n+++ b/sqlglot/generators/snowflake.py\n@@ -360,6 +360,7 @@ class SnowflakeGenerator(generator.Generator):\n     PARAMETER_TOKEN = \"$\"\n     MATCHED_BY_SOURCE = False\n     SINGLE_STRING_INTERVAL = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     QUERY_HINTS = False\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 08a73f2..640b4d9 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -62,6 +62,7 @@ class StarRocksGenerator(MySQLGenerator):\n     WITH_PROPERTIES_PREFIX = \"PROPERTIES\"\n     UPDATE_STATEMENT_SUPPORTS_FROM = True\n     INSERT_OVERWRITE = \" OVERWRITE\"\n+    CAST_TO_INT_ROUNDS = False\n \n     # StarRocks doesn't support \"IS TRUE/FALSE\" syntax.\n     IS_BOOL_ALLOWED = False\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.executor.context:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.env:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.python:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.query.JSONValueArray'>": "<function _json_extract_value_array_sql>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.singlestore:SingleStoreGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.env:intdiv",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function intdiv>"
+   },
+   {
+    "key": "sqlglot.generator:Generator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator.SAFE_INT_DIVISION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator._truncated_div_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator._truncated_div_sql>"
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.dremio:DremioGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.drill:DrillGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.SAFE_INT_DIVISION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.oracle:OracleGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.presto:PrestoGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.snowflake:SnowflakeGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "6543",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6544",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6545",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6779",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6780",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6781",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ },
+ {
+  "task": "f5dd70bff7",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Integer division (x DIV y in Hive, Spark and MySQL, x // y in DuckDB, DIV(x, y) in BigQuery) truncates towards zero, but sqlglot's rewrite for dialects without an integer-division operator does not preserve that: Presto gets CAST(CAST(x AS DOUBLE) / y AS INTEGER), which rounds instead of truncating and can overflow, and the generic integer-division cast (also produced by the Python expression builder, x // 1) uses INT instead of BIGINT. Separately, a one-argument TRUNC(n) from Oracle or Snowflake transpiled to MySQL must give a valid TRUNCATE call with an explicit 0 decimals argument.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT x DIV y\", read=\"hive\", write=\"presto\")[0]\n# currently: SELECT CAST(CAST(x AS DOUBLE) / y AS INTEGER)\n# expected:  SELECT CAST(TRUNCATE(CAST(x AS DOUBLE) / y) AS BIGINT)\n\n(exp.column(\"x\") // 1).sql()\n# currently: CAST(x / 1 AS INT)\n# expected:  CAST(x / 1 AS BIGINT)\n\ntranspile(\"SELECT TRUNC(3.14159)\", read=\"oracle\", write=\"mysql\")[0]\n# currently: SELECT TRUNCATE(3.14159)\n# expected:  SELECT TRUNCATE(3.14159, 0)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generator.py",
+   "line": 194,
+   "op": "delete",
+   "code": "exp.ExcludeColumnConstraint: lambda self, e: f\"EXCLUDE {self.sql(e, 'this').lstrip()}\","
+  },
+  "code_diff": "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\nindex a6e8c1d..6574aee 100644\n--- a/sqlglot/executor/env.py\n+++ b/sqlglot/executor/env.py\n@@ -196,6 +196,12 @@ def _like(this, e, flags=0):\n     )\n \n \n+@null_if_any\n+def intdiv(this, e):\n+    quotient = abs(this) // abs(e)\n+    return quotient if (this < 0) == (e < 0) else -quotient\n+\n+\n @null_if_any\n def interval(this, unit):\n     plural = unit + \"S\"\n@@ -277,7 +283,7 @@ ENV = {\n     \"IF\": lambda predicate, true, false: true if predicate else false,\n     \"IN\": sql_in,\n     \"INT\": null_if_any(int),\n-    \"INTDIV\": null_if_any(lambda e, this: e // this),\n+    \"INTDIV\": intdiv,\n     \"INTERVAL\": interval,\n     \"JSONEXTRACT\": jsonextract,\n     \"LEFT\": null_if_any(lambda this, e: this[:e]),\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 59be01c..979321c 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -191,7 +191,7 @@ class Generator:\n         exp.EphemeralColumnConstraint: lambda self, e: (\n             f\"EPHEMERAL{(' ' + self.sql(e, 'this')) if e.this else ''}\"\n         ),\n-        exp.ExcludeColumnConstraint: lambda self, e: f\"EXCLUDE {self.sql(e, 'this').lstrip()}\",\n+\n         exp.ExecuteAsProperty: lambda self, e: self.naked_property(e),\n         exp.Except: lambda self, e: self.set_operations(e),\n         exp.ExternalProperty: lambda *_: \"EXTERNAL\",\n@@ -382,6 +382,12 @@ class Generator:\n     # Whether comparing against booleans (e.g. x IS TRUE) is supported\n     IS_BOOL_ALLOWED = True\n \n+    # Whether casting a fractional number to an integer rounds it instead of truncating it\n+    CAST_TO_INT_ROUNDS = False\n+\n+    # Whether the native integer division operator returns NULL for a zero divisor instead of raising\n+    SAFE_INT_DIVISION = False\n+\n     # Whether to include the \"SET\" keyword in the \"INSERT ... ON DUPLICATE KEY UPDATE\" statement\n     DUPLICATE_KEY_UPDATE_WITH_SET = True\n \n@@ -4515,12 +4521,14 @@ class Generator:\n         return f\"{this_sql} HAVING {kind} {expression_sql}\"\n \n     def intdiv_sql(self, expression: exp.IntDiv) -> str:\n-        return self.sql(\n-            exp.Cast(\n-                this=exp.Div(this=expression.this, expression=expression.expression),\n-                to=exp.DataType(this=exp.DType.INT),\n-            )\n-        )\n+        return self._truncated_div_sql(expression.this, expression.expression)\n+\n+    def _truncated_div_sql(self, this: exp.Expr, divisor: exp.Expr) -> str:\n+        div: exp.Expr = exp.Div(this=this, expression=divisor)\n+        if self.CAST_TO_INT_ROUNDS:\n+            div = exp.Trunc(this=div)\n+\n+        return self.sql(exp.Cast(this=div, to=exp.DataType(this=exp.DType.BIGINT)))\n \n     def dpipe_sql(self, expression: exp.DPipe) -> str:\n         if self.dialect.STRICT_STRING_CONCAT and expression.args.get(\"safe\"):\n@@ -4539,12 +4547,14 @@ class Generator:\n \n         elif not self.dialect.TYPED_DIVISION and expression.args.get(\"typed\"):\n             if l.is_type(*exp.DataType.INTEGER_TYPES) and r.is_type(*exp.DataType.INTEGER_TYPES):\n-                return self.sql(\n-                    exp.cast(\n-                        l / r,\n-                        to=exp.DType.BIGINT,\n-                    )\n-                )\n+                # Native integer division depends on the target's operand types, which may differ\n+                # from the source's (e.g. FLOOR(int) is DOUBLE in DuckDB), unless the operands are\n+                # integer literals or casts\n+                if all(e.is_int or isinstance(e, exp.Cast) for e in (l, r)) and (\n+                    expression.args.get(\"safe\") or not self.SAFE_INT_DIVISION\n+                ):\n+                    return self.sql(exp.IntDiv(this=l, expression=r))\n+                return self._truncated_div_sql(l, r)\n \n         return self.binary(expression, \"/\")\n \ndiff --git a/sqlglot/generators/bigquery.py b/sqlglot/generators/bigquery.py\nindex 2e7b8ba..7d56316 100644\n--- a/sqlglot/generators/bigquery.py\n+++ b/sqlglot/generators/bigquery.py\n@@ -256,6 +256,7 @@ class BigQueryGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     UNNEST_WITH_ORDINALITY = False\n+    CAST_TO_INT_ROUNDS = True\n     COLLATE_IS_FUNC = True\n     LIMIT_ONLY_LITERALS = True\n     SUPPORTS_TABLE_ALIAS_COLUMNS = False\ndiff --git a/sqlglot/generators/dremio.py b/sqlglot/generators/dremio.py\nindex 4494344..b4c04c3 100644\n--- a/sqlglot/generators/dremio.py\n+++ b/sqlglot/generators/dremio.py\n@@ -34,6 +34,7 @@ class DremioGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\n \ndiff --git a/sqlglot/generators/drill.py b/sqlglot/generators/drill.py\nindex 0d50eae..3cd4d65 100644\n--- a/sqlglot/generators/drill.py\n+++ b/sqlglot/generators/drill.py\n@@ -30,6 +30,7 @@ class DrillGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n     SUPPORTS_LIKE_QUANTIFIERS = False\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\ndiff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py\nindex 5d748a4..02400f9 100644\n--- a/sqlglot/generators/duckdb.py\n+++ b/sqlglot/generators/duckdb.py\n@@ -1550,6 +1550,8 @@ class DuckDBGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     SEMI_ANTI_JOIN_WITH_SIDE = False\n+    CAST_TO_INT_ROUNDS = True\n+    SAFE_INT_DIVISION = True\n     TABLESAMPLE_KEYWORDS = \"USING SAMPLE\"\n     TABLESAMPLE_SEED_KEYWORD = \"REPEATABLE\"\n     LAST_DAY_SUPPORTS_DATE_PART = False\ndiff --git a/sqlglot/generators/materialize.py b/sqlglot/generators/materialize.py\nindex 3d86ef0..9b2ad4f 100644\n--- a/sqlglot/generators/materialize.py\n+++ b/sqlglot/generators/materialize.py\n@@ -14,9 +14,14 @@ from sqlglot.transforms import (\n class MaterializeGenerator(PostgresGenerator):\n     SUPPORTS_CREATE_TABLE_LIKE = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.ToMap},\n+        **{\n+            k: v\n+            for k, v in PostgresGenerator.TRANSFORMS.items()\n+            if k not in (exp.ToMap, exp.IntDiv)\n+        },\n         exp.AutoIncrementColumnConstraint: lambda self, e: \"\",\n         exp.Create: preprocess(\n             [\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex 920c151..f55fe23 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -123,6 +123,7 @@ class MySQLGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     LOCKING_READS_SUPPORTED = True\n+    CAST_TO_INT_ROUNDS = True\n     NULL_ORDERING_SUPPORTED: bool | None = None\n     JOIN_HINTS = False\n     TABLE_HINTS = True\n@@ -169,6 +170,7 @@ class MySQLGenerator(generator.Generator):\n         exp.ILike: no_ilike_sql,\n         # https://dev.mysql.com/doc/refman/9.7/en/flow-control-functions.html#function_if\n         exp.If: if_sql(false_value=\"NULL\"),\n+        exp.IntDiv: lambda self, e: self.binary(e, \"DIV\"),\n         exp.JSONExtractScalar: arrow_json_extract_sql,\n         exp.Length: length_or_char_length_sql,\n         exp.LogicalOr: rename_func(\"MAX\"),\n@@ -213,7 +215,9 @@ class MySQLGenerator(generator.Generator):\n             lambda self, e: self.func(\"DATE_FORMAT\", e.this, self.format_time(e))\n         ),\n         exp.Trim: trim_sql,\n-        exp.Trunc: rename_func(\"TRUNCATE\"),\n+        exp.Trunc: lambda self, e: self.func(\n+            \"TRUNCATE\", e.this, e.args.get(\"decimals\") or exp.Literal.number(0)\n+        ),\n         exp.TryCast: no_trycast_sql,\n         exp.TsOrDsAdd: date_add_sql(\"ADD\"),\n         exp.TsOrDsDiff: lambda self, e: self.func(\"DATEDIFF\", e.this, e.expression),\ndiff --git a/sqlglot/generators/oracle.py b/sqlglot/generators/oracle.py\nindex c1751cd..5f2c8d8 100644\n--- a/sqlglot/generators/oracle.py\n+++ b/sqlglot/generators/oracle.py\n@@ -26,6 +26,7 @@ class OracleGenerator(generator.Generator):\n     SUPPORTS_UESCAPE = False\n     LOCKING_READS_SUPPORTED = True\n     SUPPORTS_MERGE_WHERE = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     DATA_TYPE_SPECIFIERS_ALLOWED = True\ndiff --git a/sqlglot/generators/postgres.py b/sqlglot/generators/postgres.py\nindex c174f5c..6047a67 100644\n--- a/sqlglot/generators/postgres.py\n+++ b/sqlglot/generators/postgres.py\n@@ -536,7 +536,11 @@ class PostgresGenerator(generator.Generator):\n         this = expression.this\n \n         # Postgres casts DIV() to decimal for transpilation but when roundtripping it's superfluous\n-        if isinstance(this, exp.IntDiv) and expression.to == exp.DType.DECIMAL.into_expr():\n+        if (\n+            isinstance(this, exp.IntDiv)\n+            and exp.IntDiv in self.TRANSFORMS\n+            and expression.to == exp.DType.DECIMAL.into_expr()\n+        ):\n             return self.sql(this)\n \n         return super().cast_sql(expression, safe_prefix=safe_prefix)\ndiff --git a/sqlglot/generators/presto.py b/sqlglot/generators/presto.py\nindex bc47887..d0a853d 100644\n--- a/sqlglot/generators/presto.py\n+++ b/sqlglot/generators/presto.py\n@@ -261,6 +261,7 @@ class PrestoGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     JOIN_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     TABLE_HINTS = False\n     QUERY_HINTS = False\n     IS_BOOL_ALLOWED = False\ndiff --git a/sqlglot/generators/redshift.py b/sqlglot/generators/redshift.py\nindex 9185d83..c88c052 100644\n--- a/sqlglot/generators/redshift.py\n+++ b/sqlglot/generators/redshift.py\n@@ -20,6 +20,7 @@ from sqlglot.helper import seq_get\n class RedshiftGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     QUERY_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     VALUES_AS_TABLE = False\n     TZ_TO_WITH_TIME_ZONE = True\n     NVL2_SUPPORTED = True\n@@ -66,6 +67,7 @@ class RedshiftGenerator(PostgresGenerator):\n                 exp.LastDay,\n                 exp.SHA2,\n                 exp.Getbit,\n+                exp.IntDiv,\n                 exp.Round,\n                 exp.TryCast,\n             }\ndiff --git a/sqlglot/generators/risingwave.py b/sqlglot/generators/risingwave.py\nindex a870680..bb4ccba 100644\n--- a/sqlglot/generators/risingwave.py\n+++ b/sqlglot/generators/risingwave.py\n@@ -8,9 +8,10 @@ from sqlglot.generators.postgres import PostgresGenerator\n class RisingWaveGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **PostgresGenerator.TRANSFORMS,\n+        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.IntDiv},\n         exp.FileFormatProperty: lambda self, e: f\"FORMAT {self.sql(e, 'this')}\",\n     }\n \ndiff --git a/sqlglot/generators/snowflake.py b/sqlglot/generators/snowflake.py\nindex c75b2c8..8639ff2 100644\n--- a/sqlglot/generators/snowflake.py\n+++ b/sqlglot/generators/snowflake.py\n@@ -360,6 +360,7 @@ class SnowflakeGenerator(generator.Generator):\n     PARAMETER_TOKEN = \"$\"\n     MATCHED_BY_SOURCE = False\n     SINGLE_STRING_INTERVAL = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     QUERY_HINTS = False\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 08a73f2..640b4d9 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -62,6 +62,7 @@ class StarRocksGenerator(MySQLGenerator):\n     WITH_PROPERTIES_PREFIX = \"PROPERTIES\"\n     UPDATE_STATEMENT_SUPPORTS_FROM = True\n     INSERT_OVERWRITE = \" OVERWRITE\"\n+    CAST_TO_INT_ROUNDS = False\n \n     # StarRocks doesn't support \"IS TRUE/FALSE\" syntax.\n     IS_BOOL_ALLOWED = False\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.executor.context:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.env:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.python:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generator:Generator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.athena:AthenaTrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.clickhouse:ClickHouseGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.databricks:DatabricksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.dremio:DremioGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.drill:DrillGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.druid:DruidGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.dune:DuneGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.exasol:ExasolGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.fabric:FabricGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.hive:HiveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>",
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.oracle:OracleGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.postgres:PostgresGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.presto:PrestoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>",
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>",
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.singlestore:SingleStoreGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.snowflake:SnowflakeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.spark2:Spark2Generator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.spark:SparkGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.sqlite:SQLiteGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.tableau:TableauGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.teradata:TeradataGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.trino:TrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.tsql:TSQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.constraints.ExcludeColumnConstraint'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.executor.env:intdiv",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function intdiv>"
+   },
+   {
+    "key": "sqlglot.generator:Generator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator.SAFE_INT_DIVISION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator._truncated_div_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator._truncated_div_sql>"
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.dremio:DremioGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "6543",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6544",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6545",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6779",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6780",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6781",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "7170",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE TABLE t (i INT, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))",
+    "before": "CREATE TABLE t (i INT, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7171",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE TABLE t (i INT, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))",
+    "before": "CREATE TABLE t (i INT, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7172",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE TABLE t (i INT, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))",
+    "before": "CREATE TABLE t (i INTEGER, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7173",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE TABLE t (i INT, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))",
+    "before": "CREATE TABLE t (i INT, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7174",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE TABLE t (i INT, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))",
+    "before": "CREATE TABLE t (i INT, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7175",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE TABLE t (i INT, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))",
+    "before": "CREATE TABLE t (i INT, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7176",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE TABLE t (i INT, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))",
+    "before": "CREATE TABLE t (i INTEGER, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7177",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE TABLE t (i INT, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))",
+    "before": "CREATE TABLE t (i INT, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7178",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE TABLE t (i INT, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))",
+    "before": "CREATE TABLE t (i INT, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7179",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE TABLE t (i INT, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))",
+    "before": "CREATE TABLE t (i INT, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7180",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE TABLE t (i INT, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))",
+    "before": "CREATE TABLE t (i INTEGER, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7181",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE TABLE t (i INT, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))",
+    "before": "CREATE TABLE t (i INT, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7186",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE TABLE t (vid INT NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))",
+    "before": "CREATE TABLE t (vid INT NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7187",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE TABLE t (vid INT NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))",
+    "before": "CREATE TABLE t (vid INT NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7188",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE TABLE t (vid INT NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))",
+    "before": "CREATE TABLE t (vid INTEGER NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "7189",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE TABLE t (vid INT NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))",
+    "before": "CREATE TABLE t (vid INT NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))",
+    "after": "EXC: ValueError"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 16,
+   "imports": 31
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_postgres.py::TestPostgres::test_ddl"
+  ]
+ },
+ {
+  "task": "f5dd70bff7",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Integer division (x DIV y in Hive, Spark and MySQL, x // y in DuckDB, DIV(x, y) in BigQuery) truncates towards zero, but sqlglot's rewrite for dialects without an integer-division operator does not preserve that: Presto gets CAST(CAST(x AS DOUBLE) / y AS INTEGER), which rounds instead of truncating and can overflow, and the generic integer-division cast (also produced by the Python expression builder, x // 1) uses INT instead of BIGINT. Separately, a one-argument TRUNC(n) from Oracle or Snowflake transpiled to MySQL must give a valid TRUNCATE call with an explicit 0 decimals argument.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT x DIV y\", read=\"hive\", write=\"presto\")[0]\n# currently: SELECT CAST(CAST(x AS DOUBLE) / y AS INTEGER)\n# expected:  SELECT CAST(TRUNCATE(CAST(x AS DOUBLE) / y) AS BIGINT)\n\n(exp.column(\"x\") // 1).sql()\n# currently: CAST(x / 1 AS INT)\n# expected:  CAST(x / 1 AS BIGINT)\n\ntranspile(\"SELECT TRUNC(3.14159)\", read=\"oracle\", write=\"mysql\")[0]\n# currently: SELECT TRUNCATE(3.14159)\n# expected:  SELECT TRUNCATE(3.14159, 0)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generators/mysql.py",
+   "line": 322,
+   "op": "delete",
+   "code": "exp.DType.BIGINT: \"SIGNED\","
+  },
+  "code_diff": "diff --git a/sqlglot/executor/env.py b/sqlglot/executor/env.py\nindex a6e8c1d..6574aee 100644\n--- a/sqlglot/executor/env.py\n+++ b/sqlglot/executor/env.py\n@@ -196,6 +196,12 @@ def _like(this, e, flags=0):\n     )\n \n \n+@null_if_any\n+def intdiv(this, e):\n+    quotient = abs(this) // abs(e)\n+    return quotient if (this < 0) == (e < 0) else -quotient\n+\n+\n @null_if_any\n def interval(this, unit):\n     plural = unit + \"S\"\n@@ -277,7 +283,7 @@ ENV = {\n     \"IF\": lambda predicate, true, false: true if predicate else false,\n     \"IN\": sql_in,\n     \"INT\": null_if_any(int),\n-    \"INTDIV\": null_if_any(lambda e, this: e // this),\n+    \"INTDIV\": intdiv,\n     \"INTERVAL\": interval,\n     \"JSONEXTRACT\": jsonextract,\n     \"LEFT\": null_if_any(lambda this, e: this[:e]),\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 59be01c..d5877d8 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -382,6 +382,12 @@ class Generator:\n     # Whether comparing against booleans (e.g. x IS TRUE) is supported\n     IS_BOOL_ALLOWED = True\n \n+    # Whether casting a fractional number to an integer rounds it instead of truncating it\n+    CAST_TO_INT_ROUNDS = False\n+\n+    # Whether the native integer division operator returns NULL for a zero divisor instead of raising\n+    SAFE_INT_DIVISION = False\n+\n     # Whether to include the \"SET\" keyword in the \"INSERT ... ON DUPLICATE KEY UPDATE\" statement\n     DUPLICATE_KEY_UPDATE_WITH_SET = True\n \n@@ -4515,12 +4521,14 @@ class Generator:\n         return f\"{this_sql} HAVING {kind} {expression_sql}\"\n \n     def intdiv_sql(self, expression: exp.IntDiv) -> str:\n-        return self.sql(\n-            exp.Cast(\n-                this=exp.Div(this=expression.this, expression=expression.expression),\n-                to=exp.DataType(this=exp.DType.INT),\n-            )\n-        )\n+        return self._truncated_div_sql(expression.this, expression.expression)\n+\n+    def _truncated_div_sql(self, this: exp.Expr, divisor: exp.Expr) -> str:\n+        div: exp.Expr = exp.Div(this=this, expression=divisor)\n+        if self.CAST_TO_INT_ROUNDS:\n+            div = exp.Trunc(this=div)\n+\n+        return self.sql(exp.Cast(this=div, to=exp.DataType(this=exp.DType.BIGINT)))\n \n     def dpipe_sql(self, expression: exp.DPipe) -> str:\n         if self.dialect.STRICT_STRING_CONCAT and expression.args.get(\"safe\"):\n@@ -4539,12 +4547,14 @@ class Generator:\n \n         elif not self.dialect.TYPED_DIVISION and expression.args.get(\"typed\"):\n             if l.is_type(*exp.DataType.INTEGER_TYPES) and r.is_type(*exp.DataType.INTEGER_TYPES):\n-                return self.sql(\n-                    exp.cast(\n-                        l / r,\n-                        to=exp.DType.BIGINT,\n-                    )\n-                )\n+                # Native integer division depends on the target's operand types, which may differ\n+                # from the source's (e.g. FLOOR(int) is DOUBLE in DuckDB), unless the operands are\n+                # integer literals or casts\n+                if all(e.is_int or isinstance(e, exp.Cast) for e in (l, r)) and (\n+                    expression.args.get(\"safe\") or not self.SAFE_INT_DIVISION\n+                ):\n+                    return self.sql(exp.IntDiv(this=l, expression=r))\n+                return self._truncated_div_sql(l, r)\n \n         return self.binary(expression, \"/\")\n \ndiff --git a/sqlglot/generators/bigquery.py b/sqlglot/generators/bigquery.py\nindex 2e7b8ba..7d56316 100644\n--- a/sqlglot/generators/bigquery.py\n+++ b/sqlglot/generators/bigquery.py\n@@ -256,6 +256,7 @@ class BigQueryGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     UNNEST_WITH_ORDINALITY = False\n+    CAST_TO_INT_ROUNDS = True\n     COLLATE_IS_FUNC = True\n     LIMIT_ONLY_LITERALS = True\n     SUPPORTS_TABLE_ALIAS_COLUMNS = False\ndiff --git a/sqlglot/generators/dremio.py b/sqlglot/generators/dremio.py\nindex 4494344..b4c04c3 100644\n--- a/sqlglot/generators/dremio.py\n+++ b/sqlglot/generators/dremio.py\n@@ -34,6 +34,7 @@ class DremioGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\n \ndiff --git a/sqlglot/generators/drill.py b/sqlglot/generators/drill.py\nindex 0d50eae..3cd4d65 100644\n--- a/sqlglot/generators/drill.py\n+++ b/sqlglot/generators/drill.py\n@@ -30,6 +30,7 @@ class DrillGenerator(generator.Generator):\n     TRY_SUPPORTED = False\n     SUPPORTS_UESCAPE = False\n     SUPPORTS_DECODE_CASE = False\n+    CAST_TO_INT_ROUNDS = True\n     SUPPORTS_LIKE_QUANTIFIERS = False\n \n     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS\ndiff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py\nindex 5d748a4..02400f9 100644\n--- a/sqlglot/generators/duckdb.py\n+++ b/sqlglot/generators/duckdb.py\n@@ -1550,6 +1550,8 @@ class DuckDBGenerator(generator.Generator):\n     RENAME_TABLE_WITH_DB = False\n     NVL2_SUPPORTED = False\n     SEMI_ANTI_JOIN_WITH_SIDE = False\n+    CAST_TO_INT_ROUNDS = True\n+    SAFE_INT_DIVISION = True\n     TABLESAMPLE_KEYWORDS = \"USING SAMPLE\"\n     TABLESAMPLE_SEED_KEYWORD = \"REPEATABLE\"\n     LAST_DAY_SUPPORTS_DATE_PART = False\ndiff --git a/sqlglot/generators/materialize.py b/sqlglot/generators/materialize.py\nindex 3d86ef0..9b2ad4f 100644\n--- a/sqlglot/generators/materialize.py\n+++ b/sqlglot/generators/materialize.py\n@@ -14,9 +14,14 @@ from sqlglot.transforms import (\n class MaterializeGenerator(PostgresGenerator):\n     SUPPORTS_CREATE_TABLE_LIKE = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.ToMap},\n+        **{\n+            k: v\n+            for k, v in PostgresGenerator.TRANSFORMS.items()\n+            if k not in (exp.ToMap, exp.IntDiv)\n+        },\n         exp.AutoIncrementColumnConstraint: lambda self, e: \"\",\n         exp.Create: preprocess(\n             [\ndiff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py\nindex 920c151..e9a902f 100644\n--- a/sqlglot/generators/mysql.py\n+++ b/sqlglot/generators/mysql.py\n@@ -123,6 +123,7 @@ class MySQLGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     LOCKING_READS_SUPPORTED = True\n+    CAST_TO_INT_ROUNDS = True\n     NULL_ORDERING_SUPPORTED: bool | None = None\n     JOIN_HINTS = False\n     TABLE_HINTS = True\n@@ -169,6 +170,7 @@ class MySQLGenerator(generator.Generator):\n         exp.ILike: no_ilike_sql,\n         # https://dev.mysql.com/doc/refman/9.7/en/flow-control-functions.html#function_if\n         exp.If: if_sql(false_value=\"NULL\"),\n+        exp.IntDiv: lambda self, e: self.binary(e, \"DIV\"),\n         exp.JSONExtractScalar: arrow_json_extract_sql,\n         exp.Length: length_or_char_length_sql,\n         exp.LogicalOr: rename_func(\"MAX\"),\n@@ -213,7 +215,9 @@ class MySQLGenerator(generator.Generator):\n             lambda self, e: self.func(\"DATE_FORMAT\", e.this, self.format_time(e))\n         ),\n         exp.Trim: trim_sql,\n-        exp.Trunc: rename_func(\"TRUNCATE\"),\n+        exp.Trunc: lambda self, e: self.func(\n+            \"TRUNCATE\", e.this, e.args.get(\"decimals\") or exp.Literal.number(0)\n+        ),\n         exp.TryCast: no_trycast_sql,\n         exp.TsOrDsAdd: date_add_sql(\"ADD\"),\n         exp.TsOrDsDiff: lambda self, e: self.func(\"DATEDIFF\", e.this, e.expression),\n@@ -315,7 +319,7 @@ class MySQLGenerator(generator.Generator):\n         exp.DType.TINYBLOB: \"CHAR\",\n         exp.DType.TINYTEXT: \"CHAR\",\n         exp.DType.VARCHAR: \"CHAR\",\n-        exp.DType.BIGINT: \"SIGNED\",\n+\n         exp.DType.BOOLEAN: \"SIGNED\",\n         exp.DType.INT: \"SIGNED\",\n         exp.DType.SMALLINT: \"SIGNED\",\ndiff --git a/sqlglot/generators/oracle.py b/sqlglot/generators/oracle.py\nindex c1751cd..5f2c8d8 100644\n--- a/sqlglot/generators/oracle.py\n+++ b/sqlglot/generators/oracle.py\n@@ -26,6 +26,7 @@ class OracleGenerator(generator.Generator):\n     SUPPORTS_UESCAPE = False\n     LOCKING_READS_SUPPORTED = True\n     SUPPORTS_MERGE_WHERE = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     DATA_TYPE_SPECIFIERS_ALLOWED = True\ndiff --git a/sqlglot/generators/postgres.py b/sqlglot/generators/postgres.py\nindex c174f5c..6047a67 100644\n--- a/sqlglot/generators/postgres.py\n+++ b/sqlglot/generators/postgres.py\n@@ -536,7 +536,11 @@ class PostgresGenerator(generator.Generator):\n         this = expression.this\n \n         # Postgres casts DIV() to decimal for transpilation but when roundtripping it's superfluous\n-        if isinstance(this, exp.IntDiv) and expression.to == exp.DType.DECIMAL.into_expr():\n+        if (\n+            isinstance(this, exp.IntDiv)\n+            and exp.IntDiv in self.TRANSFORMS\n+            and expression.to == exp.DType.DECIMAL.into_expr()\n+        ):\n             return self.sql(this)\n \n         return super().cast_sql(expression, safe_prefix=safe_prefix)\ndiff --git a/sqlglot/generators/presto.py b/sqlglot/generators/presto.py\nindex bc47887..d0a853d 100644\n--- a/sqlglot/generators/presto.py\n+++ b/sqlglot/generators/presto.py\n@@ -261,6 +261,7 @@ class PrestoGenerator(generator.Generator):\n \n     INTERVAL_ALLOWS_PLURAL_FORM = False\n     JOIN_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     TABLE_HINTS = False\n     QUERY_HINTS = False\n     IS_BOOL_ALLOWED = False\ndiff --git a/sqlglot/generators/redshift.py b/sqlglot/generators/redshift.py\nindex 9185d83..c88c052 100644\n--- a/sqlglot/generators/redshift.py\n+++ b/sqlglot/generators/redshift.py\n@@ -20,6 +20,7 @@ from sqlglot.helper import seq_get\n class RedshiftGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     QUERY_HINTS = False\n+    CAST_TO_INT_ROUNDS = True\n     VALUES_AS_TABLE = False\n     TZ_TO_WITH_TIME_ZONE = True\n     NVL2_SUPPORTED = True\n@@ -66,6 +67,7 @@ class RedshiftGenerator(PostgresGenerator):\n                 exp.LastDay,\n                 exp.SHA2,\n                 exp.Getbit,\n+                exp.IntDiv,\n                 exp.Round,\n                 exp.TryCast,\n             }\ndiff --git a/sqlglot/generators/risingwave.py b/sqlglot/generators/risingwave.py\nindex a870680..bb4ccba 100644\n--- a/sqlglot/generators/risingwave.py\n+++ b/sqlglot/generators/risingwave.py\n@@ -8,9 +8,10 @@ from sqlglot.generators.postgres import PostgresGenerator\n class RisingWaveGenerator(PostgresGenerator):\n     LOCKING_READS_SUPPORTED = False\n     SUPPORTS_BETWEEN_FLAGS = False\n+    CAST_TO_INT_ROUNDS = True\n \n     TRANSFORMS = {\n-        **PostgresGenerator.TRANSFORMS,\n+        **{k: v for k, v in PostgresGenerator.TRANSFORMS.items() if k != exp.IntDiv},\n         exp.FileFormatProperty: lambda self, e: f\"FORMAT {self.sql(e, 'this')}\",\n     }\n \ndiff --git a/sqlglot/generators/snowflake.py b/sqlglot/generators/snowflake.py\nindex c75b2c8..8639ff2 100644\n--- a/sqlglot/generators/snowflake.py\n+++ b/sqlglot/generators/snowflake.py\n@@ -360,6 +360,7 @@ class SnowflakeGenerator(generator.Generator):\n     PARAMETER_TOKEN = \"$\"\n     MATCHED_BY_SOURCE = False\n     SINGLE_STRING_INTERVAL = True\n+    CAST_TO_INT_ROUNDS = True\n     JOIN_HINTS = False\n     TABLE_HINTS = False\n     QUERY_HINTS = False\ndiff --git a/sqlglot/generators/starrocks.py b/sqlglot/generators/starrocks.py\nindex 08a73f2..640b4d9 100644\n--- a/sqlglot/generators/starrocks.py\n+++ b/sqlglot/generators/starrocks.py\n@@ -62,6 +62,7 @@ class StarRocksGenerator(MySQLGenerator):\n     WITH_PROPERTIES_PREFIX = \"PROPERTIES\"\n     UPDATE_STATEMENT_SUPPORTS_FROM = True\n     INSERT_OVERWRITE = \" OVERWRITE\"\n+    CAST_TO_INT_ROUNDS = False\n \n     # StarRocks doesn't support \"IS TRUE/FALSE\" syntax.\n     IS_BOOL_ALLOWED = False\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.executor.context:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.env:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.python:ENV",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'INTDIV'": [
+      "<function <lambda>>",
+      "<function intdiv>"
+     ],
+     "'exp'": [
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/base/sqlglot/expressions/__init__.py'>",
+      "<module 'sqlglot.expressions' from '/home/claude/cmp/intent/f5dd70bff7/fix/sqlglot/expressions/__init__.py'>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.CAST_MAPPING",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<DType.BIGINT: 'BIGINT'>": "'SIGNED'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.singlestore:SingleStoreGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {
+     "<class 'sqlglot.expressions.core.IntDiv'>": "<function MySQLGenerator.<lambda>>"
+    },
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.math.Trunc'>": [
+      "<function rename_func.<locals>.<lambda>>",
+      "<function MySQLGenerator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.executor.env:intdiv",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function intdiv>"
+   },
+   {
+    "key": "sqlglot.generator:Generator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator.SAFE_INT_DIVISION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.generator:Generator._truncated_div_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator._truncated_div_sql>"
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.dremio:DremioGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.drill:DrillGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.SAFE_INT_DIVISION",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.oracle:OracleGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.presto:PrestoGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.snowflake:SnowflakeGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.CAST_TO_INT_ROUNDS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "4350",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CAST(x AS SIGNED INTEGER)",
+    "before": "CAST(x AS SIGNED)",
+    "after": "CAST(x AS BIGINT)"
+   },
+   {
+    "probe": "4354",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "CAST(x AS SIGNED)",
+    "before": "CAST(x AS SIGNED)",
+    "after": "CAST(x AS BIGINT)"
+   },
+   {
+    "probe": "6543",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6544",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6545",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "1 / DIV(4, 2)",
+    "before": "1 / DIV(4, 2)",
+    "after": "1 / CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL)"
+   },
+   {
+    "probe": "6779",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6780",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   },
+   {
+    "probe": "6781",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "before": "CAST(DIV(4, 2) AS DECIMAL(5, 3))",
+    "after": "CAST(CAST(CAST(TRUNC(CAST(4 AS DOUBLE PRECISION) / 2) AS BIGINT) AS DECIMAL) AS DECIMAL(5, 3))"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 2,
+   "imports": 1
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_mysql",
+   "tests/dialects/test_mysql.py::TestMySQL::test_types"
+  ]
+ }
+]

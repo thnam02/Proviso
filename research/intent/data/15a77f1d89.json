@@ -1,0 +1,2463 @@
+[
+ {
+  "task": "15a77f1d89",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "fix(mysql): decode backslash string escapes (#8471)\n\n* fix(mysql): decode backslash string escapes\n\n* fix(ci): filter integration workflow runs by branch\n\n* transpile is_ascii to rlike",
+  "code_diff": "diff --git a/sqlglot/dialects/mysql.py b/sqlglot/dialects/mysql.py\nindex 65ab803..2ae6881 100644\n--- a/sqlglot/dialects/mysql.py\n+++ b/sqlglot/dialects/mysql.py\n@@ -67,6 +67,16 @@ class MySQL(Dialect):\n         \"YEAR_MONTH\",\n     }\n \n+    UNESCAPED_SEQUENCES = {\n+        \"\\\\0\": \"\\0\",\n+        \"\\\\Z\": \"\\x1a\",\n+        \"\\\\%\": \"\\\\%\",\n+        \"\\\\_\": \"\\\\_\",\n+        \"\\\\a\": \"a\",\n+        \"\\\\f\": \"f\",\n+        \"\\\\v\": \"v\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         QUOTES = [\"'\", '\"']\n         COMMENTS = [\"--\", \"#\", (\"/*\", \"*/\")]\n@@ -75,7 +85,7 @@ class MySQL(Dialect):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\"), (\"0b\", \"\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\"), (\"0x\", \"\")]\n         # https://dev.mysql.com/doc/refman/8.4/en/string-literals.html\n-        ESCAPE_FOLLOW_CHARS = [\"0\", \"b\", \"n\", \"r\", \"t\", \"Z\", \"%\", \"_\"]\n+        DROP_UNKNOWN_ESCAPES = True\n \n         NESTED_COMMENTS = False\n \ndiff --git a/sqlglot/generators/singlestore.py b/sqlglot/generators/singlestore.py\nindex 476f62f..8ac5cb1 100644\n--- a/sqlglot/generators/singlestore.py\n+++ b/sqlglot/generators/singlestore.py\n@@ -206,7 +206,6 @@ class SingleStoreGenerator(MySQLGenerator):\n             exp.Mul(this=self.func(\"LENGTH\", e.this), expression=e.args.get(\"times\")),\n             e.this,\n         ),\n-        exp.IsAscii: lambda self, e: f\"({self.sql(e, 'this')} RLIKE '^[\\x00-\\x7f]*$')\",\n         exp.MD5Digest: lambda self, e: self.func(\"UNHEX\", self.func(\"MD5\", e.this)),\n         exp.Contains: rename_func(\"INSTR\"),\n         exp.RegexpExtractAll: unsupported_args(\"position\", \"occurrence\", \"group\")(\n@@ -1425,6 +1424,11 @@ class SingleStoreGenerator(MySQLGenerator):\n         \"zone\",\n     }\n \n+    def isascii_sql(self, expression: exp.IsAscii) -> str:\n+        return self.sql(\n+            exp.paren(expression.this.rlike(exp.Literal.string(\"^[\\x00-\\x7f]*$\")), copy=False)\n+        )\n+\n     def jsonextractscalar_sql(self, expression: exp.JSONExtractScalar) -> str:\n         json_type = expression.args.get(\"json_type\")\n         func_name = \"JSON_EXTRACT_JSON\" if json_type is None else f\"JSON_EXTRACT_{json_type}\"\ndiff --git a/sqlglot/tokenizer_core.py b/sqlglot/tokenizer_core.py\nindex 0fa7f32..f07e299 100644\n--- a/sqlglot/tokenizer_core.py\n+++ b/sqlglot/tokenizer_core.py\n@@ -558,7 +558,6 @@ class TokenizerCore:\n         \"string_escapes\",\n         \"byte_string_escapes\",\n         \"identifier_escapes\",\n-        \"escape_follow_chars\",\n         \"commands\",\n         \"command_prefix_tokens\",\n         \"nested_comments\",\n@@ -591,7 +590,6 @@ class TokenizerCore:\n         string_escapes: set[str],\n         byte_string_escapes: set[str],\n         identifier_escapes: set[str],\n-        escape_follow_chars: set[str],\n         commands: set[TokenType],\n         command_prefix_tokens: set[TokenType],\n         nested_comments: bool,\n@@ -621,7 +619,6 @@ class TokenizerCore:\n         self.string_escapes = string_escapes\n         self.byte_string_escapes = byte_string_escapes\n         self.identifier_escapes = identifier_escapes\n-        self.escape_follow_chars = escape_follow_chars\n         self.commands = commands\n         self.command_prefix_tokens = command_prefix_tokens\n         self.nested_comments = nested_comments\n@@ -1204,7 +1201,6 @@ class TokenizerCore:\n         delim_size = len(delimiter)\n         escapes = self.string_escapes if escapes is None else escapes\n         unescaped_sequences = self.unescaped_sequences\n-        escape_follow_chars = self.escape_follow_chars\n         numeric_escapes = self.numeric_escapes\n         drop_unknown_escapes = self.drop_unknown_escapes\n         string_escapes_allowed_in_raw_strings = self.string_escapes_allowed_in_raw_strings\n@@ -1275,10 +1271,6 @@ class TokenizerCore:\n                 text += peek\n                 continue\n \n-            is_valid_custom_escape = (\n-                escape_follow_chars and self._char == \"\\\\\" and self._peek not in escape_follow_chars\n-            )\n-\n             # An escaped quote before the closing delimiter (e.g. \\\" in \"\"\"a\\\"\"\"\") must be\n             # consumed here, otherwise it'd be picked up by the delimiter check below and\n             # terminate the string early. This is only relevant for multi-char delimiters\n@@ -1290,13 +1282,11 @@ class TokenizerCore:\n             if (\n                 (string_escapes_allowed_in_raw_strings or not raw_string)\n                 and self._char in escapes\n-                and (escaped_delimiter or self._peek in escapes or is_valid_custom_escape)\n+                and (escaped_delimiter or self._peek in escapes)\n                 and (self._char not in quotes or self._char == self._peek)\n             ):\n                 if escaped_delimiter:\n                     text += self._peek if not raw_string else self._char + self._peek\n-                elif is_valid_custom_escape and self._char != self._peek:\n-                    text += self._peek\n                 else:\n                     text += self._char + self._peek\n \ndiff --git a/sqlglot/tokens.py b/sqlglot/tokens.py\nindex 1175662..70d4f8e 100644\n--- a/sqlglot/tokens.py\n+++ b/sqlglot/tokens.py\n@@ -50,7 +50,6 @@ class _TokenizerBase:\n     UNICODE_STRINGS: t.ClassVar[list[str | tuple[str, str]]]\n     STRING_ESCAPES: t.ClassVar[list[str]]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]]\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]]\n     IDENTIFIER_ESCAPES: t.ClassVar[list[str]]\n     HINT_START: t.ClassVar[str]\n     KEYWORDS: t.ClassVar[dict[str, TokenType]]\n@@ -72,7 +71,6 @@ class _TokenizerBase:\n     _FORMAT_STRINGS: t.ClassVar[dict[str, tuple[str, TokenType]]]\n     _STRING_ESCAPES: t.ClassVar[set[str]]\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]]\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]]\n     _IDENTIFIER_ESCAPES: t.ClassVar[set[str]]\n     _COMMENTS: t.ClassVar[dict[str, str | None]]\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]]\n@@ -99,7 +97,6 @@ class _TokenizerBase:\n             cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES.copy()\n         cls._STRING_ESCAPES = set(cls.STRING_ESCAPES)\n         cls._BYTE_STRING_ESCAPES = set(cls.BYTE_STRING_ESCAPES)\n-        cls._ESCAPE_FOLLOW_CHARS = set(cls.ESCAPE_FOLLOW_CHARS)\n         cls._IDENTIFIER_ESCAPES = set(cls.IDENTIFIER_ESCAPES)\n         cls._COMMENTS = {\n             **{c: None for c in cls.COMMENTS if isinstance(c, str)},\n@@ -166,7 +163,6 @@ class Tokenizer(_TokenizerBase):\n     STRING_ESCAPES: t.ClassVar[list[str]] = [\"'\"]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]] = []\n     VAR_SINGLE_TOKENS: t.ClassVar[set[str]] = set()\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]] = []\n \n     # The strings in this list can always be used as escapes, regardless of the surrounding\n     # identifier delimiters. By default, the closing delimiter is assumed to also act as an\n@@ -207,7 +203,6 @@ class Tokenizer(_TokenizerBase):\n     _STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]] = {}\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]] = set()\n \n     KEYWORDS: t.ClassVar[dict[str, TokenType]] = {\n         **{f\"{{%{postfix}\": TokenType.BLOCK_START for postfix in (\"\", \"+\", \"-\")},\n@@ -564,7 +559,6 @@ class Tokenizer(_TokenizerBase):\n             string_escapes=self._STRING_ESCAPES,\n             byte_string_escapes=self._BYTE_STRING_ESCAPES,\n             identifier_escapes=self._IDENTIFIER_ESCAPES,\n-            escape_follow_chars=self._ESCAPE_FOLLOW_CHARS,\n             commands=self.COMMANDS,\n             command_prefix_tokens=self.COMMAND_PREFIX_TOKENS,\n             nested_comments=self.NESTED_COMMENTS,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.athena:_TrinoTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dune:Dune.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.exasol:Exasol.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.fabric:Fabric.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.Tokenizer.ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.oracle:Oracle.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.presto:Presto.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.prql:PRQL.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.solr:Solr.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.spark2:Spark2.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.spark:Spark.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.sqlite:SQLite.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "4903",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4904",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4905",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4906",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "10415",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15034",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15035",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT 1 + ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15036",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT NOT ('\u00e9' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')"
+   }
+  ],
+  "new_probes": 5
+ },
+ {
+  "task": "15a77f1d89",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(mysql): decode backslash string escapes (#8471)\n\n* fix(mysql): decode backslash string escapes\n\n* fix(ci): filter integration workflow runs by branch\n\n* transpile is_ascii to rlike",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/tokens.py",
+   "line": 458,
+   "op": "delete",
+   "code": "\"CHAR VARYING\": TokenType.VARCHAR,"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/mysql.py b/sqlglot/dialects/mysql.py\nindex 65ab803..2ae6881 100644\n--- a/sqlglot/dialects/mysql.py\n+++ b/sqlglot/dialects/mysql.py\n@@ -67,6 +67,16 @@ class MySQL(Dialect):\n         \"YEAR_MONTH\",\n     }\n \n+    UNESCAPED_SEQUENCES = {\n+        \"\\\\0\": \"\\0\",\n+        \"\\\\Z\": \"\\x1a\",\n+        \"\\\\%\": \"\\\\%\",\n+        \"\\\\_\": \"\\\\_\",\n+        \"\\\\a\": \"a\",\n+        \"\\\\f\": \"f\",\n+        \"\\\\v\": \"v\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         QUOTES = [\"'\", '\"']\n         COMMENTS = [\"--\", \"#\", (\"/*\", \"*/\")]\n@@ -75,7 +85,7 @@ class MySQL(Dialect):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\"), (\"0b\", \"\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\"), (\"0x\", \"\")]\n         # https://dev.mysql.com/doc/refman/8.4/en/string-literals.html\n-        ESCAPE_FOLLOW_CHARS = [\"0\", \"b\", \"n\", \"r\", \"t\", \"Z\", \"%\", \"_\"]\n+        DROP_UNKNOWN_ESCAPES = True\n \n         NESTED_COMMENTS = False\n \ndiff --git a/sqlglot/generators/singlestore.py b/sqlglot/generators/singlestore.py\nindex 476f62f..8ac5cb1 100644\n--- a/sqlglot/generators/singlestore.py\n+++ b/sqlglot/generators/singlestore.py\n@@ -206,7 +206,6 @@ class SingleStoreGenerator(MySQLGenerator):\n             exp.Mul(this=self.func(\"LENGTH\", e.this), expression=e.args.get(\"times\")),\n             e.this,\n         ),\n-        exp.IsAscii: lambda self, e: f\"({self.sql(e, 'this')} RLIKE '^[\\x00-\\x7f]*$')\",\n         exp.MD5Digest: lambda self, e: self.func(\"UNHEX\", self.func(\"MD5\", e.this)),\n         exp.Contains: rename_func(\"INSTR\"),\n         exp.RegexpExtractAll: unsupported_args(\"position\", \"occurrence\", \"group\")(\n@@ -1425,6 +1424,11 @@ class SingleStoreGenerator(MySQLGenerator):\n         \"zone\",\n     }\n \n+    def isascii_sql(self, expression: exp.IsAscii) -> str:\n+        return self.sql(\n+            exp.paren(expression.this.rlike(exp.Literal.string(\"^[\\x00-\\x7f]*$\")), copy=False)\n+        )\n+\n     def jsonextractscalar_sql(self, expression: exp.JSONExtractScalar) -> str:\n         json_type = expression.args.get(\"json_type\")\n         func_name = \"JSON_EXTRACT_JSON\" if json_type is None else f\"JSON_EXTRACT_{json_type}\"\ndiff --git a/sqlglot/tokenizer_core.py b/sqlglot/tokenizer_core.py\nindex 0fa7f32..f07e299 100644\n--- a/sqlglot/tokenizer_core.py\n+++ b/sqlglot/tokenizer_core.py\n@@ -558,7 +558,6 @@ class TokenizerCore:\n         \"string_escapes\",\n         \"byte_string_escapes\",\n         \"identifier_escapes\",\n-        \"escape_follow_chars\",\n         \"commands\",\n         \"command_prefix_tokens\",\n         \"nested_comments\",\n@@ -591,7 +590,6 @@ class TokenizerCore:\n         string_escapes: set[str],\n         byte_string_escapes: set[str],\n         identifier_escapes: set[str],\n-        escape_follow_chars: set[str],\n         commands: set[TokenType],\n         command_prefix_tokens: set[TokenType],\n         nested_comments: bool,\n@@ -621,7 +619,6 @@ class TokenizerCore:\n         self.string_escapes = string_escapes\n         self.byte_string_escapes = byte_string_escapes\n         self.identifier_escapes = identifier_escapes\n-        self.escape_follow_chars = escape_follow_chars\n         self.commands = commands\n         self.command_prefix_tokens = command_prefix_tokens\n         self.nested_comments = nested_comments\n@@ -1204,7 +1201,6 @@ class TokenizerCore:\n         delim_size = len(delimiter)\n         escapes = self.string_escapes if escapes is None else escapes\n         unescaped_sequences = self.unescaped_sequences\n-        escape_follow_chars = self.escape_follow_chars\n         numeric_escapes = self.numeric_escapes\n         drop_unknown_escapes = self.drop_unknown_escapes\n         string_escapes_allowed_in_raw_strings = self.string_escapes_allowed_in_raw_strings\n@@ -1275,10 +1271,6 @@ class TokenizerCore:\n                 text += peek\n                 continue\n \n-            is_valid_custom_escape = (\n-                escape_follow_chars and self._char == \"\\\\\" and self._peek not in escape_follow_chars\n-            )\n-\n             # An escaped quote before the closing delimiter (e.g. \\\" in \"\"\"a\\\"\"\"\") must be\n             # consumed here, otherwise it'd be picked up by the delimiter check below and\n             # terminate the string early. This is only relevant for multi-char delimiters\n@@ -1290,13 +1282,11 @@ class TokenizerCore:\n             if (\n                 (string_escapes_allowed_in_raw_strings or not raw_string)\n                 and self._char in escapes\n-                and (escaped_delimiter or self._peek in escapes or is_valid_custom_escape)\n+                and (escaped_delimiter or self._peek in escapes)\n                 and (self._char not in quotes or self._char == self._peek)\n             ):\n                 if escaped_delimiter:\n                     text += self._peek if not raw_string else self._char + self._peek\n-                elif is_valid_custom_escape and self._char != self._peek:\n-                    text += self._peek\n                 else:\n                     text += self._char + self._peek\n \ndiff --git a/sqlglot/tokens.py b/sqlglot/tokens.py\nindex 1175662..4321b02 100644\n--- a/sqlglot/tokens.py\n+++ b/sqlglot/tokens.py\n@@ -50,7 +50,6 @@ class _TokenizerBase:\n     UNICODE_STRINGS: t.ClassVar[list[str | tuple[str, str]]]\n     STRING_ESCAPES: t.ClassVar[list[str]]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]]\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]]\n     IDENTIFIER_ESCAPES: t.ClassVar[list[str]]\n     HINT_START: t.ClassVar[str]\n     KEYWORDS: t.ClassVar[dict[str, TokenType]]\n@@ -72,7 +71,6 @@ class _TokenizerBase:\n     _FORMAT_STRINGS: t.ClassVar[dict[str, tuple[str, TokenType]]]\n     _STRING_ESCAPES: t.ClassVar[set[str]]\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]]\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]]\n     _IDENTIFIER_ESCAPES: t.ClassVar[set[str]]\n     _COMMENTS: t.ClassVar[dict[str, str | None]]\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]]\n@@ -99,7 +97,6 @@ class _TokenizerBase:\n             cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES.copy()\n         cls._STRING_ESCAPES = set(cls.STRING_ESCAPES)\n         cls._BYTE_STRING_ESCAPES = set(cls.BYTE_STRING_ESCAPES)\n-        cls._ESCAPE_FOLLOW_CHARS = set(cls.ESCAPE_FOLLOW_CHARS)\n         cls._IDENTIFIER_ESCAPES = set(cls.IDENTIFIER_ESCAPES)\n         cls._COMMENTS = {\n             **{c: None for c in cls.COMMENTS if isinstance(c, str)},\n@@ -166,7 +163,6 @@ class Tokenizer(_TokenizerBase):\n     STRING_ESCAPES: t.ClassVar[list[str]] = [\"'\"]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]] = []\n     VAR_SINGLE_TOKENS: t.ClassVar[set[str]] = set()\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]] = []\n \n     # The strings in this list can always be used as escapes, regardless of the surrounding\n     # identifier delimiters. By default, the closing delimiter is assumed to also act as an\n@@ -207,7 +203,6 @@ class Tokenizer(_TokenizerBase):\n     _STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]] = {}\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]] = set()\n \n     KEYWORDS: t.ClassVar[dict[str, TokenType]] = {\n         **{f\"{{%{postfix}\": TokenType.BLOCK_START for postfix in (\"\", \"+\", \"-\")},\n@@ -460,7 +455,7 @@ class Tokenizer(_TokenizerBase):\n         \"JSONB\": TokenType.JSONB,\n         \"CHAR\": TokenType.CHAR,\n         \"CHARACTER\": TokenType.CHAR,\n-        \"CHAR VARYING\": TokenType.VARCHAR,\n+\n         \"CHARACTER VARYING\": TokenType.VARCHAR,\n         \"NCHAR\": TokenType.NCHAR,\n         \"VARCHAR\": TokenType.VARCHAR,\n@@ -564,7 +559,6 @@ class Tokenizer(_TokenizerBase):\n             string_escapes=self._STRING_ESCAPES,\n             byte_string_escapes=self._BYTE_STRING_ESCAPES,\n             identifier_escapes=self._IDENTIFIER_ESCAPES,\n-            escape_follow_chars=self._ESCAPE_FOLLOW_CHARS,\n             commands=self.COMMANDS,\n             command_prefix_tokens=self.COMMAND_PREFIX_TOKENS,\n             nested_comments=self.NESTED_COMMENTS,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.athena:_TrinoTokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:_TrinoTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dune:Dune.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.exasol:Exasol.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.exasol:Exasol.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.fabric:Fabric.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.fabric:Fabric.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'CHAR VARYING'": "<TokenType.VARCHAR: 127>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "4903",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4904",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4905",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4906",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "10415",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "10680",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "CAST(x AS CHAR VARYING)",
+    "before": "CAST(x AS VARCHAR)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "15034",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15035",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT 1 + ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15036",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT NOT ('\u00e9' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 1,
+   "imports": 60
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake"
+  ]
+ },
+ {
+  "task": "15a77f1d89",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(mysql): decode backslash string escapes (#8471)\n\n* fix(mysql): decode backslash string escapes\n\n* fix(ci): filter integration workflow runs by branch\n\n* transpile is_ascii to rlike",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/generators/singlestore.py",
+   "line": 1468,
+   "op": "flip",
+   "code": "ordered.set(\"nulls_first\", True)"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/mysql.py b/sqlglot/dialects/mysql.py\nindex 65ab803..2ae6881 100644\n--- a/sqlglot/dialects/mysql.py\n+++ b/sqlglot/dialects/mysql.py\n@@ -67,6 +67,16 @@ class MySQL(Dialect):\n         \"YEAR_MONTH\",\n     }\n \n+    UNESCAPED_SEQUENCES = {\n+        \"\\\\0\": \"\\0\",\n+        \"\\\\Z\": \"\\x1a\",\n+        \"\\\\%\": \"\\\\%\",\n+        \"\\\\_\": \"\\\\_\",\n+        \"\\\\a\": \"a\",\n+        \"\\\\f\": \"f\",\n+        \"\\\\v\": \"v\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         QUOTES = [\"'\", '\"']\n         COMMENTS = [\"--\", \"#\", (\"/*\", \"*/\")]\n@@ -75,7 +85,7 @@ class MySQL(Dialect):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\"), (\"0b\", \"\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\"), (\"0x\", \"\")]\n         # https://dev.mysql.com/doc/refman/8.4/en/string-literals.html\n-        ESCAPE_FOLLOW_CHARS = [\"0\", \"b\", \"n\", \"r\", \"t\", \"Z\", \"%\", \"_\"]\n+        DROP_UNKNOWN_ESCAPES = True\n \n         NESTED_COMMENTS = False\n \ndiff --git a/sqlglot/generators/singlestore.py b/sqlglot/generators/singlestore.py\nindex 476f62f..d5d1919 100644\n--- a/sqlglot/generators/singlestore.py\n+++ b/sqlglot/generators/singlestore.py\n@@ -206,7 +206,6 @@ class SingleStoreGenerator(MySQLGenerator):\n             exp.Mul(this=self.func(\"LENGTH\", e.this), expression=e.args.get(\"times\")),\n             e.this,\n         ),\n-        exp.IsAscii: lambda self, e: f\"({self.sql(e, 'this')} RLIKE '^[\\x00-\\x7f]*$')\",\n         exp.MD5Digest: lambda self, e: self.func(\"UNHEX\", self.func(\"MD5\", e.this)),\n         exp.Contains: rename_func(\"INSTR\"),\n         exp.RegexpExtractAll: unsupported_args(\"position\", \"occurrence\", \"group\")(\n@@ -1425,6 +1424,11 @@ class SingleStoreGenerator(MySQLGenerator):\n         \"zone\",\n     }\n \n+    def isascii_sql(self, expression: exp.IsAscii) -> str:\n+        return self.sql(\n+            exp.paren(expression.this.rlike(exp.Literal.string(\"^[\\x00-\\x7f]*$\")), copy=False)\n+        )\n+\n     def jsonextractscalar_sql(self, expression: exp.JSONExtractScalar) -> str:\n         json_type = expression.args.get(\"json_type\")\n         func_name = \"JSON_EXTRACT_JSON\" if json_type is None else f\"JSON_EXTRACT_{json_type}\"\n@@ -1461,7 +1465,7 @@ class SingleStoreGenerator(MySQLGenerator):\n         ):\n             expression = expression.copy()\n             for ordered in expression.expression.expressions:\n-                ordered.set(\"nulls_first\", True)\n+                ordered.set(\"nulls_first\", False)\n \n         return super().withingroup_sql(expression)\n \ndiff --git a/sqlglot/tokenizer_core.py b/sqlglot/tokenizer_core.py\nindex 0fa7f32..f07e299 100644\n--- a/sqlglot/tokenizer_core.py\n+++ b/sqlglot/tokenizer_core.py\n@@ -558,7 +558,6 @@ class TokenizerCore:\n         \"string_escapes\",\n         \"byte_string_escapes\",\n         \"identifier_escapes\",\n-        \"escape_follow_chars\",\n         \"commands\",\n         \"command_prefix_tokens\",\n         \"nested_comments\",\n@@ -591,7 +590,6 @@ class TokenizerCore:\n         string_escapes: set[str],\n         byte_string_escapes: set[str],\n         identifier_escapes: set[str],\n-        escape_follow_chars: set[str],\n         commands: set[TokenType],\n         command_prefix_tokens: set[TokenType],\n         nested_comments: bool,\n@@ -621,7 +619,6 @@ class TokenizerCore:\n         self.string_escapes = string_escapes\n         self.byte_string_escapes = byte_string_escapes\n         self.identifier_escapes = identifier_escapes\n-        self.escape_follow_chars = escape_follow_chars\n         self.commands = commands\n         self.command_prefix_tokens = command_prefix_tokens\n         self.nested_comments = nested_comments\n@@ -1204,7 +1201,6 @@ class TokenizerCore:\n         delim_size = len(delimiter)\n         escapes = self.string_escapes if escapes is None else escapes\n         unescaped_sequences = self.unescaped_sequences\n-        escape_follow_chars = self.escape_follow_chars\n         numeric_escapes = self.numeric_escapes\n         drop_unknown_escapes = self.drop_unknown_escapes\n         string_escapes_allowed_in_raw_strings = self.string_escapes_allowed_in_raw_strings\n@@ -1275,10 +1271,6 @@ class TokenizerCore:\n                 text += peek\n                 continue\n \n-            is_valid_custom_escape = (\n-                escape_follow_chars and self._char == \"\\\\\" and self._peek not in escape_follow_chars\n-            )\n-\n             # An escaped quote before the closing delimiter (e.g. \\\" in \"\"\"a\\\"\"\"\") must be\n             # consumed here, otherwise it'd be picked up by the delimiter check below and\n             # terminate the string early. This is only relevant for multi-char delimiters\n@@ -1290,13 +1282,11 @@ class TokenizerCore:\n             if (\n                 (string_escapes_allowed_in_raw_strings or not raw_string)\n                 and self._char in escapes\n-                and (escaped_delimiter or self._peek in escapes or is_valid_custom_escape)\n+                and (escaped_delimiter or self._peek in escapes)\n                 and (self._char not in quotes or self._char == self._peek)\n             ):\n                 if escaped_delimiter:\n                     text += self._peek if not raw_string else self._char + self._peek\n-                elif is_valid_custom_escape and self._char != self._peek:\n-                    text += self._peek\n                 else:\n                     text += self._char + self._peek\n \ndiff --git a/sqlglot/tokens.py b/sqlglot/tokens.py\nindex 1175662..70d4f8e 100644\n--- a/sqlglot/tokens.py\n+++ b/sqlglot/tokens.py\n@@ -50,7 +50,6 @@ class _TokenizerBase:\n     UNICODE_STRINGS: t.ClassVar[list[str | tuple[str, str]]]\n     STRING_ESCAPES: t.ClassVar[list[str]]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]]\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]]\n     IDENTIFIER_ESCAPES: t.ClassVar[list[str]]\n     HINT_START: t.ClassVar[str]\n     KEYWORDS: t.ClassVar[dict[str, TokenType]]\n@@ -72,7 +71,6 @@ class _TokenizerBase:\n     _FORMAT_STRINGS: t.ClassVar[dict[str, tuple[str, TokenType]]]\n     _STRING_ESCAPES: t.ClassVar[set[str]]\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]]\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]]\n     _IDENTIFIER_ESCAPES: t.ClassVar[set[str]]\n     _COMMENTS: t.ClassVar[dict[str, str | None]]\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]]\n@@ -99,7 +97,6 @@ class _TokenizerBase:\n             cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES.copy()\n         cls._STRING_ESCAPES = set(cls.STRING_ESCAPES)\n         cls._BYTE_STRING_ESCAPES = set(cls.BYTE_STRING_ESCAPES)\n-        cls._ESCAPE_FOLLOW_CHARS = set(cls.ESCAPE_FOLLOW_CHARS)\n         cls._IDENTIFIER_ESCAPES = set(cls.IDENTIFIER_ESCAPES)\n         cls._COMMENTS = {\n             **{c: None for c in cls.COMMENTS if isinstance(c, str)},\n@@ -166,7 +163,6 @@ class Tokenizer(_TokenizerBase):\n     STRING_ESCAPES: t.ClassVar[list[str]] = [\"'\"]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]] = []\n     VAR_SINGLE_TOKENS: t.ClassVar[set[str]] = set()\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]] = []\n \n     # The strings in this list can always be used as escapes, regardless of the surrounding\n     # identifier delimiters. By default, the closing delimiter is assumed to also act as an\n@@ -207,7 +203,6 @@ class Tokenizer(_TokenizerBase):\n     _STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]] = {}\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]] = set()\n \n     KEYWORDS: t.ClassVar[dict[str, TokenType]] = {\n         **{f\"{{%{postfix}\": TokenType.BLOCK_START for postfix in (\"\", \"+\", \"-\")},\n@@ -564,7 +559,6 @@ class Tokenizer(_TokenizerBase):\n             string_escapes=self._STRING_ESCAPES,\n             byte_string_escapes=self._BYTE_STRING_ESCAPES,\n             identifier_escapes=self._IDENTIFIER_ESCAPES,\n-            escape_follow_chars=self._ESCAPE_FOLLOW_CHARS,\n             commands=self.COMMANDS,\n             command_prefix_tokens=self.COMMAND_PREFIX_TOKENS,\n             nested_comments=self.NESTED_COMMENTS,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.athena:_TrinoTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dune:Dune.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.exasol:Exasol.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.fabric:Fabric.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.Tokenizer.ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.oracle:Oracle.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.presto:Presto.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.prql:PRQL.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.solr:Solr.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.spark2:Spark2.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.spark:Spark.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.sqlite:SQLite.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "4903",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4904",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4905",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4906",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "10415",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "10500",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT PERCENTILE_CONT(1) WITHIN GROUP (ORDER BY x) FROM t ORDER BY x NULLS LAST",
+    "before": "SELECT PERCENTILE_CONT(1) WITHIN GROUP (ORDER BY x) FROM t ORDER BY x NULLS LAST",
+    "after": "SELECT PERCENTILE_CONT(1) WITHIN GROUP (ORDER BY x NULLS LAST) FROM t ORDER BY x NULLS LAST"
+   },
+   {
+    "probe": "15034",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15035",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT 1 + ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15036",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT NOT ('\u00e9' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 1,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_percentile_null_ordering"
+  ]
+ },
+ {
+  "task": "15a77f1d89",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(mysql): decode backslash string escapes (#8471)\n\n* fix(mysql): decode backslash string escapes\n\n* fix(ci): filter integration workflow runs by branch\n\n* transpile is_ascii to rlike",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/tokens.py",
+   "line": 339,
+   "op": "delete",
+   "code": "\"OUT\": TokenType.OUT,"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/mysql.py b/sqlglot/dialects/mysql.py\nindex 65ab803..2ae6881 100644\n--- a/sqlglot/dialects/mysql.py\n+++ b/sqlglot/dialects/mysql.py\n@@ -67,6 +67,16 @@ class MySQL(Dialect):\n         \"YEAR_MONTH\",\n     }\n \n+    UNESCAPED_SEQUENCES = {\n+        \"\\\\0\": \"\\0\",\n+        \"\\\\Z\": \"\\x1a\",\n+        \"\\\\%\": \"\\\\%\",\n+        \"\\\\_\": \"\\\\_\",\n+        \"\\\\a\": \"a\",\n+        \"\\\\f\": \"f\",\n+        \"\\\\v\": \"v\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         QUOTES = [\"'\", '\"']\n         COMMENTS = [\"--\", \"#\", (\"/*\", \"*/\")]\n@@ -75,7 +85,7 @@ class MySQL(Dialect):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\"), (\"0b\", \"\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\"), (\"0x\", \"\")]\n         # https://dev.mysql.com/doc/refman/8.4/en/string-literals.html\n-        ESCAPE_FOLLOW_CHARS = [\"0\", \"b\", \"n\", \"r\", \"t\", \"Z\", \"%\", \"_\"]\n+        DROP_UNKNOWN_ESCAPES = True\n \n         NESTED_COMMENTS = False\n \ndiff --git a/sqlglot/generators/singlestore.py b/sqlglot/generators/singlestore.py\nindex 476f62f..8ac5cb1 100644\n--- a/sqlglot/generators/singlestore.py\n+++ b/sqlglot/generators/singlestore.py\n@@ -206,7 +206,6 @@ class SingleStoreGenerator(MySQLGenerator):\n             exp.Mul(this=self.func(\"LENGTH\", e.this), expression=e.args.get(\"times\")),\n             e.this,\n         ),\n-        exp.IsAscii: lambda self, e: f\"({self.sql(e, 'this')} RLIKE '^[\\x00-\\x7f]*$')\",\n         exp.MD5Digest: lambda self, e: self.func(\"UNHEX\", self.func(\"MD5\", e.this)),\n         exp.Contains: rename_func(\"INSTR\"),\n         exp.RegexpExtractAll: unsupported_args(\"position\", \"occurrence\", \"group\")(\n@@ -1425,6 +1424,11 @@ class SingleStoreGenerator(MySQLGenerator):\n         \"zone\",\n     }\n \n+    def isascii_sql(self, expression: exp.IsAscii) -> str:\n+        return self.sql(\n+            exp.paren(expression.this.rlike(exp.Literal.string(\"^[\\x00-\\x7f]*$\")), copy=False)\n+        )\n+\n     def jsonextractscalar_sql(self, expression: exp.JSONExtractScalar) -> str:\n         json_type = expression.args.get(\"json_type\")\n         func_name = \"JSON_EXTRACT_JSON\" if json_type is None else f\"JSON_EXTRACT_{json_type}\"\ndiff --git a/sqlglot/tokenizer_core.py b/sqlglot/tokenizer_core.py\nindex 0fa7f32..f07e299 100644\n--- a/sqlglot/tokenizer_core.py\n+++ b/sqlglot/tokenizer_core.py\n@@ -558,7 +558,6 @@ class TokenizerCore:\n         \"string_escapes\",\n         \"byte_string_escapes\",\n         \"identifier_escapes\",\n-        \"escape_follow_chars\",\n         \"commands\",\n         \"command_prefix_tokens\",\n         \"nested_comments\",\n@@ -591,7 +590,6 @@ class TokenizerCore:\n         string_escapes: set[str],\n         byte_string_escapes: set[str],\n         identifier_escapes: set[str],\n-        escape_follow_chars: set[str],\n         commands: set[TokenType],\n         command_prefix_tokens: set[TokenType],\n         nested_comments: bool,\n@@ -621,7 +619,6 @@ class TokenizerCore:\n         self.string_escapes = string_escapes\n         self.byte_string_escapes = byte_string_escapes\n         self.identifier_escapes = identifier_escapes\n-        self.escape_follow_chars = escape_follow_chars\n         self.commands = commands\n         self.command_prefix_tokens = command_prefix_tokens\n         self.nested_comments = nested_comments\n@@ -1204,7 +1201,6 @@ class TokenizerCore:\n         delim_size = len(delimiter)\n         escapes = self.string_escapes if escapes is None else escapes\n         unescaped_sequences = self.unescaped_sequences\n-        escape_follow_chars = self.escape_follow_chars\n         numeric_escapes = self.numeric_escapes\n         drop_unknown_escapes = self.drop_unknown_escapes\n         string_escapes_allowed_in_raw_strings = self.string_escapes_allowed_in_raw_strings\n@@ -1275,10 +1271,6 @@ class TokenizerCore:\n                 text += peek\n                 continue\n \n-            is_valid_custom_escape = (\n-                escape_follow_chars and self._char == \"\\\\\" and self._peek not in escape_follow_chars\n-            )\n-\n             # An escaped quote before the closing delimiter (e.g. \\\" in \"\"\"a\\\"\"\"\") must be\n             # consumed here, otherwise it'd be picked up by the delimiter check below and\n             # terminate the string early. This is only relevant for multi-char delimiters\n@@ -1290,13 +1282,11 @@ class TokenizerCore:\n             if (\n                 (string_escapes_allowed_in_raw_strings or not raw_string)\n                 and self._char in escapes\n-                and (escaped_delimiter or self._peek in escapes or is_valid_custom_escape)\n+                and (escaped_delimiter or self._peek in escapes)\n                 and (self._char not in quotes or self._char == self._peek)\n             ):\n                 if escaped_delimiter:\n                     text += self._peek if not raw_string else self._char + self._peek\n-                elif is_valid_custom_escape and self._char != self._peek:\n-                    text += self._peek\n                 else:\n                     text += self._char + self._peek\n \ndiff --git a/sqlglot/tokens.py b/sqlglot/tokens.py\nindex 1175662..78002cb 100644\n--- a/sqlglot/tokens.py\n+++ b/sqlglot/tokens.py\n@@ -50,7 +50,6 @@ class _TokenizerBase:\n     UNICODE_STRINGS: t.ClassVar[list[str | tuple[str, str]]]\n     STRING_ESCAPES: t.ClassVar[list[str]]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]]\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]]\n     IDENTIFIER_ESCAPES: t.ClassVar[list[str]]\n     HINT_START: t.ClassVar[str]\n     KEYWORDS: t.ClassVar[dict[str, TokenType]]\n@@ -72,7 +71,6 @@ class _TokenizerBase:\n     _FORMAT_STRINGS: t.ClassVar[dict[str, tuple[str, TokenType]]]\n     _STRING_ESCAPES: t.ClassVar[set[str]]\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]]\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]]\n     _IDENTIFIER_ESCAPES: t.ClassVar[set[str]]\n     _COMMENTS: t.ClassVar[dict[str, str | None]]\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]]\n@@ -99,7 +97,6 @@ class _TokenizerBase:\n             cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES.copy()\n         cls._STRING_ESCAPES = set(cls.STRING_ESCAPES)\n         cls._BYTE_STRING_ESCAPES = set(cls.BYTE_STRING_ESCAPES)\n-        cls._ESCAPE_FOLLOW_CHARS = set(cls.ESCAPE_FOLLOW_CHARS)\n         cls._IDENTIFIER_ESCAPES = set(cls.IDENTIFIER_ESCAPES)\n         cls._COMMENTS = {\n             **{c: None for c in cls.COMMENTS if isinstance(c, str)},\n@@ -166,7 +163,6 @@ class Tokenizer(_TokenizerBase):\n     STRING_ESCAPES: t.ClassVar[list[str]] = [\"'\"]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]] = []\n     VAR_SINGLE_TOKENS: t.ClassVar[set[str]] = set()\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]] = []\n \n     # The strings in this list can always be used as escapes, regardless of the surrounding\n     # identifier delimiters. By default, the closing delimiter is assumed to also act as an\n@@ -207,7 +203,6 @@ class Tokenizer(_TokenizerBase):\n     _STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]] = {}\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]] = set()\n \n     KEYWORDS: t.ClassVar[dict[str, TokenType]] = {\n         **{f\"{{%{postfix}\": TokenType.BLOCK_START for postfix in (\"\", \"+\", \"-\")},\n@@ -341,7 +336,7 @@ class Tokenizer(_TokenizerBase):\n         \"XOR\": TokenType.XOR,\n         \"ORDER BY\": TokenType.ORDER_BY,\n         \"ORDINALITY\": TokenType.ORDINALITY,\n-        \"OUT\": TokenType.OUT,\n+\n         \"OUTER\": TokenType.OUTER,\n         \"OVER\": TokenType.OVER,\n         \"OVERLAPS\": TokenType.OVERLAPS,\n@@ -564,7 +559,6 @@ class Tokenizer(_TokenizerBase):\n             string_escapes=self._STRING_ESCAPES,\n             byte_string_escapes=self._BYTE_STRING_ESCAPES,\n             identifier_escapes=self._IDENTIFIER_ESCAPES,\n-            escape_follow_chars=self._ESCAPE_FOLLOW_CHARS,\n             commands=self.COMMANDS,\n             command_prefix_tokens=self.COMMAND_PREFIX_TOKENS,\n             nested_comments=self.NESTED_COMMENTS,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.athena:_TrinoTokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:_TrinoTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dune:Dune.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.exasol:Exasol.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.exasol:Exasol.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.fabric:Fabric.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.fabric:Fabric.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.Tokenizer.ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.oracle:Oracle.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.oracle:Oracle.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.presto:Presto.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.presto:Presto.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.prql:PRQL.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OUT'": "<TokenType.OUT: 345>"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "4903",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4904",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4905",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4906",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "6737",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE FUNCTION foo(IN a INT DEFAULT 0, OUT b INT)",
+    "before": "CREATE FUNCTION foo(IN a INT DEFAULT 0, OUT b INT)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6738",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE FUNCTION foo(IN a INT DEFAULT 0, OUT b INT)",
+    "before": "CREATE FUNCTION foo(IN a INT DEFAULT 0, OUT b INT)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6739",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE FUNCTION foo(IN a INT DEFAULT 0, OUT b INT)",
+    "before": "CREATE FUNCTION foo(IN a INTEGER DEFAULT 0, OUT b INTEGER)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6740",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE FUNCTION foo(IN a INT DEFAULT 0, OUT b INT)",
+    "before": "CREATE FUNCTION foo(IN a INT DEFAULT 0, OUT b INT)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6753",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE FUNCTION foo(OUT a INT)",
+    "before": "CREATE FUNCTION foo(OUT a INT)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6754",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE FUNCTION foo(OUT a INT)",
+    "before": "CREATE FUNCTION foo(OUT a INT)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6755",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE FUNCTION foo(OUT a INT)",
+    "before": "CREATE FUNCTION foo(OUT a INTEGER)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6756",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE FUNCTION foo(OUT a INT)",
+    "before": "CREATE FUNCTION foo(OUT a INT)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6757",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE FUNCTION foo(OUT result INT, IN input INT DEFAULT 10)",
+    "before": "CREATE FUNCTION foo(OUT result INT, IN input INT DEFAULT 10)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6758",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE FUNCTION foo(OUT result INT, IN input INT DEFAULT 10)",
+    "before": "CREATE FUNCTION foo(OUT result INT, IN input INT DEFAULT 10)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6759",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE FUNCTION foo(OUT result INT, IN input INT DEFAULT 10)",
+    "before": "CREATE FUNCTION foo(OUT result INTEGER, IN input INTEGER DEFAULT 10)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6760",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE FUNCTION foo(OUT result INT, IN input INT DEFAULT 10)",
+    "before": "CREATE FUNCTION foo(OUT result INT, IN input INT DEFAULT 10)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6761",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE FUNCTION foo(OUT x INT DEFAULT 5)",
+    "before": "CREATE FUNCTION foo(OUT x INT DEFAULT 5)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6762",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE FUNCTION foo(OUT x INT DEFAULT 5)",
+    "before": "CREATE FUNCTION foo(OUT x INT DEFAULT 5)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6763",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE FUNCTION foo(OUT x INT DEFAULT 5)",
+    "before": "CREATE FUNCTION foo(OUT x INTEGER DEFAULT 5)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6764",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE FUNCTION foo(OUT x INT DEFAULT 5)",
+    "before": "CREATE FUNCTION foo(OUT x INT DEFAULT 5)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6777",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE FUNCTION foo(a INT, OUT b INT, INOUT c VARCHAR, VARIADIC d INT[])",
+    "before": "CREATE FUNCTION foo(a INT, OUT b INT, INOUT c VARCHAR, VARIADIC d INT[])",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6778",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE FUNCTION foo(a INT, OUT b INT, INOUT c VARCHAR, VARIADIC d INT[])",
+    "before": "CREATE FUNCTION foo(a INT, OUT b INT, INOUT c VARCHAR, VARIADIC d INT[])",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6779",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE FUNCTION foo(a INT, OUT b INT, INOUT c VARCHAR, VARIADIC d INT[])",
+    "before": "CREATE FUNCTION foo(a INTEGER, OUT b INTEGER, INOUT c VARCHAR, VARIADIC d INTEGER[])",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6780",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE FUNCTION foo(a INT, OUT b INT, INOUT c VARCHAR, VARIADIC d INT[])",
+    "before": "CREATE FUNCTION foo(a INT, OUT b INT, INOUT c VARCHAR, VARIADIC d INT[])",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6845",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "CREATE OR REPLACE FUNCTION foo(id UUID, OUT created_at TIMESTAMPTZ)",
+    "before": "CREATE OR REPLACE FUNCTION foo(id UUID, OUT created_at TIMESTAMPTZ)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6846",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "CREATE OR REPLACE FUNCTION foo(id UUID, OUT created_at TIMESTAMPTZ)",
+    "before": "CREATE OR REPLACE FUNCTION foo(id UUID, OUT created_at TIMESTAMPTZ)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6847",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "CREATE OR REPLACE FUNCTION foo(id UUID, OUT created_at TIMESTAMPTZ)",
+    "before": "CREATE OR REPLACE FUNCTION foo(id UUID, OUT created_at TIMESTAMP WITH TIME ZONE)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "6848",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "CREATE OR REPLACE FUNCTION foo(id UUID, OUT created_at TIMESTAMPTZ)",
+    "before": "CREATE OR REPLACE FUNCTION foo(id UUID, OUT created_at TIMESTAMPTZ)",
+    "after": "EXC: ParseError"
+   },
+   {
+    "probe": "10415",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15034",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15035",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT 1 + ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15036",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT NOT ('\u00e9' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 24,
+   "imports": 27
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_oracle.py::TestOracle::test_full_procedure",
+   "tests/dialects/test_postgres.py::TestPostgres::test_ddl",
+   "tests/test_anonymize.py::TestAnonymize::test_reserved_keywords_not_rewritten",
+   "tests/test_anonymize.py::TestAnonymize::test_source_spelling_preserved"
+  ]
+ },
+ {
+  "task": "15a77f1d89",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(mysql): decode backslash string escapes (#8471)\n\n* fix(mysql): decode backslash string escapes\n\n* fix(ci): filter integration workflow runs by branch\n\n* transpile is_ascii to rlike",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generators/singlestore.py",
+   "line": 161,
+   "op": "delete",
+   "code": "exp.JSONPathSubscript: lambda self, e: self.json_path_part(e.this),"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/mysql.py b/sqlglot/dialects/mysql.py\nindex 65ab803..2ae6881 100644\n--- a/sqlglot/dialects/mysql.py\n+++ b/sqlglot/dialects/mysql.py\n@@ -67,6 +67,16 @@ class MySQL(Dialect):\n         \"YEAR_MONTH\",\n     }\n \n+    UNESCAPED_SEQUENCES = {\n+        \"\\\\0\": \"\\0\",\n+        \"\\\\Z\": \"\\x1a\",\n+        \"\\\\%\": \"\\\\%\",\n+        \"\\\\_\": \"\\\\_\",\n+        \"\\\\a\": \"a\",\n+        \"\\\\f\": \"f\",\n+        \"\\\\v\": \"v\",\n+    }\n+\n     class Tokenizer(tokens.Tokenizer):\n         QUOTES = [\"'\", '\"']\n         COMMENTS = [\"--\", \"#\", (\"/*\", \"*/\")]\n@@ -75,7 +85,7 @@ class MySQL(Dialect):\n         BIT_STRINGS = [(\"b'\", \"'\"), (\"B'\", \"'\"), (\"0b\", \"\")]\n         HEX_STRINGS = [(\"x'\", \"'\"), (\"X'\", \"'\"), (\"0x\", \"\")]\n         # https://dev.mysql.com/doc/refman/8.4/en/string-literals.html\n-        ESCAPE_FOLLOW_CHARS = [\"0\", \"b\", \"n\", \"r\", \"t\", \"Z\", \"%\", \"_\"]\n+        DROP_UNKNOWN_ESCAPES = True\n \n         NESTED_COMMENTS = False\n \ndiff --git a/sqlglot/generators/singlestore.py b/sqlglot/generators/singlestore.py\nindex 476f62f..48ec208 100644\n--- a/sqlglot/generators/singlestore.py\n+++ b/sqlglot/generators/singlestore.py\n@@ -158,7 +158,7 @@ class SingleStoreGenerator(MySQLGenerator):\n         )(json_extract_segments(\"JSON_EXTRACT_JSON\")),\n         exp.JSONBExtract: json_extract_segments(\"BSON_EXTRACT_BSON\"),\n         exp.JSONPathKey: json_path_key_only_name,\n-        exp.JSONPathSubscript: lambda self, e: self.json_path_part(e.this),\n+\n         exp.JSONPathRoot: lambda *_: \"\",\n         exp.JSONFormat: unsupported_args(\"options\", \"is_json\")(rename_func(\"JSON_PRETTY\")),\n         exp.JSONArrayAgg: unsupported_args(\"null_handling\", \"return_type\", \"strict\")(\n@@ -206,7 +206,6 @@ class SingleStoreGenerator(MySQLGenerator):\n             exp.Mul(this=self.func(\"LENGTH\", e.this), expression=e.args.get(\"times\")),\n             e.this,\n         ),\n-        exp.IsAscii: lambda self, e: f\"({self.sql(e, 'this')} RLIKE '^[\\x00-\\x7f]*$')\",\n         exp.MD5Digest: lambda self, e: self.func(\"UNHEX\", self.func(\"MD5\", e.this)),\n         exp.Contains: rename_func(\"INSTR\"),\n         exp.RegexpExtractAll: unsupported_args(\"position\", \"occurrence\", \"group\")(\n@@ -1425,6 +1424,11 @@ class SingleStoreGenerator(MySQLGenerator):\n         \"zone\",\n     }\n \n+    def isascii_sql(self, expression: exp.IsAscii) -> str:\n+        return self.sql(\n+            exp.paren(expression.this.rlike(exp.Literal.string(\"^[\\x00-\\x7f]*$\")), copy=False)\n+        )\n+\n     def jsonextractscalar_sql(self, expression: exp.JSONExtractScalar) -> str:\n         json_type = expression.args.get(\"json_type\")\n         func_name = \"JSON_EXTRACT_JSON\" if json_type is None else f\"JSON_EXTRACT_{json_type}\"\ndiff --git a/sqlglot/tokenizer_core.py b/sqlglot/tokenizer_core.py\nindex 0fa7f32..f07e299 100644\n--- a/sqlglot/tokenizer_core.py\n+++ b/sqlglot/tokenizer_core.py\n@@ -558,7 +558,6 @@ class TokenizerCore:\n         \"string_escapes\",\n         \"byte_string_escapes\",\n         \"identifier_escapes\",\n-        \"escape_follow_chars\",\n         \"commands\",\n         \"command_prefix_tokens\",\n         \"nested_comments\",\n@@ -591,7 +590,6 @@ class TokenizerCore:\n         string_escapes: set[str],\n         byte_string_escapes: set[str],\n         identifier_escapes: set[str],\n-        escape_follow_chars: set[str],\n         commands: set[TokenType],\n         command_prefix_tokens: set[TokenType],\n         nested_comments: bool,\n@@ -621,7 +619,6 @@ class TokenizerCore:\n         self.string_escapes = string_escapes\n         self.byte_string_escapes = byte_string_escapes\n         self.identifier_escapes = identifier_escapes\n-        self.escape_follow_chars = escape_follow_chars\n         self.commands = commands\n         self.command_prefix_tokens = command_prefix_tokens\n         self.nested_comments = nested_comments\n@@ -1204,7 +1201,6 @@ class TokenizerCore:\n         delim_size = len(delimiter)\n         escapes = self.string_escapes if escapes is None else escapes\n         unescaped_sequences = self.unescaped_sequences\n-        escape_follow_chars = self.escape_follow_chars\n         numeric_escapes = self.numeric_escapes\n         drop_unknown_escapes = self.drop_unknown_escapes\n         string_escapes_allowed_in_raw_strings = self.string_escapes_allowed_in_raw_strings\n@@ -1275,10 +1271,6 @@ class TokenizerCore:\n                 text += peek\n                 continue\n \n-            is_valid_custom_escape = (\n-                escape_follow_chars and self._char == \"\\\\\" and self._peek not in escape_follow_chars\n-            )\n-\n             # An escaped quote before the closing delimiter (e.g. \\\" in \"\"\"a\\\"\"\"\") must be\n             # consumed here, otherwise it'd be picked up by the delimiter check below and\n             # terminate the string early. This is only relevant for multi-char delimiters\n@@ -1290,13 +1282,11 @@ class TokenizerCore:\n             if (\n                 (string_escapes_allowed_in_raw_strings or not raw_string)\n                 and self._char in escapes\n-                and (escaped_delimiter or self._peek in escapes or is_valid_custom_escape)\n+                and (escaped_delimiter or self._peek in escapes)\n                 and (self._char not in quotes or self._char == self._peek)\n             ):\n                 if escaped_delimiter:\n                     text += self._peek if not raw_string else self._char + self._peek\n-                elif is_valid_custom_escape and self._char != self._peek:\n-                    text += self._peek\n                 else:\n                     text += self._char + self._peek\n \ndiff --git a/sqlglot/tokens.py b/sqlglot/tokens.py\nindex 1175662..70d4f8e 100644\n--- a/sqlglot/tokens.py\n+++ b/sqlglot/tokens.py\n@@ -50,7 +50,6 @@ class _TokenizerBase:\n     UNICODE_STRINGS: t.ClassVar[list[str | tuple[str, str]]]\n     STRING_ESCAPES: t.ClassVar[list[str]]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]]\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]]\n     IDENTIFIER_ESCAPES: t.ClassVar[list[str]]\n     HINT_START: t.ClassVar[str]\n     KEYWORDS: t.ClassVar[dict[str, TokenType]]\n@@ -72,7 +71,6 @@ class _TokenizerBase:\n     _FORMAT_STRINGS: t.ClassVar[dict[str, tuple[str, TokenType]]]\n     _STRING_ESCAPES: t.ClassVar[set[str]]\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]]\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]]\n     _IDENTIFIER_ESCAPES: t.ClassVar[set[str]]\n     _COMMENTS: t.ClassVar[dict[str, str | None]]\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]]\n@@ -99,7 +97,6 @@ class _TokenizerBase:\n             cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES.copy()\n         cls._STRING_ESCAPES = set(cls.STRING_ESCAPES)\n         cls._BYTE_STRING_ESCAPES = set(cls.BYTE_STRING_ESCAPES)\n-        cls._ESCAPE_FOLLOW_CHARS = set(cls.ESCAPE_FOLLOW_CHARS)\n         cls._IDENTIFIER_ESCAPES = set(cls.IDENTIFIER_ESCAPES)\n         cls._COMMENTS = {\n             **{c: None for c in cls.COMMENTS if isinstance(c, str)},\n@@ -166,7 +163,6 @@ class Tokenizer(_TokenizerBase):\n     STRING_ESCAPES: t.ClassVar[list[str]] = [\"'\"]\n     BYTE_STRING_ESCAPES: t.ClassVar[list[str]] = []\n     VAR_SINGLE_TOKENS: t.ClassVar[set[str]] = set()\n-    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]] = []\n \n     # The strings in this list can always be used as escapes, regardless of the surrounding\n     # identifier delimiters. By default, the closing delimiter is assumed to also act as an\n@@ -207,7 +203,6 @@ class Tokenizer(_TokenizerBase):\n     _STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _BYTE_STRING_ESCAPES: t.ClassVar[set[str]] = set()\n     _KEYWORD_TRIE: t.ClassVar[dict[str | int, object]] = {}\n-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]] = set()\n \n     KEYWORDS: t.ClassVar[dict[str, TokenType]] = {\n         **{f\"{{%{postfix}\": TokenType.BLOCK_START for postfix in (\"\", \"+\", \"-\")},\n@@ -564,7 +559,6 @@ class Tokenizer(_TokenizerBase):\n             string_escapes=self._STRING_ESCAPES,\n             byte_string_escapes=self._BYTE_STRING_ESCAPES,\n             identifier_escapes=self._IDENTIFIER_ESCAPES,\n-            escape_follow_chars=self._ESCAPE_FOLLOW_CHARS,\n             commands=self.COMMANDS,\n             command_prefix_tokens=self.COMMAND_PREFIX_TOKENS,\n             nested_comments=self.NESTED_COMMENTS,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.athena:_TrinoTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.dune:Dune.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.exasol:Exasol.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.fabric:Fabric.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.Tokenizer.ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.oracle:Oracle.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.presto:Presto.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.prql:PRQL.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.JSONPathTokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.solr:Solr.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.spark2:Spark2.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.spark:Spark.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.sqlite:SQLite.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\x00'": "'\\\\0'",
+     "'\\x1a'": "'\\\\Z'"
+    },
+    "removed": {
+     "'\\x07'": "'\\\\a'",
+     "'\\x0b'": "'\\\\v'",
+     "'\\x0c'": "'\\\\f'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.Tokenizer._ESCAPE_FOLLOW_CHARS",
+    "kind": "value",
+    "before": [
+     "'%'",
+     "'0'",
+     "'Z'",
+     "'_'",
+     "'b'",
+     "'n'",
+     "'r'",
+     "'t'"
+    ],
+    "after": "AttributeError"
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {
+     "'\\\\_'": "'\\\\_'",
+     "'\\\\0'": "'\\x00'",
+     "'\\\\%'": "'\\\\%'",
+     "'\\\\Z'": "'\\x1a'"
+    },
+    "removed": {},
+    "changed": {
+     "'\\\\a'": [
+      "'\\x07'",
+      "'a'"
+     ],
+     "'\\\\v'": [
+      "'\\x0b'",
+      "'v'"
+     ],
+     "'\\\\f'": [
+      "'\\x0c'",
+      "'f'"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "4789",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_JSON(x, 'y', '0', 'z')",
+    "after": "JSON_EXTRACT_JSON(x, 'y', '[0]', 'z')"
+   },
+   {
+    "probe": "4903",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4904",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4905",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "4906",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT '\u0000'",
+    "before": "SELECT '\u0000'",
+    "after": "SELECT '\\0'"
+   },
+   {
+    "probe": "5365",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[1]')",
+    "before": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '1')",
+    "after": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '[1]')"
+   },
+   {
+    "probe": "5369",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[1]', '$[0]')",
+    "before": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '1')",
+    "after": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '[1]')"
+   },
+   {
+    "probe": "5381",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT(a, '$.b[2]') FROM t",
+    "before": "SELECT JSON_EXTRACT_JSON(a, 'b', '2') FROM t",
+    "after": "SELECT JSON_EXTRACT_JSON(a, 'b', '[2]') FROM t"
+   },
+   {
+    "probe": "10415",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\u0000-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "10433",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT BSON_EXTRACT_BSON(a, 'b', 2) FROM t",
+    "before": "SELECT BSON_EXTRACT_BSON(a, 'b', '2') FROM t",
+    "after": "SELECT BSON_EXTRACT_BSON(a, 'b', '[2]') FROM t"
+   },
+   {
+    "probe": "10436",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT BSON_EXTRACT_STRING(a, 'b', 2) FROM t",
+    "before": "SELECT BSON_EXTRACT_STRING(a, 'b', '2') FROM t",
+    "after": "SELECT BSON_EXTRACT_STRING(a, 'b', '[2]') FROM t"
+   },
+   {
+    "probe": "10482",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT_JSON(a, 'b', '2') FROM t",
+    "before": "SELECT JSON_EXTRACT_JSON(a, 'b', '2') FROM t",
+    "after": "SELECT JSON_EXTRACT_JSON(a, 'b', '[2]') FROM t"
+   },
+   {
+    "probe": "10485",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT_STRING(a, 'b', 2) FROM t",
+    "before": "SELECT JSON_EXTRACT_STRING(a, 'b', '2') FROM t",
+    "after": "SELECT JSON_EXTRACT_STRING(a, 'b', '[2]') FROM t"
+   },
+   {
+    "probe": "10542",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT a::2 FROM t",
+    "before": "SELECT JSON_EXTRACT_JSON(a, '2') FROM t",
+    "after": "SELECT JSON_EXTRACT_JSON(a, '[2]') FROM t"
+   },
+   {
+    "probe": "10543",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT a::`b`::`2` FROM t",
+    "before": "SELECT JSON_EXTRACT_JSON(JSON_EXTRACT_JSON(a, 'b'), '2') FROM t",
+    "after": "SELECT JSON_EXTRACT_JSON(JSON_EXTRACT_JSON(a, 'b'), '[2]') FROM t"
+   },
+   {
+    "probe": "15034",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15035",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT 1 + ('a' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT 1 + ('a' RLIKE '^[\\0-\u007f]*$')"
+   },
+   {
+    "probe": "15036",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')",
+    "before": "SELECT NOT ('\u00e9' RLIKE '^[\\\\0-\u007f]*$')",
+    "after": "SELECT NOT ('\u00e9' RLIKE '^[\\0-\u007f]*$')"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 10,
+   "imports": 1
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_json_extract"
+  ]
+ }
+]

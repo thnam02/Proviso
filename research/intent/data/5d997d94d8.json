@@ -1,0 +1,4061 @@
+[
+ {
+  "task": "5d997d94d8",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "feat(parser)!: Parse bare `ALTER TABLE ... DROP c`. (#8432)\n\n* feat(parser)!: Parse bare `ALTER TABLE ... DROP c`.\n\nThis commit adds support for opted-in dialects where an unqualified\n`ALTER TABLE ... DROP c` is parsed as `DROP COLUMN c`. Because not all\ndialects support this behaviour, it is opt-in behind\n`ALTER_DROP_REQUIRES_COLUMN`, which is flipped for PostgreSQL and MySQL.\nThis will mean that existing `Alter[Command]`s will become `Alter[Drop]`\nfor both PostgreSQL and MySQL parsers.\n\n* fix(parser): Bare `DROP` review feedback.\n\nUse cursor helpers instead of indexing, simplify tests, and add basic\nsubclass parser tests. From agentic code review, additional fixes were\nadded to keep behaviour consistent with mainline when, for example,\n`COLUMN` was read as a column name.\n\n* fix(parser): Bare `DROP` review feedback.\n\nRemove tests with invalid SQL and remove `FOREIGN KEY` and `UNIQUE` from\nexclusion set.",
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 3439782..29b0291 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1908,6 +1908,9 @@ class Parser:\n     # Whether renaming a column with an ALTER statement requires the presence of the COLUMN keyword\n     ALTER_RENAME_REQUIRES_COLUMN: t.ClassVar = True\n \n+    # Whether dropping a column with an ALTER statement requires the presence of the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN: t.ClassVar = True\n+\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n@@ -2406,22 +2409,32 @@ class Parser:\n \n         return self._parse_query_modifiers(expression)\n \n-    def _parse_drop(self, exists: bool = False) -> exp.Drop | exp.Command:\n+    def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = self._match(TokenType.TEMPORARY)\n-        materialized = self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = self._match_text_seq(\"ICEBERG\")\n+        temporary = not kind and self._match(TokenType.TEMPORARY)\n+        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n+        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = self._match_set(self.CREATABLES) and self._prev.text.upper()\n+        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n         if not kind or (iceberg and kind and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n-        concurrently = self._match_text_seq(\"CONCURRENTLY\")\n+        concurrently = (\n+            kind != \"COLUMN\"\n+            and bool(self._next)\n+            and self._next.token_type != TokenType.COMMA\n+            and self._match_text_seq(\"CONCURRENTLY\")\n+        )\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            tables = self._parse_column()\n+            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n+            tables = (\n+                self.expression(exp.Column(this=self._parse_id_var()))\n+                if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n+                else self._parse_column()\n+            )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n         else:\n@@ -2457,11 +2470,9 @@ class Parser:\n         )\n \n     def _parse_exists(self, not_: bool = False) -> bool | None:\n-        return (\n-            self._match_text_seq(\"IF\")\n-            and (not not_ or self._match(TokenType.NOT))\n-            and self._match(TokenType.EXISTS)\n-        )\n+        if not_:\n+            return self._match_text_seq(\"IF\", \"NOT\", \"EXISTS\")\n+        return self._match_text_seq(\"IF\", \"EXISTS\")\n \n     def _parse_create(self) -> exp.Create | exp.Command:\n         # Note: this can't be None because we've matched a statement parser\n@@ -8152,7 +8163,10 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-            self._match(TokenType.THEN)\n+            if not self._match(TokenType.THEN):\n+                self._retreat(index)\n+                return None\n+\n             true = self._parse_disjunction()\n             false = self._parse_disjunction() if self._match(TokenType.ELSE) else None\n             self._match(TokenType.END)\n@@ -9106,7 +9120,29 @@ class Parser:\n         return self._parse_column_def_with_exists()\n \n     def _parse_drop_column(self) -> exp.Drop | exp.Command | None:\n-        drop = self._parse_drop() if self._match(TokenType.DROP) else None\n+        if not self._match(TokenType.DROP):\n+            return None\n+\n+        kind = None\n+        if not self.ALTER_DROP_REQUIRES_COLUMN:\n+            # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n+            index = self._index\n+            self._parse_exists()\n+            name = self._curr\n+            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n+                TokenType.COLUMN,\n+                TokenType.CONSTRAINT,\n+            ):\n+                self._advance()\n+                if (\n+                    not self._curr\n+                    or self._match(TokenType.COMMA, advance=False)\n+                    or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n+                ):\n+                    kind = \"COLUMN\"\n+            self._retreat(index)\n+\n+        drop = self._parse_drop(kind=kind)\n         if drop and not isinstance(drop, exp.Command):\n             drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n         return drop\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 7082d42..355cffb 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -297,6 +297,7 @@ class MySQLParser(parser.Parser):\n         \"SQL_CALC_FOUND_ROWS\",\n     }\n \n+    ALTER_DROP_REQUIRES_COLUMN = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n     VALUES_FOLLOWED_BY_PAREN = False\ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex f059a13..dc41b3d 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -84,6 +84,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n \n class PostgresParser(parser.Parser):\n+    ALTER_DROP_REQUIRES_COLUMN = False\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14913",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14914",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14915",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14916",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14921",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14922",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14923",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`"
+   },
+   {
+    "probe": "14924",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14925",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14926",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14927",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`, DROP COLUMN b"
+   },
+   {
+    "probe": "14928",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14929",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14930",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14931",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14932",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14933",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14934",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14935",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14936",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14937",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14938",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14939",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `any` RESTRICT"
+   },
+   {
+    "probe": "14940",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14941",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14942",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14943",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14944",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14945",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14946",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14947",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14948",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14949",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14950",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14951",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14952",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14953",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14954",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14955",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently` RESTRICT"
+   },
+   {
+    "probe": "14956",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14957",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14958",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14959",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14960",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14961",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14962",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14963",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14964",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14967",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ADD COLUMN if INT",
+    "before": "ALTER TABLE t ADD COLUMN if INT",
+    "after": "ALTER TABLE t ADD COLUMN if INTEGER"
+   },
+   {
+    "probe": "14973",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14974",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14975",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14976",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14985",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14986",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14987",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14988",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14989",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14990",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14991",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14992",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14993",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14994",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14995",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14996",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14997",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14998",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14999",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15000",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15001",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15002",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15003",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15004",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15005",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15006",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15007",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15008",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15009",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15010",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15011",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15012",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15013",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15014",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15015",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN \"type\""
+   },
+   {
+    "probe": "15016",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15017",
+    "source": "redshift",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15018",
+    "source": "risingwave",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b",
+    "before": "ALTER TABLE t DROP IF EXISTS b",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b"
+   },
+   {
+    "probe": "15019",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   }
+  ],
+  "new_probes": 111
+ },
+ {
+  "task": "5d997d94d8",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "feat(parser)!: Parse bare `ALTER TABLE ... DROP c`. (#8432)\n\n* feat(parser)!: Parse bare `ALTER TABLE ... DROP c`.\n\nThis commit adds support for opted-in dialects where an unqualified\n`ALTER TABLE ... DROP c` is parsed as `DROP COLUMN c`. Because not all\ndialects support this behaviour, it is opt-in behind\n`ALTER_DROP_REQUIRES_COLUMN`, which is flipped for PostgreSQL and MySQL.\nThis will mean that existing `Alter[Command]`s will become `Alter[Drop]`\nfor both PostgreSQL and MySQL parsers.\n\n* fix(parser): Bare `DROP` review feedback.\n\nUse cursor helpers instead of indexing, simplify tests, and add basic\nsubclass parser tests. From agentic code review, additional fixes were\nadded to keep behaviour consistent with mainline when, for example,\n`COLUMN` was read as a column name.\n\n* fix(parser): Bare `DROP` review feedback.\n\nRemove tests with invalid SQL and remove `FOREIGN KEY` and `UNIQUE` from\nexclusion set.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 9068,
+   "op": "flip",
+   "code": "is_rollback = self._prev.token_type == TokenType.ROLLBACK"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 3439782..8b39928 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1908,6 +1908,9 @@ class Parser:\n     # Whether renaming a column with an ALTER statement requires the presence of the COLUMN keyword\n     ALTER_RENAME_REQUIRES_COLUMN: t.ClassVar = True\n \n+    # Whether dropping a column with an ALTER statement requires the presence of the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN: t.ClassVar = True\n+\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n@@ -2406,22 +2409,32 @@ class Parser:\n \n         return self._parse_query_modifiers(expression)\n \n-    def _parse_drop(self, exists: bool = False) -> exp.Drop | exp.Command:\n+    def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = self._match(TokenType.TEMPORARY)\n-        materialized = self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = self._match_text_seq(\"ICEBERG\")\n+        temporary = not kind and self._match(TokenType.TEMPORARY)\n+        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n+        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = self._match_set(self.CREATABLES) and self._prev.text.upper()\n+        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n         if not kind or (iceberg and kind and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n-        concurrently = self._match_text_seq(\"CONCURRENTLY\")\n+        concurrently = (\n+            kind != \"COLUMN\"\n+            and bool(self._next)\n+            and self._next.token_type != TokenType.COMMA\n+            and self._match_text_seq(\"CONCURRENTLY\")\n+        )\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            tables = self._parse_column()\n+            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n+            tables = (\n+                self.expression(exp.Column(this=self._parse_id_var()))\n+                if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n+                else self._parse_column()\n+            )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n         else:\n@@ -2457,11 +2470,9 @@ class Parser:\n         )\n \n     def _parse_exists(self, not_: bool = False) -> bool | None:\n-        return (\n-            self._match_text_seq(\"IF\")\n-            and (not not_ or self._match(TokenType.NOT))\n-            and self._match(TokenType.EXISTS)\n-        )\n+        if not_:\n+            return self._match_text_seq(\"IF\", \"NOT\", \"EXISTS\")\n+        return self._match_text_seq(\"IF\", \"EXISTS\")\n \n     def _parse_create(self) -> exp.Create | exp.Command:\n         # Note: this can't be None because we've matched a statement parser\n@@ -8152,7 +8163,10 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-            self._match(TokenType.THEN)\n+            if not self._match(TokenType.THEN):\n+                self._retreat(index)\n+                return None\n+\n             true = self._parse_disjunction()\n             false = self._parse_disjunction() if self._match(TokenType.ELSE) else None\n             self._match(TokenType.END)\n@@ -9051,7 +9065,7 @@ class Parser:\n     def _parse_commit_or_rollback(self) -> exp.Commit | exp.Rollback:\n         chain = None\n         savepoint = None\n-        is_rollback = self._prev.token_type == TokenType.ROLLBACK\n+        is_rollback = self._prev.token_type != TokenType.ROLLBACK\n \n         self._match_texts((\"TRANSACTION\", \"WORK\"))\n \n@@ -9106,7 +9120,29 @@ class Parser:\n         return self._parse_column_def_with_exists()\n \n     def _parse_drop_column(self) -> exp.Drop | exp.Command | None:\n-        drop = self._parse_drop() if self._match(TokenType.DROP) else None\n+        if not self._match(TokenType.DROP):\n+            return None\n+\n+        kind = None\n+        if not self.ALTER_DROP_REQUIRES_COLUMN:\n+            # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n+            index = self._index\n+            self._parse_exists()\n+            name = self._curr\n+            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n+                TokenType.COLUMN,\n+                TokenType.CONSTRAINT,\n+            ):\n+                self._advance()\n+                if (\n+                    not self._curr\n+                    or self._match(TokenType.COMMA, advance=False)\n+                    or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n+                ):\n+                    kind = \"COLUMN\"\n+            self._retreat(index)\n+\n+        drop = self._parse_drop(kind=kind)\n         if drop and not isinstance(drop, exp.Command):\n             drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n         return drop\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 7082d42..355cffb 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -297,6 +297,7 @@ class MySQLParser(parser.Parser):\n         \"SQL_CALC_FOUND_ROWS\",\n     }\n \n+    ALTER_DROP_REQUIRES_COLUMN = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n     VALUES_FOLLOWED_BY_PAREN = False\ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex f059a13..dc41b3d 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -84,6 +84,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n \n class PostgresParser(parser.Parser):\n+    ALTER_DROP_REQUIRES_COLUMN = False\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "302",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "COMMIT TRANSACTION",
+    "before": "COMMIT TRANSACTION",
+    "after": "ROLLBACK TRANSACTION"
+   },
+   {
+    "probe": "482",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "ROLLBACK TRANSACTION",
+    "before": "ROLLBACK TRANSACTION",
+    "after": "COMMIT TRANSACTION"
+   },
+   {
+    "probe": "7037",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "END AND CHAIN",
+    "before": "COMMIT AND CHAIN",
+    "after": "ROLLBACK"
+   },
+   {
+    "probe": "7038",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "END AND CHAIN",
+    "before": "COMMIT AND CHAIN",
+    "after": "ROLLBACK"
+   },
+   {
+    "probe": "7039",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "END AND CHAIN",
+    "before": "COMMIT AND CHAIN",
+    "after": "ROLLBACK"
+   },
+   {
+    "probe": "7040",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "END AND CHAIN",
+    "before": "COMMIT AND CHAIN",
+    "after": "ROLLBACK"
+   },
+   {
+    "probe": "7041",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "END WORK AND NO CHAIN",
+    "before": "COMMIT AND NO CHAIN",
+    "after": "ROLLBACK"
+   },
+   {
+    "probe": "7042",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "END WORK AND NO CHAIN",
+    "before": "COMMIT AND NO CHAIN",
+    "after": "ROLLBACK"
+   },
+   {
+    "probe": "7043",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "END WORK AND NO CHAIN",
+    "before": "COMMIT AND NO CHAIN",
+    "after": "ROLLBACK"
+   },
+   {
+    "probe": "7044",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "END WORK AND NO CHAIN",
+    "before": "COMMIT AND NO CHAIN",
+    "after": "ROLLBACK"
+   },
+   {
+    "probe": "10886",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "ROLLBACK WORK",
+    "before": "ROLLBACK",
+    "after": "COMMIT"
+   },
+   {
+    "probe": "14913",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14914",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14915",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14916",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14921",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14922",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14923",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`"
+   },
+   {
+    "probe": "14924",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14925",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14926",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14927",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`, DROP COLUMN b"
+   },
+   {
+    "probe": "14928",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14929",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14930",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14931",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14932",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14933",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14934",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14935",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14936",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14937",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14938",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14939",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `any` RESTRICT"
+   },
+   {
+    "probe": "14940",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14941",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14942",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14943",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14944",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14945",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14946",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14947",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14948",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14949",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14950",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14951",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14952",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14953",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14954",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14955",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently` RESTRICT"
+   },
+   {
+    "probe": "14956",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14957",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14958",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14959",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14960",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14961",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14962",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14963",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14964",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14967",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ADD COLUMN if INT",
+    "before": "ALTER TABLE t ADD COLUMN if INT",
+    "after": "ALTER TABLE t ADD COLUMN if INTEGER"
+   },
+   {
+    "probe": "14973",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14974",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14975",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14976",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14985",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14986",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14987",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14988",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14989",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14990",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14991",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14992",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14993",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14994",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14995",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14996",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14997",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14998",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14999",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15000",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15001",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15002",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15003",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15004",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15005",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15006",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15007",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15008",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15009",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15010",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15011",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15012",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15013",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15014",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15015",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN \"type\""
+   },
+   {
+    "probe": "15016",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15017",
+    "source": "redshift",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15018",
+    "source": "risingwave",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b",
+    "before": "ALTER TABLE t DROP IF EXISTS b",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b"
+   },
+   {
+    "probe": "15019",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 11,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_rollback_as_identifier",
+   "tests/test_expressions.py::TestExprs::test_functions",
+   "tests/test_transpile.py::TestTranspile::test_identity"
+  ]
+ },
+ {
+  "task": "5d997d94d8",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "feat(parser)!: Parse bare `ALTER TABLE ... DROP c`. (#8432)\n\n* feat(parser)!: Parse bare `ALTER TABLE ... DROP c`.\n\nThis commit adds support for opted-in dialects where an unqualified\n`ALTER TABLE ... DROP c` is parsed as `DROP COLUMN c`. Because not all\ndialects support this behaviour, it is opt-in behind\n`ALTER_DROP_REQUIRES_COLUMN`, which is flipped for PostgreSQL and MySQL.\nThis will mean that existing `Alter[Command]`s will become `Alter[Drop]`\nfor both PostgreSQL and MySQL parsers.\n\n* fix(parser): Bare `DROP` review feedback.\n\nUse cursor helpers instead of indexing, simplify tests, and add basic\nsubclass parser tests. From agentic code review, additional fixes were\nadded to keep behaviour consistent with mainline when, for example,\n`COLUMN` was read as a column name.\n\n* fix(parser): Bare `DROP` review feedback.\n\nRemove tests with invalid SQL and remove `FOREIGN KEY` and `UNIQUE` from\nexclusion set.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 10525,
+   "op": "flip",
+   "code": "if len(exprs) == 1:"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 3439782..73558ea 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1908,6 +1908,9 @@ class Parser:\n     # Whether renaming a column with an ALTER statement requires the presence of the COLUMN keyword\n     ALTER_RENAME_REQUIRES_COLUMN: t.ClassVar = True\n \n+    # Whether dropping a column with an ALTER statement requires the presence of the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN: t.ClassVar = True\n+\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n@@ -2406,22 +2409,32 @@ class Parser:\n \n         return self._parse_query_modifiers(expression)\n \n-    def _parse_drop(self, exists: bool = False) -> exp.Drop | exp.Command:\n+    def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = self._match(TokenType.TEMPORARY)\n-        materialized = self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = self._match_text_seq(\"ICEBERG\")\n+        temporary = not kind and self._match(TokenType.TEMPORARY)\n+        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n+        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = self._match_set(self.CREATABLES) and self._prev.text.upper()\n+        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n         if not kind or (iceberg and kind and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n-        concurrently = self._match_text_seq(\"CONCURRENTLY\")\n+        concurrently = (\n+            kind != \"COLUMN\"\n+            and bool(self._next)\n+            and self._next.token_type != TokenType.COMMA\n+            and self._match_text_seq(\"CONCURRENTLY\")\n+        )\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            tables = self._parse_column()\n+            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n+            tables = (\n+                self.expression(exp.Column(this=self._parse_id_var()))\n+                if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n+                else self._parse_column()\n+            )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n         else:\n@@ -2457,11 +2470,9 @@ class Parser:\n         )\n \n     def _parse_exists(self, not_: bool = False) -> bool | None:\n-        return (\n-            self._match_text_seq(\"IF\")\n-            and (not not_ or self._match(TokenType.NOT))\n-            and self._match(TokenType.EXISTS)\n-        )\n+        if not_:\n+            return self._match_text_seq(\"IF\", \"NOT\", \"EXISTS\")\n+        return self._match_text_seq(\"IF\", \"EXISTS\")\n \n     def _parse_create(self) -> exp.Create | exp.Command:\n         # Note: this can't be None because we've matched a statement parser\n@@ -8152,7 +8163,10 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-            self._match(TokenType.THEN)\n+            if not self._match(TokenType.THEN):\n+                self._retreat(index)\n+                return None\n+\n             true = self._parse_disjunction()\n             false = self._parse_disjunction() if self._match(TokenType.ELSE) else None\n             self._match(TokenType.END)\n@@ -9106,7 +9120,29 @@ class Parser:\n         return self._parse_column_def_with_exists()\n \n     def _parse_drop_column(self) -> exp.Drop | exp.Command | None:\n-        drop = self._parse_drop() if self._match(TokenType.DROP) else None\n+        if not self._match(TokenType.DROP):\n+            return None\n+\n+        kind = None\n+        if not self.ALTER_DROP_REQUIRES_COLUMN:\n+            # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n+            index = self._index\n+            self._parse_exists()\n+            name = self._curr\n+            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n+                TokenType.COLUMN,\n+                TokenType.CONSTRAINT,\n+            ):\n+                self._advance()\n+                if (\n+                    not self._curr\n+                    or self._match(TokenType.COMMA, advance=False)\n+                    or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n+                ):\n+                    kind = \"COLUMN\"\n+            self._retreat(index)\n+\n+        drop = self._parse_drop(kind=kind)\n         if drop and not isinstance(drop, exp.Command):\n             drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n         return drop\n@@ -10486,7 +10522,7 @@ class Parser:\n                 ]\n                 node.set(\"expressions\", concat_exprs)\n                 return node\n-            if len(exprs) == 1:\n+            if len(exprs) != 1:\n                 return exprs[0]\n             return self.expression(\n                 exp.Concat(expressions=args, safe=True, coalesce=self.dialect.CONCAT_COALESCE)\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 7082d42..355cffb 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -297,6 +297,7 @@ class MySQLParser(parser.Parser):\n         \"SQL_CALC_FOUND_ROWS\",\n     }\n \n+    ALTER_DROP_REQUIRES_COLUMN = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n     VALUES_FOLLOWED_BY_PAREN = False\ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex f059a13..dc41b3d 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -84,6 +84,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n \n class PostgresParser(parser.Parser):\n+    ALTER_DROP_REQUIRES_COLUMN = False\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "2760",
+    "source": "exasol",
+    "dialect": "exasol",
+    "input": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC)",
+    "before": "LISTAGG(DISTINCT x, ',') WITHIN GROUP (ORDER BY y DESC)",
+    "after": "LISTAGG(CONCAT(DISTINCT x), ',') WITHIN GROUP (ORDER BY y DESC)"
+   },
+   {
+    "probe": "2858",
+    "source": "exasol",
+    "dialect": "exasol",
+    "input": "SELECT id, department, hire_date, GROUP_CONCAT(id ORDER BY hire_date SEPARATOR ',') OVER (PARTITION BY department rows between 1 preceding and 1 following) GROUP_CONCAT_RESULT from employee_table ORDER BY department, hire_date",
+    "before": "SELECT id, department, hire_date, LISTAGG(id, ',') WITHIN GROUP (ORDER BY hire_date) OVER (PARTITION BY department rows BETWEEN 1 preceding AND 1 following) AS GROUP_CONCAT_RESULT FROM employee_table ORDER BY department, hire_date",
+    "after": "SELECT id, department, hire_date, LISTAGG(CONCAT(id), ',') WITHIN GROUP (ORDER BY hire_date) OVER (PARTITION BY department rows BETWEEN 1 preceding AND 1 following) AS GROUP_CONCAT_RESULT FROM employee_table ORDER BY department, hire_date"
+   },
+   {
+    "probe": "4627",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC SEPARATOR '')",
+    "before": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC SEPARATOR '')",
+    "after": "GROUP_CONCAT(CONCAT(DISTINCT x) ORDER BY y DESC SEPARATOR '')"
+   },
+   {
+    "probe": "4629",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC SEPARATOR '')",
+    "before": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC SEPARATOR '')",
+    "after": "GROUP_CONCAT(CONCAT(DISTINCT x) ORDER BY y DESC SEPARATOR '')"
+   },
+   {
+    "probe": "4630",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC SEPARATOR '')",
+    "before": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC SEPARATOR '')",
+    "after": "GROUP_CONCAT(CONCAT(DISTINCT x) ORDER BY y DESC SEPARATOR '')"
+   },
+   {
+    "probe": "4631",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC)",
+    "before": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC SEPARATOR ',')",
+    "after": "GROUP_CONCAT(CONCAT(DISTINCT x) ORDER BY y DESC SEPARATOR ',')"
+   },
+   {
+    "probe": "4633",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC)",
+    "before": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC SEPARATOR ',')",
+    "after": "GROUP_CONCAT(CONCAT(DISTINCT x) ORDER BY y DESC SEPARATOR ',')"
+   },
+   {
+    "probe": "4634",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC)",
+    "before": "GROUP_CONCAT(DISTINCT x ORDER BY y DESC SEPARATOR ',')",
+    "after": "GROUP_CONCAT(CONCAT(DISTINCT x) ORDER BY y DESC SEPARATOR ',')"
+   },
+   {
+    "probe": "4635",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "GROUP_CONCAT(a, b, c ORDER BY d SEPARATOR '')",
+    "before": "GROUP_CONCAT(CONCAT(a, b, c) ORDER BY d SEPARATOR '')",
+    "after": "GROUP_CONCAT(a ORDER BY d SEPARATOR '')"
+   },
+   {
+    "probe": "4637",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "GROUP_CONCAT(a, b, c ORDER BY d SEPARATOR '')",
+    "before": "GROUP_CONCAT(CONCAT(a, b, c) ORDER BY d SEPARATOR '')",
+    "after": "GROUP_CONCAT(a ORDER BY d SEPARATOR '')"
+   },
+   {
+    "probe": "4638",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "GROUP_CONCAT(a, b, c ORDER BY d SEPARATOR '')",
+    "before": "GROUP_CONCAT(CONCAT(a, b, c) ORDER BY d SEPARATOR '')",
+    "after": "GROUP_CONCAT(a ORDER BY d SEPARATOR '')"
+   },
+   {
+    "probe": "4639",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "GROUP_CONCAT(a, b, c SEPARATOR '')",
+    "before": "GROUP_CONCAT(CONCAT(a, b, c) SEPARATOR '')",
+    "after": "GROUP_CONCAT(a SEPARATOR '')"
+   },
+   {
+    "probe": "4641",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "GROUP_CONCAT(a, b, c SEPARATOR '')",
+    "before": "GROUP_CONCAT(CONCAT(a, b, c) SEPARATOR '')",
+    "after": "GROUP_CONCAT(a SEPARATOR '')"
+   },
+   {
+    "probe": "4642",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "GROUP_CONCAT(a, b, c SEPARATOR '')",
+    "before": "GROUP_CONCAT(CONCAT(a, b, c) SEPARATOR '')",
+    "after": "GROUP_CONCAT(a SEPARATOR '')"
+   },
+   {
+    "probe": "4643",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "GROUP_CONCAT(a, b, c SEPARATOR ',')",
+    "before": "GROUP_CONCAT(CONCAT(a, b, c) SEPARATOR ',')",
+    "after": "GROUP_CONCAT(a SEPARATOR ',')"
+   },
+   {
+    "probe": "4645",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "GROUP_CONCAT(a, b, c SEPARATOR ',')",
+    "before": "GROUP_CONCAT(CONCAT(a, b, c) SEPARATOR ',')",
+    "after": "GROUP_CONCAT(a SEPARATOR ',')"
+   },
+   {
+    "probe": "4646",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "GROUP_CONCAT(a, b, c SEPARATOR ',')",
+    "before": "GROUP_CONCAT(CONCAT(a, b, c) SEPARATOR ',')",
+    "after": "GROUP_CONCAT(a SEPARATOR ',')"
+   },
+   {
+    "probe": "4647",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "GROUP_CONCAT(x ORDER BY y SEPARATOR z)",
+    "before": "GROUP_CONCAT(x ORDER BY y SEPARATOR z)",
+    "after": "GROUP_CONCAT(CONCAT(x) ORDER BY y SEPARATOR z)"
+   },
+   {
+    "probe": "4649",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "GROUP_CONCAT(x ORDER BY y SEPARATOR z)",
+    "before": "GROUP_CONCAT(x ORDER BY y SEPARATOR z)",
+    "after": "GROUP_CONCAT(CONCAT(x) ORDER BY y SEPARATOR z)"
+   },
+   {
+    "probe": "4650",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "GROUP_CONCAT(x ORDER BY y SEPARATOR z)",
+    "before": "GROUP_CONCAT(x ORDER BY y SEPARATOR z)",
+    "after": "GROUP_CONCAT(CONCAT(x) ORDER BY y SEPARATOR z)"
+   },
+   {
+    "probe": "5251",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT GROUP_CONCAT('aa' SEPARATOR ',')",
+    "before": "SELECT GROUP_CONCAT('aa' SEPARATOR ',')",
+    "after": "SELECT GROUP_CONCAT(CONCAT('aa') SEPARATOR ',')"
+   },
+   {
+    "probe": "5253",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT GROUP_CONCAT('aa' SEPARATOR ',')",
+    "before": "SELECT GROUP_CONCAT('aa' SEPARATOR ',')",
+    "after": "SELECT GROUP_CONCAT(CONCAT('aa') SEPARATOR ',')"
+   },
+   {
+    "probe": "5254",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT GROUP_CONCAT('aa' SEPARATOR ',')",
+    "before": "SELECT GROUP_CONCAT('aa' SEPARATOR ',')",
+    "after": "SELECT GROUP_CONCAT(CONCAT('aa') SEPARATOR ',')"
+   },
+   {
+    "probe": "5255",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT GROUP_CONCAT(part_name SEPARATOR ', ') FROM t",
+    "before": "SELECT GROUP_CONCAT(part_name SEPARATOR ', ') FROM t",
+    "after": "SELECT GROUP_CONCAT(CONCAT(part_name) SEPARATOR ', ') FROM t"
+   },
+   {
+    "probe": "5257",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT GROUP_CONCAT(part_name SEPARATOR ', ') FROM t",
+    "before": "SELECT GROUP_CONCAT(part_name SEPARATOR ', ') FROM t",
+    "after": "SELECT GROUP_CONCAT(CONCAT(part_name) SEPARATOR ', ') FROM t"
+   },
+   {
+    "probe": "5258",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT GROUP_CONCAT(part_name SEPARATOR ', ') FROM t",
+    "before": "SELECT GROUP_CONCAT(part_name SEPARATOR ', ') FROM t",
+    "after": "SELECT GROUP_CONCAT(CONCAT(part_name) SEPARATOR ', ') FROM t"
+   },
+   {
+    "probe": "5491",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT department, GROUP_CONCAT(name) AS employee_names FROM data GROUP BY department",
+    "before": "SELECT department, GROUP_CONCAT(name SEPARATOR ',') AS employee_names FROM data GROUP BY department",
+    "after": "SELECT department, GROUP_CONCAT(CONCAT(name) SEPARATOR ',') AS employee_names FROM data GROUP BY department"
+   },
+   {
+    "probe": "5493",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT department, GROUP_CONCAT(name) AS employee_names FROM data GROUP BY department",
+    "before": "SELECT department, GROUP_CONCAT(name SEPARATOR ',') AS employee_names FROM `data` GROUP BY department",
+    "after": "SELECT department, GROUP_CONCAT(CONCAT(name) SEPARATOR ',') AS employee_names FROM `data` GROUP BY department"
+   },
+   {
+    "probe": "5494",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT department, GROUP_CONCAT(name) AS employee_names FROM data GROUP BY department",
+    "before": "SELECT department, GROUP_CONCAT(name SEPARATOR ',') AS employee_names FROM data GROUP BY department",
+    "after": "SELECT department, GROUP_CONCAT(CONCAT(name) SEPARATOR ',') AS employee_names FROM data GROUP BY department"
+   },
+   {
+    "probe": "14913",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14914",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14915",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14916",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14921",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14922",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14923",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`"
+   },
+   {
+    "probe": "14924",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14925",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14926",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14927",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`, DROP COLUMN b"
+   },
+   {
+    "probe": "14928",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14929",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14930",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14931",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14932",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14933",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14934",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14935",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14936",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14937",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14938",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14939",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `any` RESTRICT"
+   },
+   {
+    "probe": "14940",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14941",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14942",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14943",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14944",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14945",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14946",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14947",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14948",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14949",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14950",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14951",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14952",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14953",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14954",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14955",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently` RESTRICT"
+   },
+   {
+    "probe": "14956",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14957",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14958",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14959",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14960",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14961",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14962",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14963",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14964",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14967",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ADD COLUMN if INT",
+    "before": "ALTER TABLE t ADD COLUMN if INT",
+    "after": "ALTER TABLE t ADD COLUMN if INTEGER"
+   },
+   {
+    "probe": "14973",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14974",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14975",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14976",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14985",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14986",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14987",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14988",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14989",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14990",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14991",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14992",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14993",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14994",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14995",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14996",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14997",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14998",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14999",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15000",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15001",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15002",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15003",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15004",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15005",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15006",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15007",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15008",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15009",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15010",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15011",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15012",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15013",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15014",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15015",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN \"type\""
+   },
+   {
+    "probe": "15016",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15017",
+    "source": "redshift",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15018",
+    "source": "risingwave",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b",
+    "before": "ALTER TABLE t DROP IF EXISTS b",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b"
+   },
+   {
+    "probe": "15019",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 29,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_groupconcat",
+   "tests/dialects/test_doris.py::TestDoris::test_doris",
+   "tests/dialects/test_exasol.py::TestExasol::test_stringFunctions",
+   "tests/dialects/test_mysql.py::TestMySQL::test_mysql"
+  ]
+ },
+ {
+  "task": "5d997d94d8",
+  "variant": "bug",
+  "label": "no_effect",
+  "prompt": "feat(parser)!: Parse bare `ALTER TABLE ... DROP c`. (#8432)\n\n* feat(parser)!: Parse bare `ALTER TABLE ... DROP c`.\n\nThis commit adds support for opted-in dialects where an unqualified\n`ALTER TABLE ... DROP c` is parsed as `DROP COLUMN c`. Because not all\ndialects support this behaviour, it is opt-in behind\n`ALTER_DROP_REQUIRES_COLUMN`, which is flipped for PostgreSQL and MySQL.\nThis will mean that existing `Alter[Command]`s will become `Alter[Drop]`\nfor both PostgreSQL and MySQL parsers.\n\n* fix(parser): Bare `DROP` review feedback.\n\nUse cursor helpers instead of indexing, simplify tests, and add basic\nsubclass parser tests. From agentic code review, additional fixes were\nadded to keep behaviour consistent with mainline when, for example,\n`COLUMN` was read as a column name.\n\n* fix(parser): Bare `DROP` review feedback.\n\nRemove tests with invalid SQL and remove `FOREIGN KEY` and `UNIQUE` from\nexclusion set.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 3451,
+   "op": "flip",
+   "code": "statistics = True"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 3439782..7e8b474 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1908,6 +1908,9 @@ class Parser:\n     # Whether renaming a column with an ALTER statement requires the presence of the COLUMN keyword\n     ALTER_RENAME_REQUIRES_COLUMN: t.ClassVar = True\n \n+    # Whether dropping a column with an ALTER statement requires the presence of the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN: t.ClassVar = True\n+\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n@@ -2406,22 +2409,32 @@ class Parser:\n \n         return self._parse_query_modifiers(expression)\n \n-    def _parse_drop(self, exists: bool = False) -> exp.Drop | exp.Command:\n+    def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = self._match(TokenType.TEMPORARY)\n-        materialized = self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = self._match_text_seq(\"ICEBERG\")\n+        temporary = not kind and self._match(TokenType.TEMPORARY)\n+        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n+        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = self._match_set(self.CREATABLES) and self._prev.text.upper()\n+        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n         if not kind or (iceberg and kind and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n-        concurrently = self._match_text_seq(\"CONCURRENTLY\")\n+        concurrently = (\n+            kind != \"COLUMN\"\n+            and bool(self._next)\n+            and self._next.token_type != TokenType.COMMA\n+            and self._match_text_seq(\"CONCURRENTLY\")\n+        )\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            tables = self._parse_column()\n+            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n+            tables = (\n+                self.expression(exp.Column(this=self._parse_id_var()))\n+                if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n+                else self._parse_column()\n+            )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n         else:\n@@ -2457,11 +2470,9 @@ class Parser:\n         )\n \n     def _parse_exists(self, not_: bool = False) -> bool | None:\n-        return (\n-            self._match_text_seq(\"IF\")\n-            and (not not_ or self._match(TokenType.NOT))\n-            and self._match(TokenType.EXISTS)\n-        )\n+        if not_:\n+            return self._match_text_seq(\"IF\", \"NOT\", \"EXISTS\")\n+        return self._match_text_seq(\"IF\", \"EXISTS\")\n \n     def _parse_create(self) -> exp.Create | exp.Command:\n         # Note: this can't be None because we've matched a statement parser\n@@ -3437,7 +3448,7 @@ class Parser:\n \n     def _parse_withdata(self, no: bool = False) -> exp.WithDataProperty:\n         if self._match_text_seq(\"AND\", \"STATISTICS\"):\n-            statistics = True\n+            statistics = False\n         elif self._match_text_seq(\"AND\", \"NO\", \"STATISTICS\"):\n             statistics = False\n         else:\n@@ -8152,7 +8163,10 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-            self._match(TokenType.THEN)\n+            if not self._match(TokenType.THEN):\n+                self._retreat(index)\n+                return None\n+\n             true = self._parse_disjunction()\n             false = self._parse_disjunction() if self._match(TokenType.ELSE) else None\n             self._match(TokenType.END)\n@@ -9106,7 +9120,29 @@ class Parser:\n         return self._parse_column_def_with_exists()\n \n     def _parse_drop_column(self) -> exp.Drop | exp.Command | None:\n-        drop = self._parse_drop() if self._match(TokenType.DROP) else None\n+        if not self._match(TokenType.DROP):\n+            return None\n+\n+        kind = None\n+        if not self.ALTER_DROP_REQUIRES_COLUMN:\n+            # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n+            index = self._index\n+            self._parse_exists()\n+            name = self._curr\n+            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n+                TokenType.COLUMN,\n+                TokenType.CONSTRAINT,\n+            ):\n+                self._advance()\n+                if (\n+                    not self._curr\n+                    or self._match(TokenType.COMMA, advance=False)\n+                    or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n+                ):\n+                    kind = \"COLUMN\"\n+            self._retreat(index)\n+\n+        drop = self._parse_drop(kind=kind)\n         if drop and not isinstance(drop, exp.Command):\n             drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n         return drop\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 7082d42..355cffb 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -297,6 +297,7 @@ class MySQLParser(parser.Parser):\n         \"SQL_CALC_FOUND_ROWS\",\n     }\n \n+    ALTER_DROP_REQUIRES_COLUMN = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n     VALUES_FOLLOWED_BY_PAREN = False\ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex f059a13..dc41b3d 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -84,6 +84,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n \n class PostgresParser(parser.Parser):\n+    ALTER_DROP_REQUIRES_COLUMN = False\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14913",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14914",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14915",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14916",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14921",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14922",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14923",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`"
+   },
+   {
+    "probe": "14924",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14925",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14926",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14927",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`, DROP COLUMN b"
+   },
+   {
+    "probe": "14928",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14929",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14930",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14931",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14932",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14933",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14934",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14935",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14936",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14937",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14938",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14939",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `any` RESTRICT"
+   },
+   {
+    "probe": "14940",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14941",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14942",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14943",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14944",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14945",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14946",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14947",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14948",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14949",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14950",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14951",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14952",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14953",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14954",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14955",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently` RESTRICT"
+   },
+   {
+    "probe": "14956",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14957",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14958",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14959",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14960",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14961",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14962",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14963",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14964",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14967",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ADD COLUMN if INT",
+    "before": "ALTER TABLE t ADD COLUMN if INT",
+    "after": "ALTER TABLE t ADD COLUMN if INTEGER"
+   },
+   {
+    "probe": "14973",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14974",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14975",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14976",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14985",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14986",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14987",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14988",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14989",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14990",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14991",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14992",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14993",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14994",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14995",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14996",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14997",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14998",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14999",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15000",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15001",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15002",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15003",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15004",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15005",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15006",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15007",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15008",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15009",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15010",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15011",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15012",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15013",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15014",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15015",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN \"type\""
+   },
+   {
+    "probe": "15016",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15017",
+    "source": "redshift",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15018",
+    "source": "risingwave",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b",
+    "before": "ALTER TABLE t DROP IF EXISTS b",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b"
+   },
+   {
+    "probe": "15019",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/test_transpile.py::TestTranspile::test_identity"
+  ]
+ },
+ {
+  "task": "5d997d94d8",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "feat(parser)!: Parse bare `ALTER TABLE ... DROP c`. (#8432)\n\n* feat(parser)!: Parse bare `ALTER TABLE ... DROP c`.\n\nThis commit adds support for opted-in dialects where an unqualified\n`ALTER TABLE ... DROP c` is parsed as `DROP COLUMN c`. Because not all\ndialects support this behaviour, it is opt-in behind\n`ALTER_DROP_REQUIRES_COLUMN`, which is flipped for PostgreSQL and MySQL.\nThis will mean that existing `Alter[Command]`s will become `Alter[Drop]`\nfor both PostgreSQL and MySQL parsers.\n\n* fix(parser): Bare `DROP` review feedback.\n\nUse cursor helpers instead of indexing, simplify tests, and add basic\nsubclass parser tests. From agentic code review, additional fixes were\nadded to keep behaviour consistent with mainline when, for example,\n`COLUMN` was read as a column name.\n\n* fix(parser): Bare `DROP` review feedback.\n\nRemove tests with invalid SQL and remove `FOREIGN KEY` and `UNIQUE` from\nexclusion set.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parser.py",
+   "line": 1131,
+   "op": "delete",
+   "code": "exp.Having: lambda self: self._parse_having(),"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex 3439782..0ad121c 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1128,7 +1128,7 @@ class Parser:\n         exp.GrantPrincipal: lambda self: self._parse_grant_principal(),\n         exp.GrantPrivilege: lambda self: self._parse_grant_privilege(),\n         exp.Group: lambda self: self._parse_group(),\n-        exp.Having: lambda self: self._parse_having(),\n+\n         exp.Hint: lambda self: self._parse_hint_body(),\n         exp.Identifier: lambda self: self._parse_id_var(),\n         exp.Join: lambda self: self._parse_join(),\n@@ -1908,6 +1908,9 @@ class Parser:\n     # Whether renaming a column with an ALTER statement requires the presence of the COLUMN keyword\n     ALTER_RENAME_REQUIRES_COLUMN: t.ClassVar = True\n \n+    # Whether dropping a column with an ALTER statement requires the presence of the COLUMN keyword\n+    ALTER_DROP_REQUIRES_COLUMN: t.ClassVar = True\n+\n     # Whether Alter statements are allowed to contain Partition specifications\n     ALTER_TABLE_PARTITIONS: t.ClassVar = False\n \n@@ -2406,22 +2409,32 @@ class Parser:\n \n         return self._parse_query_modifiers(expression)\n \n-    def _parse_drop(self, exists: bool = False) -> exp.Drop | exp.Command:\n+    def _parse_drop(self, exists: bool = False, kind: str | None = None) -> exp.Drop | exp.Command:\n         start = self._prev\n-        temporary = self._match(TokenType.TEMPORARY)\n-        materialized = self._match_text_seq(\"MATERIALIZED\")\n-        iceberg = self._match_text_seq(\"ICEBERG\")\n+        temporary = not kind and self._match(TokenType.TEMPORARY)\n+        materialized = not kind and self._match_text_seq(\"MATERIALIZED\")\n+        iceberg = not kind and self._match_text_seq(\"ICEBERG\")\n \n-        kind = self._match_set(self.CREATABLES) and self._prev.text.upper()\n+        kind = kind or (self._prev.text.upper() if self._match_set(self.CREATABLES) else None)\n         if not kind or (iceberg and kind and kind != \"TABLE\"):\n             return self._parse_as_command(start)\n \n-        concurrently = self._match_text_seq(\"CONCURRENTLY\")\n+        concurrently = (\n+            kind != \"COLUMN\"\n+            and bool(self._next)\n+            and self._next.token_type != TokenType.COMMA\n+            and self._match_text_seq(\"CONCURRENTLY\")\n+        )\n         if_exists = exists or self._parse_exists()\n \n         tables: exp.Expr | list[exp.Expr] | None\n         if kind == \"COLUMN\":\n-            tables = self._parse_column()\n+            # A dropped column named after a keyword function, like MySQL's `any`, is only a name\n+            tables = (\n+                self.expression(exp.Column(this=self._parse_id_var()))\n+                if self._curr.text.upper() in self.NO_PAREN_FUNCTION_PARSERS\n+                else self._parse_column()\n+            )\n         elif kind in (\"TABLE\", \"VIEW\"):\n             tables = self._parse_csv(lambda: self._parse_table_parts(schema=True))\n         else:\n@@ -2457,11 +2470,9 @@ class Parser:\n         )\n \n     def _parse_exists(self, not_: bool = False) -> bool | None:\n-        return (\n-            self._match_text_seq(\"IF\")\n-            and (not not_ or self._match(TokenType.NOT))\n-            and self._match(TokenType.EXISTS)\n-        )\n+        if not_:\n+            return self._match_text_seq(\"IF\", \"NOT\", \"EXISTS\")\n+        return self._match_text_seq(\"IF\", \"EXISTS\")\n \n     def _parse_create(self) -> exp.Create | exp.Command:\n         # Note: this can't be None because we've matched a statement parser\n@@ -8152,7 +8163,10 @@ class Parser:\n                 self._retreat(index)\n                 return None\n \n-            self._match(TokenType.THEN)\n+            if not self._match(TokenType.THEN):\n+                self._retreat(index)\n+                return None\n+\n             true = self._parse_disjunction()\n             false = self._parse_disjunction() if self._match(TokenType.ELSE) else None\n             self._match(TokenType.END)\n@@ -9106,7 +9120,29 @@ class Parser:\n         return self._parse_column_def_with_exists()\n \n     def _parse_drop_column(self) -> exp.Drop | exp.Command | None:\n-        drop = self._parse_drop() if self._match(TokenType.DROP) else None\n+        if not self._match(TokenType.DROP):\n+            return None\n+\n+        kind = None\n+        if not self.ALTER_DROP_REQUIRES_COLUMN:\n+            # A bare `DROP [IF EXISTS] c [CASCADE | RESTRICT]` drops a column\n+            index = self._index\n+            self._parse_exists()\n+            name = self._curr\n+            if name.token_type in self.ID_VAR_TOKENS and name.token_type not in (\n+                TokenType.COLUMN,\n+                TokenType.CONSTRAINT,\n+            ):\n+                self._advance()\n+                if (\n+                    not self._curr\n+                    or self._match(TokenType.COMMA, advance=False)\n+                    or self._match_texts((\"CASCADE\", \"RESTRICT\"), advance=False)\n+                ):\n+                    kind = \"COLUMN\"\n+            self._retreat(index)\n+\n+        drop = self._parse_drop(kind=kind)\n         if drop and not isinstance(drop, exp.Command):\n             drop.set(\"kind\", drop.args.get(\"kind\", \"COLUMN\"))\n         return drop\ndiff --git a/sqlglot/parsers/mysql.py b/sqlglot/parsers/mysql.py\nindex 7082d42..355cffb 100644\n--- a/sqlglot/parsers/mysql.py\n+++ b/sqlglot/parsers/mysql.py\n@@ -297,6 +297,7 @@ class MySQLParser(parser.Parser):\n         \"SQL_CALC_FOUND_ROWS\",\n     }\n \n+    ALTER_DROP_REQUIRES_COLUMN = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n     VALUES_FOLLOWED_BY_PAREN = False\ndiff --git a/sqlglot/parsers/postgres.py b/sqlglot/parsers/postgres.py\nindex f059a13..dc41b3d 100644\n--- a/sqlglot/parsers/postgres.py\n+++ b/sqlglot/parsers/postgres.py\n@@ -84,6 +84,7 @@ def _build_levenshtein_less_equal(args: list) -> exp.Levenshtein:\n \n \n class PostgresParser(parser.Parser):\n+    ALTER_DROP_REQUIRES_COLUMN = False\n     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True\n \n     # The one-byte \"char\" type is distinct from CHAR, and it can only be referenced by\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.EXPRESSION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.query.Having'>": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parser:Parser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "True"
+   },
+   {
+    "key": "sqlglot.parsers.mysql:MySQLParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   },
+   {
+    "key": "sqlglot.parsers.postgres:PostgresParser.ALTER_DROP_REQUIRES_COLUMN",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "False"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14913",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14914",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14915",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14916",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP COLUMN concurrently",
+    "before": "ALTER TABLE t DROP COLUMN CONCURRENTLY",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14921",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14922",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14923",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`"
+   },
+   {
+    "probe": "14924",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently"
+   },
+   {
+    "probe": "14925",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14926",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14927",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX `concurrently`, DROP COLUMN b"
+   },
+   {
+    "probe": "14928",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP INDEX concurrently, DROP b",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP INDEX concurrently, DROP COLUMN b"
+   },
+   {
+    "probe": "14929",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14930",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14931",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14932",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14933",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14934",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14935",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14936",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b RESTRICT",
+    "before": "ALTER TABLE t DROP b RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b RESTRICT"
+   },
+   {
+    "probe": "14937",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14938",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14939",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `any` RESTRICT"
+   },
+   {
+    "probe": "14940",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP COLUMN any RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN any RESTRICT"
+   },
+   {
+    "probe": "14941",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14942",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14943",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14944",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "14945",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14946",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14947",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN `view` RESTRICT"
+   },
+   {
+    "probe": "14948",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "before": "ALTER TABLE t DROP b, DROP view RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view RESTRICT"
+   },
+   {
+    "probe": "14949",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14950",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14951",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently`"
+   },
+   {
+    "probe": "14952",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently",
+    "before": "ALTER TABLE t DROP concurrently",
+    "after": "ALTER TABLE t DROP COLUMN concurrently"
+   },
+   {
+    "probe": "14953",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14954",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14955",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN `concurrently` RESTRICT"
+   },
+   {
+    "probe": "14956",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP concurrently RESTRICT",
+    "before": "ALTER TABLE t DROP concurrently RESTRICT",
+    "after": "ALTER TABLE t DROP COLUMN concurrently RESTRICT"
+   },
+   {
+    "probe": "14957",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14958",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14959",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN `date`"
+   },
+   {
+    "probe": "14960",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP date",
+    "before": "ALTER TABLE t DROP date",
+    "after": "ALTER TABLE t DROP COLUMN date"
+   },
+   {
+    "probe": "14961",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14962",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14963",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN `materialized`"
+   },
+   {
+    "probe": "14964",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t DROP materialized",
+    "before": "ALTER TABLE t DROP materialized",
+    "after": "ALTER TABLE t DROP COLUMN materialized"
+   },
+   {
+    "probe": "14967",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t ADD COLUMN if INT",
+    "before": "ALTER TABLE t ADD COLUMN if INT",
+    "after": "ALTER TABLE t ADD COLUMN if INTEGER"
+   },
+   {
+    "probe": "14973",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14974",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14975",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14976",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b",
+    "before": "ALTER TABLE t DROP COLUMN CASCADE, DROP COLUMN b",
+    "after": "ALTER TABLE t DROP COLUMN if CASCADE, DROP COLUMN b"
+   },
+   {
+    "probe": "14985",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14986",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14987",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14988",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b CASCADE"
+   },
+   {
+    "probe": "14989",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14990",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14991",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14992",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "before": "ALTER TABLE t DROP IF EXISTS if CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS if CASCADE"
+   },
+   {
+    "probe": "14993",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14994",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14995",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14996",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   },
+   {
+    "probe": "14997",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14998",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "14999",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15000",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15001",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15002",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15003",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15004",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP c",
+    "before": "ALTER TABLE t DROP b, DROP c",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN c"
+   },
+   {
+    "probe": "15005",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15006",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15007",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15008",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "before": "ALTER TABLE t DROP b, DROP view CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b, DROP COLUMN view CASCADE"
+   },
+   {
+    "probe": "15009",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15010",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15011",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15012",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP if",
+    "before": "ALTER TABLE t DROP if",
+    "after": "ALTER TABLE t DROP COLUMN if"
+   },
+   {
+    "probe": "15013",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15014",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15015",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN \"type\""
+   },
+   {
+    "probe": "15016",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP type",
+    "before": "EXC: ParseError",
+    "after": "ALTER TABLE t DROP COLUMN type"
+   },
+   {
+    "probe": "15017",
+    "source": "redshift",
+    "dialect": "redshift",
+    "input": "ALTER TABLE t DROP b CASCADE",
+    "before": "ALTER TABLE t DROP b CASCADE",
+    "after": "ALTER TABLE t DROP COLUMN b CASCADE"
+   },
+   {
+    "probe": "15018",
+    "source": "risingwave",
+    "dialect": "risingwave",
+    "input": "ALTER TABLE t DROP IF EXISTS b",
+    "before": "ALTER TABLE t DROP IF EXISTS b",
+    "after": "ALTER TABLE t DROP COLUMN IF EXISTS b"
+   },
+   {
+    "probe": "15019",
+    "source": "singlestore",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t DROP b",
+    "before": "ALTER TABLE t DROP b",
+    "after": "ALTER TABLE t DROP COLUMN b"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ }
+]
