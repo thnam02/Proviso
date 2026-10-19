@@ -1,0 +1,557 @@
+[
+ {
+  "task": "5e6887adc8",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "T-SQL accepts a table hint without WITH directly after a table name, e.g. SELECT * FROM t (NOLOCK), also for qualified and bracketed names. sqlglot parses (NOLOCK) as something else. It should parse as the same table hint as WITH (NOLOCK) and be written that way.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT * FROM t (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM T(NOLOCK)\n# expected:  SELECT * FROM t WITH (NOLOCK)\n\nparse_one(\"SELECT * FROM [dbo].[t] (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM [dbo].[T](NOLOCK)\n# expected:  SELECT * FROM [dbo].[t] WITH (NOLOCK)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "code_diff": "diff --git a/sqlglot/parsers/tsql.py b/sqlglot/parsers/tsql.py\nindex c7f4f95..a9d82c0 100644\n--- a/sqlglot/parsers/tsql.py\n+++ b/sqlglot/parsers/tsql.py\n@@ -321,6 +321,24 @@ def _build_datetrunc(args: list) -> exp.TimestampTrunc:\n \n \n class TSQLParser(parser.Parser):\n+    BARE_TABLE_HINTS = {\n+        \"NOLOCK\",\n+        \"READUNCOMMITTED\",\n+        \"UPDLOCK\",\n+        \"REPEATABLEREAD\",\n+        \"SERIALIZABLE\",\n+        \"READCOMMITTED\",\n+        \"TABLOCK\",\n+        \"TABLOCKX\",\n+        \"PAGLOCK\",\n+        \"ROWLOCK\",\n+        \"NOWAIT\",\n+        \"READPAST\",\n+        \"XLOCK\",\n+        \"SNAPSHOT\",\n+        \"NOEXPAND\",\n+    }\n+\n     SET_REQUIRES_ASSIGNMENT_DELIMITER = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n@@ -723,6 +741,53 @@ class TSQLParser(parser.Parser):\n \n         return this\n \n+    def _parse_table(\n+        self,\n+        schema: bool = False,\n+        joins: bool = False,\n+        alias_tokens: Collection[TokenType] | None = None,\n+        parse_bracket: bool = False,\n+        is_db_reference: bool = False,\n+        parse_partition: bool = False,\n+        consume_pipe: bool = False,\n+    ) -> exp.Expr | None:\n+        table = super()._parse_table(\n+            schema=schema,\n+            joins=joins,\n+            alias_tokens=alias_tokens,\n+            parse_bracket=parse_bracket,\n+            is_db_reference=is_db_reference,\n+            parse_partition=parse_partition,\n+            consume_pipe=consume_pipe,\n+        )\n+        if isinstance(table, exp.Table) and not table.args.get(\"hints\"):\n+            function = table.this\n+            alias = table.args.get(\"alias\")\n+            hint = None\n+            if isinstance(function, exp.Anonymous) and len(function.expressions) == 1:\n+                argument = function.expressions[0]\n+                if isinstance(argument, exp.Column) and not argument.table:\n+                    hint = argument.this\n+            elif isinstance(function, exp.Identifier) and alias and len(alias.columns) == 1:\n+                hint = alias.columns[0]\n+\n+            if (\n+                isinstance(hint, exp.Identifier)\n+                and not hint.quoted\n+                and hint.name.upper() in self.BARE_TABLE_HINTS\n+            ):\n+                if isinstance(function, exp.Anonymous):\n+                    table.set(\"this\", exp.to_identifier(function.this))\n+                elif alias:\n+                    alias.set(\"columns\", None)\n+                    if not alias.this:\n+                        table.set(\"alias\", None)\n+                table.set(\n+                    \"hints\",\n+                    [exp.WithTableHint(expressions=[exp.var(hint.name.upper())])],\n+                )\n+        return table\n+\n     def _parse_table_parts(\n         self,\n         schema: bool = False,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.BARE_TABLE_HINTS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'NOEXPAND'",
+     "'NOLOCK'",
+     "'NOWAIT'",
+     "'PAGLOCK'",
+     "'READCOMMITTED'",
+     "'READPAST'",
+     "'READUNCOMMITTED'",
+     "'REPEATABLEREAD'",
+     "'ROWLOCK'",
+     "'SERIALIZABLE'",
+     "'SNAPSHOT'",
+     "'TABLOCK'",
+     "'TABLOCKX'",
+     "'UPDLOCK'",
+     "'XLOCK'"
+    ]
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser._parse_table",
+    "kind": "value",
+    "before": "<function Parser._parse_table>",
+    "after": "<function TSQLParser._parse_table>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14913",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "14914",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15143",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15144",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15145",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15146",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   }
+  ],
+  "new_probes": 20
+ },
+ {
+  "task": "5e6887adc8",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "T-SQL accepts a table hint without WITH directly after a table name, e.g. SELECT * FROM t (NOLOCK), also for qualified and bracketed names. sqlglot parses (NOLOCK) as something else. It should parse as the same table hint as WITH (NOLOCK) and be written that way.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT * FROM t (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM T(NOLOCK)\n# expected:  SELECT * FROM t WITH (NOLOCK)\n\nparse_one(\"SELECT * FROM [dbo].[t] (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM [dbo].[T](NOLOCK)\n# expected:  SELECT * FROM [dbo].[t] WITH (NOLOCK)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parsers/tsql.py",
+   "line": 416,
+   "op": "delete",
+   "code": "\"SYSTEM_USER\": exp.CurrentUser.from_arg_list,"
+  },
+  "code_diff": "diff --git a/sqlglot/parsers/tsql.py b/sqlglot/parsers/tsql.py\nindex c7f4f95..ca38c9c 100644\n--- a/sqlglot/parsers/tsql.py\n+++ b/sqlglot/parsers/tsql.py\n@@ -321,6 +321,24 @@ def _build_datetrunc(args: list) -> exp.TimestampTrunc:\n \n \n class TSQLParser(parser.Parser):\n+    BARE_TABLE_HINTS = {\n+        \"NOLOCK\",\n+        \"READUNCOMMITTED\",\n+        \"UPDLOCK\",\n+        \"REPEATABLEREAD\",\n+        \"SERIALIZABLE\",\n+        \"READCOMMITTED\",\n+        \"TABLOCK\",\n+        \"TABLOCKX\",\n+        \"PAGLOCK\",\n+        \"ROWLOCK\",\n+        \"NOWAIT\",\n+        \"READPAST\",\n+        \"XLOCK\",\n+        \"SNAPSHOT\",\n+        \"NOEXPAND\",\n+    }\n+\n     SET_REQUIRES_ASSIGNMENT_DELIMITER = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n@@ -395,7 +413,7 @@ class TSQLParser(parser.Parser):\n         \"SUSER_NAME\": exp.CurrentUser.from_arg_list,\n         \"SUSER_SNAME\": exp.CurrentUser.from_arg_list,\n         \"SYSDATETIMEOFFSET\": exp.CurrentTimestampLTZ.from_arg_list,\n-        \"SYSTEM_USER\": exp.CurrentUser.from_arg_list,\n+\n         \"TIMEFROMPARTS\": _build_timefromparts,\n         \"DATETRUNC\": _build_datetrunc,\n         \"YEAR\": lambda args: exp.Year(\n@@ -723,6 +741,53 @@ class TSQLParser(parser.Parser):\n \n         return this\n \n+    def _parse_table(\n+        self,\n+        schema: bool = False,\n+        joins: bool = False,\n+        alias_tokens: Collection[TokenType] | None = None,\n+        parse_bracket: bool = False,\n+        is_db_reference: bool = False,\n+        parse_partition: bool = False,\n+        consume_pipe: bool = False,\n+    ) -> exp.Expr | None:\n+        table = super()._parse_table(\n+            schema=schema,\n+            joins=joins,\n+            alias_tokens=alias_tokens,\n+            parse_bracket=parse_bracket,\n+            is_db_reference=is_db_reference,\n+            parse_partition=parse_partition,\n+            consume_pipe=consume_pipe,\n+        )\n+        if isinstance(table, exp.Table) and not table.args.get(\"hints\"):\n+            function = table.this\n+            alias = table.args.get(\"alias\")\n+            hint = None\n+            if isinstance(function, exp.Anonymous) and len(function.expressions) == 1:\n+                argument = function.expressions[0]\n+                if isinstance(argument, exp.Column) and not argument.table:\n+                    hint = argument.this\n+            elif isinstance(function, exp.Identifier) and alias and len(alias.columns) == 1:\n+                hint = alias.columns[0]\n+\n+            if (\n+                isinstance(hint, exp.Identifier)\n+                and not hint.quoted\n+                and hint.name.upper() in self.BARE_TABLE_HINTS\n+            ):\n+                if isinstance(function, exp.Anonymous):\n+                    table.set(\"this\", exp.to_identifier(function.this))\n+                elif alias:\n+                    alias.set(\"columns\", None)\n+                    if not alias.this:\n+                        table.set(\"alias\", None)\n+                table.set(\n+                    \"hints\",\n+                    [exp.WithTableHint(expressions=[exp.var(hint.name.upper())])],\n+                )\n+        return table\n+\n     def _parse_table_parts(\n         self,\n         schema: bool = False,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.FUNCTIONS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'SYSTEM_USER'": "<bound method Func.from_arg_list of <class 'sqlglot.expressions.functions.CurrentUser'>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.BARE_TABLE_HINTS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'NOEXPAND'",
+     "'NOLOCK'",
+     "'NOWAIT'",
+     "'PAGLOCK'",
+     "'READCOMMITTED'",
+     "'READPAST'",
+     "'READUNCOMMITTED'",
+     "'REPEATABLEREAD'",
+     "'ROWLOCK'",
+     "'SERIALIZABLE'",
+     "'SNAPSHOT'",
+     "'TABLOCK'",
+     "'TABLOCKX'",
+     "'UPDLOCK'",
+     "'XLOCK'"
+    ]
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser._parse_table",
+    "kind": "value",
+    "before": "<function Parser._parse_table>",
+    "after": "<function TSQLParser._parse_table>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14913",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "14914",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15041",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SYSTEM_USER()",
+    "before": "CURRENT_USER()",
+    "after": "SYSTEM_USER()"
+   },
+   {
+    "probe": "15042",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SYSTEM_USER()",
+    "before": "CURRENT_USER()",
+    "after": "SYSTEM_USER()"
+   },
+   {
+    "probe": "15143",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15144",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15145",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15146",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 2,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_tsql.py::TestTSQL::test_current_user"
+  ]
+ },
+ {
+  "task": "5e6887adc8",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "T-SQL accepts a table hint without WITH directly after a table name, e.g. SELECT * FROM t (NOLOCK), also for qualified and bracketed names. sqlglot parses (NOLOCK) as something else. It should parse as the same table hint as WITH (NOLOCK) and be written that way.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT * FROM t (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM T(NOLOCK)\n# expected:  SELECT * FROM t WITH (NOLOCK)\n\nparse_one(\"SELECT * FROM [dbo].[t] (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM [dbo].[T](NOLOCK)\n# expected:  SELECT * FROM [dbo].[t] WITH (NOLOCK)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parsers/tsql.py",
+   "line": 485,
+   "op": "delete",
+   "code": "\"ts\": exp.Timestamp,"
+  },
+  "code_diff": "diff --git a/sqlglot/parsers/tsql.py b/sqlglot/parsers/tsql.py\nindex c7f4f95..6955cd1 100644\n--- a/sqlglot/parsers/tsql.py\n+++ b/sqlglot/parsers/tsql.py\n@@ -321,6 +321,24 @@ def _build_datetrunc(args: list) -> exp.TimestampTrunc:\n \n \n class TSQLParser(parser.Parser):\n+    BARE_TABLE_HINTS = {\n+        \"NOLOCK\",\n+        \"READUNCOMMITTED\",\n+        \"UPDLOCK\",\n+        \"REPEATABLEREAD\",\n+        \"SERIALIZABLE\",\n+        \"READCOMMITTED\",\n+        \"TABLOCK\",\n+        \"TABLOCKX\",\n+        \"PAGLOCK\",\n+        \"ROWLOCK\",\n+        \"NOWAIT\",\n+        \"READPAST\",\n+        \"XLOCK\",\n+        \"SNAPSHOT\",\n+        \"NOEXPAND\",\n+    }\n+\n     SET_REQUIRES_ASSIGNMENT_DELIMITER = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n@@ -464,7 +482,7 @@ class TSQLParser(parser.Parser):\n     ODBC_DATETIME_LITERALS = {\n         \"d\": exp.Date,\n         \"t\": exp.Time,\n-        \"ts\": exp.Timestamp,\n+\n     }\n \n     def _parse_execute(self) -> exp.Execute:\n@@ -723,6 +741,53 @@ class TSQLParser(parser.Parser):\n \n         return this\n \n+    def _parse_table(\n+        self,\n+        schema: bool = False,\n+        joins: bool = False,\n+        alias_tokens: Collection[TokenType] | None = None,\n+        parse_bracket: bool = False,\n+        is_db_reference: bool = False,\n+        parse_partition: bool = False,\n+        consume_pipe: bool = False,\n+    ) -> exp.Expr | None:\n+        table = super()._parse_table(\n+            schema=schema,\n+            joins=joins,\n+            alias_tokens=alias_tokens,\n+            parse_bracket=parse_bracket,\n+            is_db_reference=is_db_reference,\n+            parse_partition=parse_partition,\n+            consume_pipe=consume_pipe,\n+        )\n+        if isinstance(table, exp.Table) and not table.args.get(\"hints\"):\n+            function = table.this\n+            alias = table.args.get(\"alias\")\n+            hint = None\n+            if isinstance(function, exp.Anonymous) and len(function.expressions) == 1:\n+                argument = function.expressions[0]\n+                if isinstance(argument, exp.Column) and not argument.table:\n+                    hint = argument.this\n+            elif isinstance(function, exp.Identifier) and alias and len(alias.columns) == 1:\n+                hint = alias.columns[0]\n+\n+            if (\n+                isinstance(hint, exp.Identifier)\n+                and not hint.quoted\n+                and hint.name.upper() in self.BARE_TABLE_HINTS\n+            ):\n+                if isinstance(function, exp.Anonymous):\n+                    table.set(\"this\", exp.to_identifier(function.this))\n+                elif alias:\n+                    alias.set(\"columns\", None)\n+                    if not alias.this:\n+                        table.set(\"alias\", None)\n+                table.set(\n+                    \"hints\",\n+                    [exp.WithTableHint(expressions=[exp.var(hint.name.upper())])],\n+                )\n+        return table\n+\n     def _parse_table_parts(\n         self,\n         schema: bool = False,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.ODBC_DATETIME_LITERALS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'ts'": "<class 'sqlglot.expressions.temporal.Timestamp'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.BARE_TABLE_HINTS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'NOEXPAND'",
+     "'NOLOCK'",
+     "'NOWAIT'",
+     "'PAGLOCK'",
+     "'READCOMMITTED'",
+     "'READPAST'",
+     "'READUNCOMMITTED'",
+     "'REPEATABLEREAD'",
+     "'ROWLOCK'",
+     "'SERIALIZABLE'",
+     "'SNAPSHOT'",
+     "'TABLOCK'",
+     "'TABLOCKX'",
+     "'UPDLOCK'",
+     "'XLOCK'"
+    ]
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser._parse_table",
+    "kind": "value",
+    "before": "<function Parser._parse_table>",
+    "after": "<function TSQLParser._parse_table>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14913",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "14914",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15143",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15144",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15145",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15146",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_tsql.py::TestTSQL::test_odbc_date_literals"
+  ]
+ },
+ {
+  "task": "5e6887adc8",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "T-SQL accepts a table hint without WITH directly after a table name, e.g. SELECT * FROM t (NOLOCK), also for qualified and bracketed names. sqlglot parses (NOLOCK) as something else. It should parse as the same table hint as WITH (NOLOCK) and be written that way.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT * FROM t (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM T(NOLOCK)\n# expected:  SELECT * FROM t WITH (NOLOCK)\n\nparse_one(\"SELECT * FROM [dbo].[t] (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM [dbo].[T](NOLOCK)\n# expected:  SELECT * FROM [dbo].[t] WITH (NOLOCK)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parsers/tsql.py",
+   "line": 811,
+   "op": "flip",
+   "code": "table.this.set(\"global_\", True)"
+  },
+  "code_diff": "diff --git a/sqlglot/parsers/tsql.py b/sqlglot/parsers/tsql.py\nindex c7f4f95..b684c67 100644\n--- a/sqlglot/parsers/tsql.py\n+++ b/sqlglot/parsers/tsql.py\n@@ -321,6 +321,24 @@ def _build_datetrunc(args: list) -> exp.TimestampTrunc:\n \n \n class TSQLParser(parser.Parser):\n+    BARE_TABLE_HINTS = {\n+        \"NOLOCK\",\n+        \"READUNCOMMITTED\",\n+        \"UPDLOCK\",\n+        \"REPEATABLEREAD\",\n+        \"SERIALIZABLE\",\n+        \"READCOMMITTED\",\n+        \"TABLOCK\",\n+        \"TABLOCKX\",\n+        \"PAGLOCK\",\n+        \"ROWLOCK\",\n+        \"NOWAIT\",\n+        \"READPAST\",\n+        \"XLOCK\",\n+        \"SNAPSHOT\",\n+        \"NOEXPAND\",\n+    }\n+\n     SET_REQUIRES_ASSIGNMENT_DELIMITER = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n@@ -723,6 +741,53 @@ class TSQLParser(parser.Parser):\n \n         return this\n \n+    def _parse_table(\n+        self,\n+        schema: bool = False,\n+        joins: bool = False,\n+        alias_tokens: Collection[TokenType] | None = None,\n+        parse_bracket: bool = False,\n+        is_db_reference: bool = False,\n+        parse_partition: bool = False,\n+        consume_pipe: bool = False,\n+    ) -> exp.Expr | None:\n+        table = super()._parse_table(\n+            schema=schema,\n+            joins=joins,\n+            alias_tokens=alias_tokens,\n+            parse_bracket=parse_bracket,\n+            is_db_reference=is_db_reference,\n+            parse_partition=parse_partition,\n+            consume_pipe=consume_pipe,\n+        )\n+        if isinstance(table, exp.Table) and not table.args.get(\"hints\"):\n+            function = table.this\n+            alias = table.args.get(\"alias\")\n+            hint = None\n+            if isinstance(function, exp.Anonymous) and len(function.expressions) == 1:\n+                argument = function.expressions[0]\n+                if isinstance(argument, exp.Column) and not argument.table:\n+                    hint = argument.this\n+            elif isinstance(function, exp.Identifier) and alias and len(alias.columns) == 1:\n+                hint = alias.columns[0]\n+\n+            if (\n+                isinstance(hint, exp.Identifier)\n+                and not hint.quoted\n+                and hint.name.upper() in self.BARE_TABLE_HINTS\n+            ):\n+                if isinstance(function, exp.Anonymous):\n+                    table.set(\"this\", exp.to_identifier(function.this))\n+                elif alias:\n+                    alias.set(\"columns\", None)\n+                    if not alias.this:\n+                        table.set(\"alias\", None)\n+                table.set(\n+                    \"hints\",\n+                    [exp.WithTableHint(expressions=[exp.var(hint.name.upper())])],\n+                )\n+        return table\n+\n     def _parse_table_parts(\n         self,\n         schema: bool = False,\n@@ -743,7 +808,7 @@ class TSQLParser(parser.Parser):\n         ):\n             if table_name.startswith(\"##\"):\n                 table.this.set(\"this\", table_name[2:])\n-                table.this.set(\"global_\", True)\n+                table.this.set(\"global_\", False)\n             else:\n                 table.this.set(\"this\", table_name[1:])\n                 table.this.set(\"temporary\", True)\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.BARE_TABLE_HINTS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'NOEXPAND'",
+     "'NOLOCK'",
+     "'NOWAIT'",
+     "'PAGLOCK'",
+     "'READCOMMITTED'",
+     "'READPAST'",
+     "'READUNCOMMITTED'",
+     "'REPEATABLEREAD'",
+     "'ROWLOCK'",
+     "'SERIALIZABLE'",
+     "'SNAPSHOT'",
+     "'TABLOCK'",
+     "'TABLOCKX'",
+     "'UPDLOCK'",
+     "'XLOCK'"
+    ]
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser._parse_table",
+    "kind": "value",
+    "before": "<function Parser._parse_table>",
+    "after": "<function TSQLParser._parse_table>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14723",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT * FROM [##temp_table]",
+    "before": "SELECT * FROM [##temp_table]",
+    "after": "SELECT * FROM [temp_table]"
+   },
+   {
+    "probe": "14724",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT * FROM [##temp_table]",
+    "before": "SELECT * FROM [##temp_table]",
+    "after": "SELECT * FROM [temp_table]"
+   },
+   {
+    "probe": "14913",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "14914",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15143",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15144",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15145",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15146",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 2,
+   "imports": 1
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_tsql.py::TestTSQL::test_identifier_prefixes"
+  ]
+ },
+ {
+  "task": "5e6887adc8",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "T-SQL accepts a table hint without WITH directly after a table name, e.g. SELECT * FROM t (NOLOCK), also for qualified and bracketed names. sqlglot parses (NOLOCK) as something else. It should parse as the same table hint as WITH (NOLOCK) and be written that way.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\nparse_one(\"SELECT * FROM t (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM T(NOLOCK)\n# expected:  SELECT * FROM t WITH (NOLOCK)\n\nparse_one(\"SELECT * FROM [dbo].[t] (NOLOCK)\", read=\"tsql\").sql(\"tsql\")\n# currently: SELECT * FROM [dbo].[T](NOLOCK)\n# expected:  SELECT * FROM [dbo].[t] WITH (NOLOCK)\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "module",
+   "file": "sqlglot/parsers/tsql.py",
+   "line": 86,
+   "op": "delete",
+   "code": "\"ORDER\": (\"GROUP\",),"
+  },
+  "code_diff": "diff --git a/sqlglot/parsers/tsql.py b/sqlglot/parsers/tsql.py\nindex c7f4f95..3275b4f 100644\n--- a/sqlglot/parsers/tsql.py\n+++ b/sqlglot/parsers/tsql.py\n@@ -83,7 +83,7 @@ OPTIONS: parser.OPTIONS_TYPE = {\n     \"LOOP\": (\"JOIN\",),\n     \"MERGE\": (\"JOIN\", \"UNION\"),\n     \"OPTIMIZE\": ((\"FOR\", \"UNKNOWN\"),),\n-    \"ORDER\": (\"GROUP\",),\n+\n     \"PARAMETERIZATION\": (\"FORCED\", \"SIMPLE\"),\n     \"ROBUST\": (\"PLAN\",),\n     \"USE\": (\"PLAN\",),\n@@ -321,6 +321,24 @@ def _build_datetrunc(args: list) -> exp.TimestampTrunc:\n \n \n class TSQLParser(parser.Parser):\n+    BARE_TABLE_HINTS = {\n+        \"NOLOCK\",\n+        \"READUNCOMMITTED\",\n+        \"UPDLOCK\",\n+        \"REPEATABLEREAD\",\n+        \"SERIALIZABLE\",\n+        \"READCOMMITTED\",\n+        \"TABLOCK\",\n+        \"TABLOCKX\",\n+        \"PAGLOCK\",\n+        \"ROWLOCK\",\n+        \"NOWAIT\",\n+        \"READPAST\",\n+        \"XLOCK\",\n+        \"SNAPSHOT\",\n+        \"NOEXPAND\",\n+    }\n+\n     SET_REQUIRES_ASSIGNMENT_DELIMITER = False\n     LOG_DEFAULTS_TO_LN = True\n     STRING_ALIASES = True\n@@ -723,6 +741,53 @@ class TSQLParser(parser.Parser):\n \n         return this\n \n+    def _parse_table(\n+        self,\n+        schema: bool = False,\n+        joins: bool = False,\n+        alias_tokens: Collection[TokenType] | None = None,\n+        parse_bracket: bool = False,\n+        is_db_reference: bool = False,\n+        parse_partition: bool = False,\n+        consume_pipe: bool = False,\n+    ) -> exp.Expr | None:\n+        table = super()._parse_table(\n+            schema=schema,\n+            joins=joins,\n+            alias_tokens=alias_tokens,\n+            parse_bracket=parse_bracket,\n+            is_db_reference=is_db_reference,\n+            parse_partition=parse_partition,\n+            consume_pipe=consume_pipe,\n+        )\n+        if isinstance(table, exp.Table) and not table.args.get(\"hints\"):\n+            function = table.this\n+            alias = table.args.get(\"alias\")\n+            hint = None\n+            if isinstance(function, exp.Anonymous) and len(function.expressions) == 1:\n+                argument = function.expressions[0]\n+                if isinstance(argument, exp.Column) and not argument.table:\n+                    hint = argument.this\n+            elif isinstance(function, exp.Identifier) and alias and len(alias.columns) == 1:\n+                hint = alias.columns[0]\n+\n+            if (\n+                isinstance(hint, exp.Identifier)\n+                and not hint.quoted\n+                and hint.name.upper() in self.BARE_TABLE_HINTS\n+            ):\n+                if isinstance(function, exp.Anonymous):\n+                    table.set(\"this\", exp.to_identifier(function.this))\n+                elif alias:\n+                    alias.set(\"columns\", None)\n+                    if not alias.this:\n+                        table.set(\"alias\", None)\n+                table.set(\n+                    \"hints\",\n+                    [exp.WithTableHint(expressions=[exp.var(hint.name.upper())])],\n+                )\n+        return table\n+\n     def _parse_table_parts(\n         self,\n         schema: bool = False,\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parsers.tsql:OPTIONS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'ORDER'": "('GROUP',)"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser.BARE_TABLE_HINTS",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'NOEXPAND'",
+     "'NOLOCK'",
+     "'NOWAIT'",
+     "'PAGLOCK'",
+     "'READCOMMITTED'",
+     "'READPAST'",
+     "'READUNCOMMITTED'",
+     "'REPEATABLEREAD'",
+     "'ROWLOCK'",
+     "'SERIALIZABLE'",
+     "'SNAPSHOT'",
+     "'TABLOCK'",
+     "'TABLOCKX'",
+     "'UPDLOCK'",
+     "'XLOCK'"
+    ]
+   },
+   {
+    "key": "sqlglot.parsers.tsql:TSQLParser._parse_table",
+    "kind": "value",
+    "before": "<function Parser._parse_table>",
+    "after": "<function TSQLParser._parse_table>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "14913",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "14914",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.VALUE('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15143",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15144",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT * FROM dbo.t (ROWLOCK)",
+    "before": "SELECT * FROM dbo.T(ROWLOCK)",
+    "after": "SELECT * FROM dbo.t WITH (ROWLOCK)"
+   },
+   {
+    "probe": "15145",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   },
+   {
+    "probe": "15146",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "before": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s(nolock) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)",
+    "after": "SELECT TOP 10 s.RECORDID, n.c.value('(/*:FORM_ROOT/*:SOME_TAG)[1]', 'float') AS SOME_TAG_VALUE FROM source_table.dbo.source_data AS s WITH (NOLOCK) CROSS APPLY FormContent.nodes('/*:FORM_ROOT') AS N(C)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_tsql.py::TestTSQL::test_option"
+  ]
+ }
+]

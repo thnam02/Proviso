@@ -1,0 +1,631 @@
+[
+ {
+  "task": "f337c70ee4",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "fix(snowflake): parse LIST and LS stage commands [GPT-6.1] (#8502)\n\n* fix(snowflake): preserve LIST and LS stage commands [GPT-6.1]\n\n* fix(snowflake): model LIST and LS as stage expressions [GPT-6.1]",
+  "code_diff": "diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py\nindex 70c6498..c44dffe 100644\n--- a/sqlglot/dialects/snowflake.py\n+++ b/sqlglot/dialects/snowflake.py\n@@ -152,6 +152,7 @@ class Snowflake(Dialect):\n             \"FILE FORMAT\": TokenType.FILE_FORMAT,\n             \"GET\": TokenType.GET,\n             \"INTEGRATION\": TokenType.INTEGRATION,\n+            \"LS\": TokenType.LIST,\n             \"MATCH_CONDITION\": TokenType.MATCH_CONDITION,\n             \"MATCH_RECOGNIZE\": TokenType.MATCH_RECOGNIZE,\n             \"MINUS\": TokenType.EXCEPT,\ndiff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex bfa3b52..782ac71 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -954,6 +954,12 @@ class Get(Expression):\n     arg_types = {\"this\": True, \"target\": True, \"properties\": False}\n \n \n+class ListStage(Expression):\n+    \"\"\"Lists files in a Snowflake stage or Git repository clone.\"\"\"\n+\n+    arg_types = {\"this\": True, \"pattern\": False}\n+\n+\n class Table(Expression, Selectable):\n     arg_types = {\n         \"this\": False,\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 5c8ba85..8485bb0 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -6229,6 +6229,11 @@ class Generator:\n         self.unsupported(\"Unsupported INSTALL statement\")\n         return \"\"\n \n+    def liststage_sql(self, expression: exp.ListStage) -> str:\n+        pattern = self.sql(expression, \"pattern\")\n+        pattern = f\" PATTERN = {pattern}\" if pattern else \"\"\n+        return f\"LIST {self.sql(expression, 'this')}{pattern}\"\n+\n     def get_put_sql(self, expression: exp.Put | exp.Get) -> str:\n         # Snowflake GET/PUT statements:\n         #   PUT <file> <internalStage> <properties>\ndiff --git a/sqlglot/parsers/snowflake.py b/sqlglot/parsers/snowflake.py\nindex bf2f709..d2f8a2b 100644\n--- a/sqlglot/parsers/snowflake.py\n+++ b/sqlglot/parsers/snowflake.py\n@@ -767,6 +767,7 @@ class SnowflakeParser(parser.Parser):\n     STATEMENT_PARSERS = {\n         **parser.Parser.STATEMENT_PARSERS,\n         TokenType.GET: lambda self: self._parse_get(),\n+        TokenType.LIST: lambda self: self._parse_list_stage(),\n         TokenType.PUT: lambda self: self._parse_put(),\n         TokenType.SHOW: lambda self: self._parse_show(),\n         TokenType.UNDROP: lambda self: self._parse_undrop(),\n@@ -1278,6 +1279,16 @@ class SnowflakeParser(parser.Parser):\n             exp.Get(this=self._parse_string(), target=target, properties=self._parse_properties())\n         )\n \n+    def _parse_list_stage(self) -> exp.ListStage:\n+        this = self._parse_location_path() if self._curr else None\n+        pattern = None\n+        if self._match_text_seq(\"PATTERN\", \"=\"):\n+            pattern = self._parse_string()\n+            if pattern is None:\n+                self.raise_error(\"Expected string after PATTERN =\")\n+\n+        return self.expression(exp.ListStage(this=this, pattern=pattern))\n+\n     def _parse_location_property(self) -> exp.LocationProperty:\n         self._match(TokenType.EQ)\n         return self.expression(exp.LocationProperty(this=self._parse_location_path()))\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {
+     "'LS'": "<TokenType.LIST: 320>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions:EXPR_CLASSES",
+    "kind": "dict",
+    "added": {
+     "'liststage'": "<class 'sqlglot.expressions.query.ListStage'>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.STATEMENT_PARSERS",
+    "kind": "dict",
+    "added": {
+     "<TokenType.LIST: 320>": "<function SnowflakeParser.<lambda>>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.arg_types",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {
+     "'this'": "True",
+     "'pattern'": "False"
+    }
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.key",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "'liststage'"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.required_args",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'this'"
+    ]
+   },
+   {
+    "key": "sqlglot.generator:Generator.liststage_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator.liststage_sql>"
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser._parse_list_stage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function SnowflakeParser._parse_list_stage>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15145",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "LS @~",
+    "before": "EXC: ParseError",
+    "after": "LIST @~"
+   },
+   {
+    "probe": "15148",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "ls @named_stage",
+    "before": "ls AS $named_stage",
+    "after": "LIST @named_stage"
+   }
+  ],
+  "new_probes": 4
+ },
+ {
+  "task": "f337c70ee4",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(snowflake): parse LIST and LS stage commands [GPT-6.1] (#8502)\n\n* fix(snowflake): preserve LIST and LS stage commands [GPT-6.1]\n\n* fix(snowflake): model LIST and LS as stage expressions [GPT-6.1]",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/expressions/query.py",
+   "line": 664,
+   "op": "delete",
+   "code": "\"rows\": False,"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py\nindex 70c6498..c44dffe 100644\n--- a/sqlglot/dialects/snowflake.py\n+++ b/sqlglot/dialects/snowflake.py\n@@ -152,6 +152,7 @@ class Snowflake(Dialect):\n             \"FILE FORMAT\": TokenType.FILE_FORMAT,\n             \"GET\": TokenType.GET,\n             \"INTEGRATION\": TokenType.INTEGRATION,\n+            \"LS\": TokenType.LIST,\n             \"MATCH_CONDITION\": TokenType.MATCH_CONDITION,\n             \"MATCH_RECOGNIZE\": TokenType.MATCH_RECOGNIZE,\n             \"MINUS\": TokenType.EXCEPT,\ndiff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex bfa3b52..95e7484 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -661,7 +661,7 @@ class Limit(Expression):\n class LimitOptions(Expression):\n     arg_types = {\n         \"percent\": False,\n-        \"rows\": False,\n+\n         \"with_ties\": False,\n     }\n \n@@ -954,6 +954,12 @@ class Get(Expression):\n     arg_types = {\"this\": True, \"target\": True, \"properties\": False}\n \n \n+class ListStage(Expression):\n+    \"\"\"Lists files in a Snowflake stage or Git repository clone.\"\"\"\n+\n+    arg_types = {\"this\": True, \"pattern\": False}\n+\n+\n class Table(Expression, Selectable):\n     arg_types = {\n         \"this\": False,\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 5c8ba85..8485bb0 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -6229,6 +6229,11 @@ class Generator:\n         self.unsupported(\"Unsupported INSTALL statement\")\n         return \"\"\n \n+    def liststage_sql(self, expression: exp.ListStage) -> str:\n+        pattern = self.sql(expression, \"pattern\")\n+        pattern = f\" PATTERN = {pattern}\" if pattern else \"\"\n+        return f\"LIST {self.sql(expression, 'this')}{pattern}\"\n+\n     def get_put_sql(self, expression: exp.Put | exp.Get) -> str:\n         # Snowflake GET/PUT statements:\n         #   PUT <file> <internalStage> <properties>\ndiff --git a/sqlglot/parsers/snowflake.py b/sqlglot/parsers/snowflake.py\nindex bf2f709..d2f8a2b 100644\n--- a/sqlglot/parsers/snowflake.py\n+++ b/sqlglot/parsers/snowflake.py\n@@ -767,6 +767,7 @@ class SnowflakeParser(parser.Parser):\n     STATEMENT_PARSERS = {\n         **parser.Parser.STATEMENT_PARSERS,\n         TokenType.GET: lambda self: self._parse_get(),\n+        TokenType.LIST: lambda self: self._parse_list_stage(),\n         TokenType.PUT: lambda self: self._parse_put(),\n         TokenType.SHOW: lambda self: self._parse_show(),\n         TokenType.UNDROP: lambda self: self._parse_undrop(),\n@@ -1278,6 +1279,16 @@ class SnowflakeParser(parser.Parser):\n             exp.Get(this=self._parse_string(), target=target, properties=self._parse_properties())\n         )\n \n+    def _parse_list_stage(self) -> exp.ListStage:\n+        this = self._parse_location_path() if self._curr else None\n+        pattern = None\n+        if self._match_text_seq(\"PATTERN\", \"=\"):\n+            pattern = self._parse_string()\n+            if pattern is None:\n+                self.raise_error(\"Expected string after PATTERN =\")\n+\n+        return self.expression(exp.ListStage(this=this, pattern=pattern))\n+\n     def _parse_location_property(self) -> exp.LocationProperty:\n         self._match(TokenType.EQ)\n         return self.expression(exp.LocationProperty(this=self._parse_location_path()))\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {
+     "'LS'": "<TokenType.LIST: 320>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions.query:LimitOptions.arg_types",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'rows'": "False"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions:EXPR_CLASSES",
+    "kind": "dict",
+    "added": {
+     "'liststage'": "<class 'sqlglot.expressions.query.ListStage'>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.STATEMENT_PARSERS",
+    "kind": "dict",
+    "added": {
+     "<TokenType.LIST: 320>": "<function SnowflakeParser.<lambda>>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.arg_types",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {
+     "'this'": "True",
+     "'pattern'": "False"
+    }
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.key",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "'liststage'"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.required_args",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'this'"
+    ]
+   },
+   {
+    "key": "sqlglot.generator:Generator.liststage_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator.liststage_sql>"
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser._parse_list_stage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function SnowflakeParser._parse_list_stage>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15145",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "LS @~",
+    "before": "EXC: ParseError",
+    "after": "LIST @~"
+   },
+   {
+    "probe": "15148",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "ls @named_stage",
+    "before": "ls AS $named_stage",
+    "after": "LIST @named_stage"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse",
+   "tests/dialects/test_dialect.py::TestDialect::test_fetch_first_implicit_count",
+   "tests/dialects/test_dialect.py::TestDialect::test_limit",
+   "tests/dialects/test_dialect.py::TestDialect::test_set_operators",
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb",
+   "tests/dialects/test_oracle.py::TestOracle::test_oracle",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres",
+   "tests/dialects/test_presto.py::TestPresto::test_presto",
+   "tests/dialects/test_redshift.py::TestRedshift::test_fetch_to_limit",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_set_operation_top",
+   "tests/dialects/test_trino.py::TestTrino::test_fetch",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_branch_limits",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_order",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_pagination",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_trailing_clauses",
+   "tests/dialects/test_tsql.py::TestTSQL::test_set_operation_unordered_pagination",
+   "tests/dialects/test_tsql.py::TestTSQL::test_top",
+   "tests/dialects/test_tsql.py::TestTSQL::test_tsql",
+   "tests/test_parser.py::TestParser::test_limit_percent_parses_without_modulo",
+   "tests/test_serde.py::TestSerde::test_serde"
+  ]
+ },
+ {
+  "task": "f337c70ee4",
+  "variant": "bug",
+  "label": "no_effect",
+  "prompt": "fix(snowflake): parse LIST and LS stage commands [GPT-6.1] (#8502)\n\n* fix(snowflake): preserve LIST and LS stage commands [GPT-6.1]\n\n* fix(snowflake): model LIST and LS as stage expressions [GPT-6.1]",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/generator.py",
+   "line": 2698,
+   "op": "flip",
+   "code": "return f\"({self.expressions(expression, dynamic=True, new_line=True, skip_first=True, skip_last=True)})\""
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py\nindex 70c6498..c44dffe 100644\n--- a/sqlglot/dialects/snowflake.py\n+++ b/sqlglot/dialects/snowflake.py\n@@ -152,6 +152,7 @@ class Snowflake(Dialect):\n             \"FILE FORMAT\": TokenType.FILE_FORMAT,\n             \"GET\": TokenType.GET,\n             \"INTEGRATION\": TokenType.INTEGRATION,\n+            \"LS\": TokenType.LIST,\n             \"MATCH_CONDITION\": TokenType.MATCH_CONDITION,\n             \"MATCH_RECOGNIZE\": TokenType.MATCH_RECOGNIZE,\n             \"MINUS\": TokenType.EXCEPT,\ndiff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex bfa3b52..782ac71 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -954,6 +954,12 @@ class Get(Expression):\n     arg_types = {\"this\": True, \"target\": True, \"properties\": False}\n \n \n+class ListStage(Expression):\n+    \"\"\"Lists files in a Snowflake stage or Git repository clone.\"\"\"\n+\n+    arg_types = {\"this\": True, \"pattern\": False}\n+\n+\n class Table(Expression, Selectable):\n     arg_types = {\n         \"this\": False,\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 5c8ba85..93bd3d1 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -2695,7 +2695,7 @@ class Generator:\n         return f\"{this} {kind} {expr}\"\n \n     def tuple_sql(self, expression: exp.Tuple) -> str:\n-        return f\"({self.expressions(expression, dynamic=True, new_line=True, skip_first=True, skip_last=True)})\"\n+        return f\"({self.expressions(expression, dynamic=False, new_line=True, skip_first=True, skip_last=True)})\"\n \n     def _update_from_joins_sql(self, expression: exp.Update) -> tuple[str, str]:\n         \"\"\"\n@@ -6229,6 +6229,11 @@ class Generator:\n         self.unsupported(\"Unsupported INSTALL statement\")\n         return \"\"\n \n+    def liststage_sql(self, expression: exp.ListStage) -> str:\n+        pattern = self.sql(expression, \"pattern\")\n+        pattern = f\" PATTERN = {pattern}\" if pattern else \"\"\n+        return f\"LIST {self.sql(expression, 'this')}{pattern}\"\n+\n     def get_put_sql(self, expression: exp.Put | exp.Get) -> str:\n         # Snowflake GET/PUT statements:\n         #   PUT <file> <internalStage> <properties>\ndiff --git a/sqlglot/parsers/snowflake.py b/sqlglot/parsers/snowflake.py\nindex bf2f709..d2f8a2b 100644\n--- a/sqlglot/parsers/snowflake.py\n+++ b/sqlglot/parsers/snowflake.py\n@@ -767,6 +767,7 @@ class SnowflakeParser(parser.Parser):\n     STATEMENT_PARSERS = {\n         **parser.Parser.STATEMENT_PARSERS,\n         TokenType.GET: lambda self: self._parse_get(),\n+        TokenType.LIST: lambda self: self._parse_list_stage(),\n         TokenType.PUT: lambda self: self._parse_put(),\n         TokenType.SHOW: lambda self: self._parse_show(),\n         TokenType.UNDROP: lambda self: self._parse_undrop(),\n@@ -1278,6 +1279,16 @@ class SnowflakeParser(parser.Parser):\n             exp.Get(this=self._parse_string(), target=target, properties=self._parse_properties())\n         )\n \n+    def _parse_list_stage(self) -> exp.ListStage:\n+        this = self._parse_location_path() if self._curr else None\n+        pattern = None\n+        if self._match_text_seq(\"PATTERN\", \"=\"):\n+            pattern = self._parse_string()\n+            if pattern is None:\n+                self.raise_error(\"Expected string after PATTERN =\")\n+\n+        return self.expression(exp.ListStage(this=this, pattern=pattern))\n+\n     def _parse_location_property(self) -> exp.LocationProperty:\n         self._match(TokenType.EQ)\n         return self.expression(exp.LocationProperty(this=self._parse_location_path()))\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {
+     "'LS'": "<TokenType.LIST: 320>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions:EXPR_CLASSES",
+    "kind": "dict",
+    "added": {
+     "'liststage'": "<class 'sqlglot.expressions.query.ListStage'>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.STATEMENT_PARSERS",
+    "kind": "dict",
+    "added": {
+     "<TokenType.LIST: 320>": "<function SnowflakeParser.<lambda>>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.arg_types",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {
+     "'this'": "True",
+     "'pattern'": "False"
+    }
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.key",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "'liststage'"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.required_args",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'this'"
+    ]
+   },
+   {
+    "key": "sqlglot.generator:Generator.liststage_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator.liststage_sql>"
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser._parse_list_stage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function SnowflakeParser._parse_list_stage>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15145",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "LS @~",
+    "before": "EXC: ParseError",
+    "after": "LIST @~"
+   },
+   {
+    "probe": "15148",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "ls @named_stage",
+    "before": "ls AS $named_stage",
+    "after": "LIST @named_stage"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_ddl",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_storage_integration",
+   "tests/test_transpile.py::TestTranspile::test_pretty"
+  ]
+ },
+ {
+  "task": "f337c70ee4",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(snowflake): parse LIST and LS stage commands [GPT-6.1] (#8502)\n\n* fix(snowflake): preserve LIST and LS stage commands [GPT-6.1]\n\n* fix(snowflake): model LIST and LS as stage expressions [GPT-6.1]",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/expressions/query.py",
+   "line": 511,
+   "op": "delete",
+   "code": "\"output\": False,"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py\nindex 70c6498..c44dffe 100644\n--- a/sqlglot/dialects/snowflake.py\n+++ b/sqlglot/dialects/snowflake.py\n@@ -152,6 +152,7 @@ class Snowflake(Dialect):\n             \"FILE FORMAT\": TokenType.FILE_FORMAT,\n             \"GET\": TokenType.GET,\n             \"INTEGRATION\": TokenType.INTEGRATION,\n+            \"LS\": TokenType.LIST,\n             \"MATCH_CONDITION\": TokenType.MATCH_CONDITION,\n             \"MATCH_RECOGNIZE\": TokenType.MATCH_RECOGNIZE,\n             \"MINUS\": TokenType.EXCEPT,\ndiff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex bfa3b52..3632dc7 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -508,7 +508,7 @@ class ColumnDef(Expression):\n         \"exists\": False,\n         \"position\": False,\n         \"default\": False,\n-        \"output\": False,\n+\n     }\n \n     @property\n@@ -954,6 +954,12 @@ class Get(Expression):\n     arg_types = {\"this\": True, \"target\": True, \"properties\": False}\n \n \n+class ListStage(Expression):\n+    \"\"\"Lists files in a Snowflake stage or Git repository clone.\"\"\"\n+\n+    arg_types = {\"this\": True, \"pattern\": False}\n+\n+\n class Table(Expression, Selectable):\n     arg_types = {\n         \"this\": False,\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 5c8ba85..8485bb0 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -6229,6 +6229,11 @@ class Generator:\n         self.unsupported(\"Unsupported INSTALL statement\")\n         return \"\"\n \n+    def liststage_sql(self, expression: exp.ListStage) -> str:\n+        pattern = self.sql(expression, \"pattern\")\n+        pattern = f\" PATTERN = {pattern}\" if pattern else \"\"\n+        return f\"LIST {self.sql(expression, 'this')}{pattern}\"\n+\n     def get_put_sql(self, expression: exp.Put | exp.Get) -> str:\n         # Snowflake GET/PUT statements:\n         #   PUT <file> <internalStage> <properties>\ndiff --git a/sqlglot/parsers/snowflake.py b/sqlglot/parsers/snowflake.py\nindex bf2f709..d2f8a2b 100644\n--- a/sqlglot/parsers/snowflake.py\n+++ b/sqlglot/parsers/snowflake.py\n@@ -767,6 +767,7 @@ class SnowflakeParser(parser.Parser):\n     STATEMENT_PARSERS = {\n         **parser.Parser.STATEMENT_PARSERS,\n         TokenType.GET: lambda self: self._parse_get(),\n+        TokenType.LIST: lambda self: self._parse_list_stage(),\n         TokenType.PUT: lambda self: self._parse_put(),\n         TokenType.SHOW: lambda self: self._parse_show(),\n         TokenType.UNDROP: lambda self: self._parse_undrop(),\n@@ -1278,6 +1279,16 @@ class SnowflakeParser(parser.Parser):\n             exp.Get(this=self._parse_string(), target=target, properties=self._parse_properties())\n         )\n \n+    def _parse_list_stage(self) -> exp.ListStage:\n+        this = self._parse_location_path() if self._curr else None\n+        pattern = None\n+        if self._match_text_seq(\"PATTERN\", \"=\"):\n+            pattern = self._parse_string()\n+            if pattern is None:\n+                self.raise_error(\"Expected string after PATTERN =\")\n+\n+        return self.expression(exp.ListStage(this=this, pattern=pattern))\n+\n     def _parse_location_property(self) -> exp.LocationProperty:\n         self._match(TokenType.EQ)\n         return self.expression(exp.LocationProperty(this=self._parse_location_path()))\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {
+     "'LS'": "<TokenType.LIST: 320>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions.query:ColumnDef.arg_types",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'output'": "False"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions:EXPR_CLASSES",
+    "kind": "dict",
+    "added": {
+     "'liststage'": "<class 'sqlglot.expressions.query.ListStage'>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.STATEMENT_PARSERS",
+    "kind": "dict",
+    "added": {
+     "<TokenType.LIST: 320>": "<function SnowflakeParser.<lambda>>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.arg_types",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {
+     "'this'": "True",
+     "'pattern'": "False"
+    }
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.key",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "'liststage'"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.required_args",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'this'"
+    ]
+   },
+   {
+    "key": "sqlglot.generator:Generator.liststage_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator.liststage_sql>"
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser._parse_list_stage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function SnowflakeParser._parse_list_stage>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15145",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "LS @~",
+    "before": "EXC: ParseError",
+    "after": "LIST @~"
+   },
+   {
+    "probe": "15148",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "ls @named_stage",
+    "before": "ls AS $named_stage",
+    "after": "LIST @named_stage"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 2
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ },
+ {
+  "task": "f337c70ee4",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(snowflake): parse LIST and LS stage commands [GPT-6.1] (#8502)\n\n* fix(snowflake): preserve LIST and LS stage commands [GPT-6.1]\n\n* fix(snowflake): model LIST and LS as stage expressions [GPT-6.1]",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parsers/snowflake.py",
+   "line": 828,
+   "op": "delete",
+   "code": "\"OBJECTS\": _show_parser(\"OBJECTS\"),"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/snowflake.py b/sqlglot/dialects/snowflake.py\nindex 70c6498..c44dffe 100644\n--- a/sqlglot/dialects/snowflake.py\n+++ b/sqlglot/dialects/snowflake.py\n@@ -152,6 +152,7 @@ class Snowflake(Dialect):\n             \"FILE FORMAT\": TokenType.FILE_FORMAT,\n             \"GET\": TokenType.GET,\n             \"INTEGRATION\": TokenType.INTEGRATION,\n+            \"LS\": TokenType.LIST,\n             \"MATCH_CONDITION\": TokenType.MATCH_CONDITION,\n             \"MATCH_RECOGNIZE\": TokenType.MATCH_RECOGNIZE,\n             \"MINUS\": TokenType.EXCEPT,\ndiff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py\nindex bfa3b52..782ac71 100644\n--- a/sqlglot/expressions/query.py\n+++ b/sqlglot/expressions/query.py\n@@ -954,6 +954,12 @@ class Get(Expression):\n     arg_types = {\"this\": True, \"target\": True, \"properties\": False}\n \n \n+class ListStage(Expression):\n+    \"\"\"Lists files in a Snowflake stage or Git repository clone.\"\"\"\n+\n+    arg_types = {\"this\": True, \"pattern\": False}\n+\n+\n class Table(Expression, Selectable):\n     arg_types = {\n         \"this\": False,\ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 5c8ba85..8485bb0 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -6229,6 +6229,11 @@ class Generator:\n         self.unsupported(\"Unsupported INSTALL statement\")\n         return \"\"\n \n+    def liststage_sql(self, expression: exp.ListStage) -> str:\n+        pattern = self.sql(expression, \"pattern\")\n+        pattern = f\" PATTERN = {pattern}\" if pattern else \"\"\n+        return f\"LIST {self.sql(expression, 'this')}{pattern}\"\n+\n     def get_put_sql(self, expression: exp.Put | exp.Get) -> str:\n         # Snowflake GET/PUT statements:\n         #   PUT <file> <internalStage> <properties>\ndiff --git a/sqlglot/parsers/snowflake.py b/sqlglot/parsers/snowflake.py\nindex bf2f709..04a0844 100644\n--- a/sqlglot/parsers/snowflake.py\n+++ b/sqlglot/parsers/snowflake.py\n@@ -767,6 +767,7 @@ class SnowflakeParser(parser.Parser):\n     STATEMENT_PARSERS = {\n         **parser.Parser.STATEMENT_PARSERS,\n         TokenType.GET: lambda self: self._parse_get(),\n+        TokenType.LIST: lambda self: self._parse_list_stage(),\n         TokenType.PUT: lambda self: self._parse_put(),\n         TokenType.SHOW: lambda self: self._parse_show(),\n         TokenType.UNDROP: lambda self: self._parse_undrop(),\n@@ -824,7 +825,7 @@ class SnowflakeParser(parser.Parser):\n     SHOW_PARSERS = {\n         \"DATABASES\": _show_parser(\"DATABASES\"),\n         \"SCHEMAS\": _show_parser(\"SCHEMAS\"),\n-        \"OBJECTS\": _show_parser(\"OBJECTS\"),\n+\n         \"TABLES\": _show_parser(\"TABLES\"),\n         \"VIEWS\": _show_parser(\"VIEWS\"),\n         \"PRIMARY KEYS\": _show_parser(\"PRIMARY KEYS\"),\n@@ -1278,6 +1279,16 @@ class SnowflakeParser(parser.Parser):\n             exp.Get(this=self._parse_string(), target=target, properties=self._parse_properties())\n         )\n \n+    def _parse_list_stage(self) -> exp.ListStage:\n+        this = self._parse_location_path() if self._curr else None\n+        pattern = None\n+        if self._match_text_seq(\"PATTERN\", \"=\"):\n+            pattern = self._parse_string()\n+            if pattern is None:\n+                self.raise_error(\"Expected string after PATTERN =\")\n+\n+        return self.expression(exp.ListStage(this=this, pattern=pattern))\n+\n     def _parse_location_property(self) -> exp.LocationProperty:\n         self._match(TokenType.EQ)\n         return self.expression(exp.LocationProperty(this=self._parse_location_path()))\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.Tokenizer.KEYWORDS",
+    "kind": "dict",
+    "added": {
+     "'LS'": "<TokenType.LIST: 320>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions:EXPR_CLASSES",
+    "kind": "dict",
+    "added": {
+     "'liststage'": "<class 'sqlglot.expressions.query.ListStage'>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.SHOW_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OBJECTS'": "<function _show_parser.<locals>._parse>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.SHOW_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'OBJECTS'": "{0: True}"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser.STATEMENT_PARSERS",
+    "kind": "dict",
+    "added": {
+     "<TokenType.LIST: 320>": "<function SnowflakeParser.<lambda>>"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions:ListStage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<class 'sqlglot.expressions.query.ListStage'>"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.arg_types",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {
+     "'this'": "True",
+     "'pattern'": "False"
+    }
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.key",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "'liststage'"
+   },
+   {
+    "key": "sqlglot.expressions.query:ListStage.required_args",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": [
+     "'this'"
+    ]
+   },
+   {
+    "key": "sqlglot.generator:Generator.liststage_sql",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function Generator.liststage_sql>"
+   },
+   {
+    "key": "sqlglot.parsers.snowflake:SnowflakeParser._parse_list_stage",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<function SnowflakeParser._parse_list_stage>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "12001",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SHOW OBJECTS IN db1.schema1",
+    "before": "SHOW OBJECTS IN SCHEMA db1.schema1",
+    "after": "SHOW OBJECTS IN db1.schema1"
+   },
+   {
+    "probe": "15145",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "LS @~",
+    "before": "EXC: ParseError",
+    "after": "LIST @~"
+   },
+   {
+    "probe": "15148",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "ls @named_stage",
+    "before": "ls AS $named_stage",
+    "after": "LIST @named_stage"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 1,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_show_objects"
+  ]
+ }
+]
