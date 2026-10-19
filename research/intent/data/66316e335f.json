@@ -1,0 +1,2271 @@
+[
+ {
+  "task": "66316e335f",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "Spark 3 parses HH, hh, mm and ss in time formats strictly (exactly two digits), while %H, %M and %S in lenient dialects such as DuckDB and MySQL accept one or two digits. Transpiling a lenient time format to Spark, Hive or Databricks therefore gives a format that rejects inputs the source accepted. Lax hour/minute/second fields from a lenient dialect must become H, h, m and s in Spark-family dialects (as month and day already become M and d), while a zero-padded HH:mm:ss written in Spark still round-trips and maps to %H:%M:%S for lenient dialects. A time field directly adjacent to other digits (yyyyMMddHHmmss) stays zero-padded, since a digit run cannot be split.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT STRPTIME('2016-1-1 3:4:5', '%Y-%m-%d %H:%M:%S')\", read=\"duckdb\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d H:m:s')\n\ntranspile(\"SELECT STR_TO_DATE('04/05/2013 01:02:03', '%m/%d/%Y %H:%i:%s')\", read=\"mysql\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy H:m:s')\n\ntranspile(\"SELECT STR_TO_TIME(x, '%Y-%m-%d %H:%M:%S')\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP(x, 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP(x, 'yyyy-M-d H:m:s')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex a0bebcc..6bef448 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -135,9 +135,17 @@ class NormalizationStrategy(str, AutoName):\n     \"\"\"Always case-insensitive (uppercase), regardless of quotes.\"\"\"\n \n \n-# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd to these in TIME_MAPPING so they\n-# roundtrip, since a lax %m/%d renders non-padded there for parse expressions (see HiveGenerator.format_time).\n-STRICT_TIME_FORMATS = {\"%mstrict\": \"%m\", \"%dstrict\": \"%d\"}\n+# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd/HH/hh/mm/ss to these in\n+# TIME_MAPPING so they roundtrip, since a lax %m/%d renders non-padded there for parse expressions\n+# (see HiveGenerator.format_time).\n+STRICT_TIME_FORMATS = {\n+    \"%mstrict\": \"%m\",\n+    \"%dstrict\": \"%d\",\n+    \"%Hstrict\": \"%H\",\n+    \"%Istrict\": \"%I\",\n+    \"%Mstrict\": \"%M\",\n+    \"%Sstrict\": \"%S\",\n+}\n \n \n def _with_strict_time_inverse(inverse_mapping: dict[str, str]) -> dict[str, str]:\ndiff --git a/sqlglot/dialects/hive.py b/sqlglot/dialects/hive.py\nindex 121bda8..71be752 100644\n--- a/sqlglot/dialects/hive.py\n+++ b/sqlglot/dialects/hive.py\n@@ -52,18 +52,19 @@ class Hive(Dialect):\n         \"yy\": \"%y\",\n         \"MMMM\": \"%B\",\n         \"MMM\": \"%b\",\n-        # Hive 4.0+ parses MM/dd strictly (java.time.DateTimeFormatter, see HIVE-25458/HIVE-25576)\n+        # Hive 4.0+ parses MM/dd/HH/hh/mm/ss strictly (java.time.DateTimeFormatter, see\n+        # HIVE-25458/HIVE-25576)\n         \"MM\": \"%mstrict\",\n         \"M\": \"%-m\",\n         \"dd\": \"%dstrict\",\n         \"d\": \"%-d\",\n-        \"HH\": \"%H\",\n+        \"HH\": \"%Hstrict\",\n         \"H\": \"%-H\",\n-        \"hh\": \"%I\",\n+        \"hh\": \"%Istrict\",\n         \"h\": \"%-I\",\n-        \"mm\": \"%M\",\n+        \"mm\": \"%Mstrict\",\n         \"m\": \"%-M\",\n-        \"ss\": \"%S\",\n+        \"ss\": \"%Sstrict\",\n         \"s\": \"%-S\",\n         \"SSSSSS\": \"%f\",\n         \"a\": \"%p\",\ndiff --git a/sqlglot/dialects/spark.py b/sqlglot/dialects/spark.py\nindex eb1e2f5..4f084e3 100644\n--- a/sqlglot/dialects/spark.py\n+++ b/sqlglot/dialects/spark.py\n@@ -16,8 +16,16 @@ class Spark(Spark2):\n     ARRAY_FUNCS_PROPAGATES_NULLS = True\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 3+ parses MM/dd strictly, unlike Spark 2 (SimpleDateFormat)\n-    TIME_MAPPING = {**Spark2.TIME_MAPPING, \"MM\": \"%mstrict\", \"dd\": \"%dstrict\"}\n+    # Spark 3+ parses MM/dd/HH/hh/mm/ss strictly, unlike Spark 2 (SimpleDateFormat)\n+    TIME_MAPPING = {\n+        **Spark2.TIME_MAPPING,\n+        \"MM\": \"%mstrict\",\n+        \"dd\": \"%dstrict\",\n+        \"HH\": \"%Hstrict\",\n+        \"hh\": \"%Istrict\",\n+        \"mm\": \"%Mstrict\",\n+        \"ss\": \"%Sstrict\",\n+    }\n \n     class Tokenizer(Spark2.Tokenizer):\n         STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS = False\ndiff --git a/sqlglot/dialects/spark2.py b/sqlglot/dialects/spark2.py\nindex d11ab74..20b3ecf 100644\n--- a/sqlglot/dialects/spark2.py\n+++ b/sqlglot/dialects/spark2.py\n@@ -12,8 +12,16 @@ class Spark2(Hive):\n \n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 2.x parses MM/dd leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n-    TIME_MAPPING = {**Hive.TIME_MAPPING, \"MM\": \"%m\", \"dd\": \"%d\"}\n+    # Spark 2.x parses MM/dd/HH/hh/mm/ss leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n+    TIME_MAPPING = {\n+        **Hive.TIME_MAPPING,\n+        \"MM\": \"%m\",\n+        \"dd\": \"%d\",\n+        \"HH\": \"%H\",\n+        \"hh\": \"%I\",\n+        \"mm\": \"%M\",\n+        \"ss\": \"%S\",\n+    }\n \n     # https://spark.apache.org/docs/latest/api/sql/index.html#initcap\n     # https://docs.databricks.com/aws/en/sql/language-manual/functions/initcap\ndiff --git a/sqlglot/generators/hive.py b/sqlglot/generators/hive.py\nindex 7d58a86..c0daeab 100644\n--- a/sqlglot/generators/hive.py\n+++ b/sqlglot/generators/hive.py\n@@ -45,27 +45,35 @@ HIVE_TIME_FORMAT = \"'yyyy-MM-dd HH:mm:ss'\"\n HIVE_DATE_FORMAT = \"'yyyy-MM-dd'\"\n HIVE_DATEINT_FORMAT = \"'yyyyMMdd'\"\n \n-# The default formats above, as rendered by the lenient rewrite (non-padded month/day)\n-HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d HH:mm:ss'\", \"'yyyy-M-d'\")\n+# The default formats above, as rendered by the lenient rewrite (non-padded month/day/time)\n+HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d H:m:s'\", \"'yyyy-M-d'\")\n \n # Expressions that parse a string with a format (vs. formatting one, like TimeToStr).\n PARSE_TIME_EXPRESSIONS = (exp.StrToTime, exp.StrToDate, exp.StrToUnix, exp.TsOrDsToDate)\n \n-CANONICAL_TIME_FORMAT = re.compile(r\"%(?:mstrict|dstrict|[-:].|.)\")\n+CANONICAL_TIME_FORMAT = re.compile(r\"%(?:[mdHIMS]strict|[-:].|.)\")\n \n-LAX_TO_NON_PADDED_FORMATS = {\"%m\": \"%-m\", \"%d\": \"%-d\"}\n+LAX_TO_NON_PADDED_FORMATS = {\n+    \"%m\": \"%-m\",\n+    \"%d\": \"%-d\",\n+    \"%H\": \"%-H\",\n+    \"%I\": \"%-I\",\n+    \"%M\": \"%-M\",\n+    \"%S\": \"%-S\",\n+}\n \n \n def _lenient_parse_format(fmt: str) -> str:\n     \"\"\"\n-    Changes the lax %m/%d in a canonical format to the non-padded %-m/%-d, which java.time\n-    parses with or without a leading zero. This is only safe for delimited specifiers, because\n-    adjacent fields parse greedily, so e.g. 'yyyyMd' (from '%Y%m%d') can't even parse '20200101'.\n+    Changes a lax month/day/hour/minute/second in a canonical format to its non-padded form\n+    (e.g. %m -> %-m), which java.time parses with or without a leading zero. This is only safe\n+    for delimited specifiers, because adjacent fields parse greedily, so e.g. 'yyyyMd' (from\n+    '%Y%m%d') can't even parse '20200101'.\n \n     The format is decomposed into specifiers (`formats`) and the interleaved literal text (`parts`).\n-    Specifier i sits between parts[i] and parts[i + 1]. A %m/%d is changed only when its neighbors\n-    don't touch a digit run, i.e., neither side is another specifier or a literal digit. At the end,\n-    the pieces are zipped back together to produce the rewritten canonical format.\n+    Specifier i sits between parts[i] and parts[i + 1]. A specifier is changed only when its\n+    neighbors don't touch a digit run, i.e., neither side is another specifier or a literal digit.\n+    At the end, the pieces are zipped back together to produce the rewritten canonical format.\n     \"\"\"\n     parts = CANONICAL_TIME_FORMAT.split(fmt)\n     formats = CANONICAL_TIME_FORMAT.findall(fmt)\n@@ -175,7 +183,8 @@ def _is_cast_time_format(self: HiveGenerator, expression: exp.Expr, time_format:\n         return True\n \n     if time_format in HIVE_NON_PADDED_TIME_FORMATS:\n-        # The base render skips the lenient rewrite: a lax %m/%d pads back to MM/dd, an explicit %-m/%-d doesn't\n+        # The base render skips the lenient rewrite: a lax specifier pads back (e.g. %m -> MM),\n+        # an explicit non-padded specifier (e.g. %-m) doesn't\n         padded_format = generator.Generator.format_time(self, expression)\n         return padded_format in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT)\n \n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'MI'",
+     "'%Sstrict'": "'SS'",
+     "'%Hstrict'": "'HH24'",
+     "'%Istrict'": "'HH12'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%M'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Sstrict'": "'%S'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}}, '-': {'d': {0...",
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}, 's': {'t': {'r..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mm'",
+     "'%Hstrict'": "'HH'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:STRICT_TIME_FORMATS",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%i'",
+     "'%Sstrict'": "'%s'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%h'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True}, 'M': {0: True}, 'S': {0: True}, 'W': {0: True}, 'H': {':...",
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'M': ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mi'",
+     "'%Hstrict'": "'hh24'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mm'",
+     "'%Hstrict'": "'HH'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [],
+  "new_probes": 14
+ },
+ {
+  "task": "66316e335f",
+  "variant": "bug",
+  "label": "no_effect",
+  "prompt": "Spark 3 parses HH, hh, mm and ss in time formats strictly (exactly two digits), while %H, %M and %S in lenient dialects such as DuckDB and MySQL accept one or two digits. Transpiling a lenient time format to Spark, Hive or Databricks therefore gives a format that rejects inputs the source accepted. Lax hour/minute/second fields from a lenient dialect must become H, h, m and s in Spark-family dialects (as month and day already become M and d), while a zero-padded HH:mm:ss written in Spark still round-trips and maps to %H:%M:%S for lenient dialects. A time field directly adjacent to other digits (yyyyMMddHHmmss) stays zero-padded, since a digit run cannot be split.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT STRPTIME('2016-1-1 3:4:5', '%Y-%m-%d %H:%M:%S')\", read=\"duckdb\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d H:m:s')\n\ntranspile(\"SELECT STR_TO_DATE('04/05/2013 01:02:03', '%m/%d/%Y %H:%i:%s')\", read=\"mysql\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy H:m:s')\n\ntranspile(\"SELECT STR_TO_TIME(x, '%Y-%m-%d %H:%M:%S')\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP(x, 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP(x, 'yyyy-M-d H:m:s')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/dialects/dialect.py",
+   "line": 1123,
+   "op": "flip",
+   "code": "return True"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex a0bebcc..d0e4d10 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -135,9 +135,17 @@ class NormalizationStrategy(str, AutoName):\n     \"\"\"Always case-insensitive (uppercase), regardless of quotes.\"\"\"\n \n \n-# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd to these in TIME_MAPPING so they\n-# roundtrip, since a lax %m/%d renders non-padded there for parse expressions (see HiveGenerator.format_time).\n-STRICT_TIME_FORMATS = {\"%mstrict\": \"%m\", \"%dstrict\": \"%d\"}\n+# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd/HH/hh/mm/ss to these in\n+# TIME_MAPPING so they roundtrip, since a lax %m/%d renders non-padded there for parse expressions\n+# (see HiveGenerator.format_time).\n+STRICT_TIME_FORMATS = {\n+    \"%mstrict\": \"%m\",\n+    \"%dstrict\": \"%d\",\n+    \"%Hstrict\": \"%H\",\n+    \"%Istrict\": \"%I\",\n+    \"%Mstrict\": \"%M\",\n+    \"%Sstrict\": \"%S\",\n+}\n \n \n def _with_strict_time_inverse(inverse_mapping: dict[str, str]) -> dict[str, str]:\n@@ -1112,7 +1120,7 @@ class Dialect(metaclass=_Dialect):\n         if isinstance(identifier.parent, exp.Func):\n             return False\n         if identify is True:\n-            return True\n+            return False\n \n         is_safe = not self.case_sensitive(identifier.this) and bool(\n             exp.SAFE_IDENTIFIER_RE.match(identifier.this)\ndiff --git a/sqlglot/dialects/hive.py b/sqlglot/dialects/hive.py\nindex 121bda8..71be752 100644\n--- a/sqlglot/dialects/hive.py\n+++ b/sqlglot/dialects/hive.py\n@@ -52,18 +52,19 @@ class Hive(Dialect):\n         \"yy\": \"%y\",\n         \"MMMM\": \"%B\",\n         \"MMM\": \"%b\",\n-        # Hive 4.0+ parses MM/dd strictly (java.time.DateTimeFormatter, see HIVE-25458/HIVE-25576)\n+        # Hive 4.0+ parses MM/dd/HH/hh/mm/ss strictly (java.time.DateTimeFormatter, see\n+        # HIVE-25458/HIVE-25576)\n         \"MM\": \"%mstrict\",\n         \"M\": \"%-m\",\n         \"dd\": \"%dstrict\",\n         \"d\": \"%-d\",\n-        \"HH\": \"%H\",\n+        \"HH\": \"%Hstrict\",\n         \"H\": \"%-H\",\n-        \"hh\": \"%I\",\n+        \"hh\": \"%Istrict\",\n         \"h\": \"%-I\",\n-        \"mm\": \"%M\",\n+        \"mm\": \"%Mstrict\",\n         \"m\": \"%-M\",\n-        \"ss\": \"%S\",\n+        \"ss\": \"%Sstrict\",\n         \"s\": \"%-S\",\n         \"SSSSSS\": \"%f\",\n         \"a\": \"%p\",\ndiff --git a/sqlglot/dialects/spark.py b/sqlglot/dialects/spark.py\nindex eb1e2f5..4f084e3 100644\n--- a/sqlglot/dialects/spark.py\n+++ b/sqlglot/dialects/spark.py\n@@ -16,8 +16,16 @@ class Spark(Spark2):\n     ARRAY_FUNCS_PROPAGATES_NULLS = True\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 3+ parses MM/dd strictly, unlike Spark 2 (SimpleDateFormat)\n-    TIME_MAPPING = {**Spark2.TIME_MAPPING, \"MM\": \"%mstrict\", \"dd\": \"%dstrict\"}\n+    # Spark 3+ parses MM/dd/HH/hh/mm/ss strictly, unlike Spark 2 (SimpleDateFormat)\n+    TIME_MAPPING = {\n+        **Spark2.TIME_MAPPING,\n+        \"MM\": \"%mstrict\",\n+        \"dd\": \"%dstrict\",\n+        \"HH\": \"%Hstrict\",\n+        \"hh\": \"%Istrict\",\n+        \"mm\": \"%Mstrict\",\n+        \"ss\": \"%Sstrict\",\n+    }\n \n     class Tokenizer(Spark2.Tokenizer):\n         STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS = False\ndiff --git a/sqlglot/dialects/spark2.py b/sqlglot/dialects/spark2.py\nindex d11ab74..20b3ecf 100644\n--- a/sqlglot/dialects/spark2.py\n+++ b/sqlglot/dialects/spark2.py\n@@ -12,8 +12,16 @@ class Spark2(Hive):\n \n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 2.x parses MM/dd leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n-    TIME_MAPPING = {**Hive.TIME_MAPPING, \"MM\": \"%m\", \"dd\": \"%d\"}\n+    # Spark 2.x parses MM/dd/HH/hh/mm/ss leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n+    TIME_MAPPING = {\n+        **Hive.TIME_MAPPING,\n+        \"MM\": \"%m\",\n+        \"dd\": \"%d\",\n+        \"HH\": \"%H\",\n+        \"hh\": \"%I\",\n+        \"mm\": \"%M\",\n+        \"ss\": \"%S\",\n+    }\n \n     # https://spark.apache.org/docs/latest/api/sql/index.html#initcap\n     # https://docs.databricks.com/aws/en/sql/language-manual/functions/initcap\ndiff --git a/sqlglot/generators/hive.py b/sqlglot/generators/hive.py\nindex 7d58a86..c0daeab 100644\n--- a/sqlglot/generators/hive.py\n+++ b/sqlglot/generators/hive.py\n@@ -45,27 +45,35 @@ HIVE_TIME_FORMAT = \"'yyyy-MM-dd HH:mm:ss'\"\n HIVE_DATE_FORMAT = \"'yyyy-MM-dd'\"\n HIVE_DATEINT_FORMAT = \"'yyyyMMdd'\"\n \n-# The default formats above, as rendered by the lenient rewrite (non-padded month/day)\n-HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d HH:mm:ss'\", \"'yyyy-M-d'\")\n+# The default formats above, as rendered by the lenient rewrite (non-padded month/day/time)\n+HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d H:m:s'\", \"'yyyy-M-d'\")\n \n # Expressions that parse a string with a format (vs. formatting one, like TimeToStr).\n PARSE_TIME_EXPRESSIONS = (exp.StrToTime, exp.StrToDate, exp.StrToUnix, exp.TsOrDsToDate)\n \n-CANONICAL_TIME_FORMAT = re.compile(r\"%(?:mstrict|dstrict|[-:].|.)\")\n+CANONICAL_TIME_FORMAT = re.compile(r\"%(?:[mdHIMS]strict|[-:].|.)\")\n \n-LAX_TO_NON_PADDED_FORMATS = {\"%m\": \"%-m\", \"%d\": \"%-d\"}\n+LAX_TO_NON_PADDED_FORMATS = {\n+    \"%m\": \"%-m\",\n+    \"%d\": \"%-d\",\n+    \"%H\": \"%-H\",\n+    \"%I\": \"%-I\",\n+    \"%M\": \"%-M\",\n+    \"%S\": \"%-S\",\n+}\n \n \n def _lenient_parse_format(fmt: str) -> str:\n     \"\"\"\n-    Changes the lax %m/%d in a canonical format to the non-padded %-m/%-d, which java.time\n-    parses with or without a leading zero. This is only safe for delimited specifiers, because\n-    adjacent fields parse greedily, so e.g. 'yyyyMd' (from '%Y%m%d') can't even parse '20200101'.\n+    Changes a lax month/day/hour/minute/second in a canonical format to its non-padded form\n+    (e.g. %m -> %-m), which java.time parses with or without a leading zero. This is only safe\n+    for delimited specifiers, because adjacent fields parse greedily, so e.g. 'yyyyMd' (from\n+    '%Y%m%d') can't even parse '20200101'.\n \n     The format is decomposed into specifiers (`formats`) and the interleaved literal text (`parts`).\n-    Specifier i sits between parts[i] and parts[i + 1]. A %m/%d is changed only when its neighbors\n-    don't touch a digit run, i.e., neither side is another specifier or a literal digit. At the end,\n-    the pieces are zipped back together to produce the rewritten canonical format.\n+    Specifier i sits between parts[i] and parts[i + 1]. A specifier is changed only when its\n+    neighbors don't touch a digit run, i.e., neither side is another specifier or a literal digit.\n+    At the end, the pieces are zipped back together to produce the rewritten canonical format.\n     \"\"\"\n     parts = CANONICAL_TIME_FORMAT.split(fmt)\n     formats = CANONICAL_TIME_FORMAT.findall(fmt)\n@@ -175,7 +183,8 @@ def _is_cast_time_format(self: HiveGenerator, expression: exp.Expr, time_format:\n         return True\n \n     if time_format in HIVE_NON_PADDED_TIME_FORMATS:\n-        # The base render skips the lenient rewrite: a lax %m/%d pads back to MM/dd, an explicit %-m/%-d doesn't\n+        # The base render skips the lenient rewrite: a lax specifier pads back (e.g. %m -> MM),\n+        # an explicit non-padded specifier (e.g. %-m) doesn't\n         padded_format = generator.Generator.format_time(self, expression)\n         return padded_format in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT)\n \n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'MI'",
+     "'%Sstrict'": "'SS'",
+     "'%Hstrict'": "'HH24'",
+     "'%Istrict'": "'HH12'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%M'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Sstrict'": "'%S'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}}, '-': {'d': {0...",
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}, 's': {'t': {'r..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mm'",
+     "'%Hstrict'": "'HH'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:STRICT_TIME_FORMATS",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%i'",
+     "'%Sstrict'": "'%s'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%h'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True}, 'M': {0: True}, 'S': {0: True}, 'W': {0: True}, 'H': {':...",
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'M': ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mi'",
+     "'%Hstrict'": "'hh24'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mm'",
+     "'%Hstrict'": "'HH'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_athena.py::TestAthena::test_athena",
+   "tests/dialects/test_athena.py::TestAthena::test_create_table",
+   "tests/dialects/test_athena.py::TestAthena::test_ctas",
+   "tests/dialects/test_athena.py::TestAthena::test_ddl_quoting",
+   "tests/dialects/test_athena.py::TestAthena::test_dml_quoting",
+   "tests/dialects/test_oracle.py::TestOracle::test_pseudocolumns",
+   "tests/dialects/test_redshift.py::TestRedshift::test_varchar_max",
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_singlestore",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_copy",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_create_view_row_access_policy",
+   "tests/dialects/test_spark.py::TestSpark::test_transpile_annotated_exploded_column",
+   "tests/test_expressions.py::TestExprs::test_sql",
+   "tests/test_expressions.py::TestExprs::test_table_name",
+   "tests/test_generator.py::TestGenerator::test_identify",
+   "tests/test_transpile.py::TestTranspile::test_identify_lambda"
+  ]
+ },
+ {
+  "task": "66316e335f",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Spark 3 parses HH, hh, mm and ss in time formats strictly (exactly two digits), while %H, %M and %S in lenient dialects such as DuckDB and MySQL accept one or two digits. Transpiling a lenient time format to Spark, Hive or Databricks therefore gives a format that rejects inputs the source accepted. Lax hour/minute/second fields from a lenient dialect must become H, h, m and s in Spark-family dialects (as month and day already become M and d), while a zero-padded HH:mm:ss written in Spark still round-trips and maps to %H:%M:%S for lenient dialects. A time field directly adjacent to other digits (yyyyMMddHHmmss) stays zero-padded, since a digit run cannot be split.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT STRPTIME('2016-1-1 3:4:5', '%Y-%m-%d %H:%M:%S')\", read=\"duckdb\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d H:m:s')\n\ntranspile(\"SELECT STR_TO_DATE('04/05/2013 01:02:03', '%m/%d/%Y %H:%i:%s')\", read=\"mysql\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy H:m:s')\n\ntranspile(\"SELECT STR_TO_TIME(x, '%Y-%m-%d %H:%M:%S')\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP(x, 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP(x, 'yyyy-M-d H:m:s')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/dialects/hive.py",
+   "line": 26,
+   "op": "flip",
+   "code": "ALTER_TABLE_SUPPORTS_CASCADE = True"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex a0bebcc..6bef448 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -135,9 +135,17 @@ class NormalizationStrategy(str, AutoName):\n     \"\"\"Always case-insensitive (uppercase), regardless of quotes.\"\"\"\n \n \n-# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd to these in TIME_MAPPING so they\n-# roundtrip, since a lax %m/%d renders non-padded there for parse expressions (see HiveGenerator.format_time).\n-STRICT_TIME_FORMATS = {\"%mstrict\": \"%m\", \"%dstrict\": \"%d\"}\n+# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd/HH/hh/mm/ss to these in\n+# TIME_MAPPING so they roundtrip, since a lax %m/%d renders non-padded there for parse expressions\n+# (see HiveGenerator.format_time).\n+STRICT_TIME_FORMATS = {\n+    \"%mstrict\": \"%m\",\n+    \"%dstrict\": \"%d\",\n+    \"%Hstrict\": \"%H\",\n+    \"%Istrict\": \"%I\",\n+    \"%Mstrict\": \"%M\",\n+    \"%Sstrict\": \"%S\",\n+}\n \n \n def _with_strict_time_inverse(inverse_mapping: dict[str, str]) -> dict[str, str]:\ndiff --git a/sqlglot/dialects/hive.py b/sqlglot/dialects/hive.py\nindex 121bda8..8f0a1f5 100644\n--- a/sqlglot/dialects/hive.py\n+++ b/sqlglot/dialects/hive.py\n@@ -23,7 +23,7 @@ class Hive(Dialect):\n     CONCAT_WS_COALESCE = True\n     ARRAY_AGG_INCLUDES_NULLS = None\n     REGEXP_EXTRACT_DEFAULT_GROUP = 1\n-    ALTER_TABLE_SUPPORTS_CASCADE = True\n+    ALTER_TABLE_SUPPORTS_CASCADE = False\n \n     # https://spark.apache.org/docs/latest/sql-ref-identifier.html#description\n     NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_INSENSITIVE\n@@ -52,18 +52,19 @@ class Hive(Dialect):\n         \"yy\": \"%y\",\n         \"MMMM\": \"%B\",\n         \"MMM\": \"%b\",\n-        # Hive 4.0+ parses MM/dd strictly (java.time.DateTimeFormatter, see HIVE-25458/HIVE-25576)\n+        # Hive 4.0+ parses MM/dd/HH/hh/mm/ss strictly (java.time.DateTimeFormatter, see\n+        # HIVE-25458/HIVE-25576)\n         \"MM\": \"%mstrict\",\n         \"M\": \"%-m\",\n         \"dd\": \"%dstrict\",\n         \"d\": \"%-d\",\n-        \"HH\": \"%H\",\n+        \"HH\": \"%Hstrict\",\n         \"H\": \"%-H\",\n-        \"hh\": \"%I\",\n+        \"hh\": \"%Istrict\",\n         \"h\": \"%-I\",\n-        \"mm\": \"%M\",\n+        \"mm\": \"%Mstrict\",\n         \"m\": \"%-M\",\n-        \"ss\": \"%S\",\n+        \"ss\": \"%Sstrict\",\n         \"s\": \"%-S\",\n         \"SSSSSS\": \"%f\",\n         \"a\": \"%p\",\ndiff --git a/sqlglot/dialects/spark.py b/sqlglot/dialects/spark.py\nindex eb1e2f5..4f084e3 100644\n--- a/sqlglot/dialects/spark.py\n+++ b/sqlglot/dialects/spark.py\n@@ -16,8 +16,16 @@ class Spark(Spark2):\n     ARRAY_FUNCS_PROPAGATES_NULLS = True\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 3+ parses MM/dd strictly, unlike Spark 2 (SimpleDateFormat)\n-    TIME_MAPPING = {**Spark2.TIME_MAPPING, \"MM\": \"%mstrict\", \"dd\": \"%dstrict\"}\n+    # Spark 3+ parses MM/dd/HH/hh/mm/ss strictly, unlike Spark 2 (SimpleDateFormat)\n+    TIME_MAPPING = {\n+        **Spark2.TIME_MAPPING,\n+        \"MM\": \"%mstrict\",\n+        \"dd\": \"%dstrict\",\n+        \"HH\": \"%Hstrict\",\n+        \"hh\": \"%Istrict\",\n+        \"mm\": \"%Mstrict\",\n+        \"ss\": \"%Sstrict\",\n+    }\n \n     class Tokenizer(Spark2.Tokenizer):\n         STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS = False\ndiff --git a/sqlglot/dialects/spark2.py b/sqlglot/dialects/spark2.py\nindex d11ab74..20b3ecf 100644\n--- a/sqlglot/dialects/spark2.py\n+++ b/sqlglot/dialects/spark2.py\n@@ -12,8 +12,16 @@ class Spark2(Hive):\n \n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 2.x parses MM/dd leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n-    TIME_MAPPING = {**Hive.TIME_MAPPING, \"MM\": \"%m\", \"dd\": \"%d\"}\n+    # Spark 2.x parses MM/dd/HH/hh/mm/ss leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n+    TIME_MAPPING = {\n+        **Hive.TIME_MAPPING,\n+        \"MM\": \"%m\",\n+        \"dd\": \"%d\",\n+        \"HH\": \"%H\",\n+        \"hh\": \"%I\",\n+        \"mm\": \"%M\",\n+        \"ss\": \"%S\",\n+    }\n \n     # https://spark.apache.org/docs/latest/api/sql/index.html#initcap\n     # https://docs.databricks.com/aws/en/sql/language-manual/functions/initcap\ndiff --git a/sqlglot/generators/hive.py b/sqlglot/generators/hive.py\nindex 7d58a86..c0daeab 100644\n--- a/sqlglot/generators/hive.py\n+++ b/sqlglot/generators/hive.py\n@@ -45,27 +45,35 @@ HIVE_TIME_FORMAT = \"'yyyy-MM-dd HH:mm:ss'\"\n HIVE_DATE_FORMAT = \"'yyyy-MM-dd'\"\n HIVE_DATEINT_FORMAT = \"'yyyyMMdd'\"\n \n-# The default formats above, as rendered by the lenient rewrite (non-padded month/day)\n-HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d HH:mm:ss'\", \"'yyyy-M-d'\")\n+# The default formats above, as rendered by the lenient rewrite (non-padded month/day/time)\n+HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d H:m:s'\", \"'yyyy-M-d'\")\n \n # Expressions that parse a string with a format (vs. formatting one, like TimeToStr).\n PARSE_TIME_EXPRESSIONS = (exp.StrToTime, exp.StrToDate, exp.StrToUnix, exp.TsOrDsToDate)\n \n-CANONICAL_TIME_FORMAT = re.compile(r\"%(?:mstrict|dstrict|[-:].|.)\")\n+CANONICAL_TIME_FORMAT = re.compile(r\"%(?:[mdHIMS]strict|[-:].|.)\")\n \n-LAX_TO_NON_PADDED_FORMATS = {\"%m\": \"%-m\", \"%d\": \"%-d\"}\n+LAX_TO_NON_PADDED_FORMATS = {\n+    \"%m\": \"%-m\",\n+    \"%d\": \"%-d\",\n+    \"%H\": \"%-H\",\n+    \"%I\": \"%-I\",\n+    \"%M\": \"%-M\",\n+    \"%S\": \"%-S\",\n+}\n \n \n def _lenient_parse_format(fmt: str) -> str:\n     \"\"\"\n-    Changes the lax %m/%d in a canonical format to the non-padded %-m/%-d, which java.time\n-    parses with or without a leading zero. This is only safe for delimited specifiers, because\n-    adjacent fields parse greedily, so e.g. 'yyyyMd' (from '%Y%m%d') can't even parse '20200101'.\n+    Changes a lax month/day/hour/minute/second in a canonical format to its non-padded form\n+    (e.g. %m -> %-m), which java.time parses with or without a leading zero. This is only safe\n+    for delimited specifiers, because adjacent fields parse greedily, so e.g. 'yyyyMd' (from\n+    '%Y%m%d') can't even parse '20200101'.\n \n     The format is decomposed into specifiers (`formats`) and the interleaved literal text (`parts`).\n-    Specifier i sits between parts[i] and parts[i + 1]. A %m/%d is changed only when its neighbors\n-    don't touch a digit run, i.e., neither side is another specifier or a literal digit. At the end,\n-    the pieces are zipped back together to produce the rewritten canonical format.\n+    Specifier i sits between parts[i] and parts[i + 1]. A specifier is changed only when its\n+    neighbors don't touch a digit run, i.e., neither side is another specifier or a literal digit.\n+    At the end, the pieces are zipped back together to produce the rewritten canonical format.\n     \"\"\"\n     parts = CANONICAL_TIME_FORMAT.split(fmt)\n     formats = CANONICAL_TIME_FORMAT.findall(fmt)\n@@ -175,7 +183,8 @@ def _is_cast_time_format(self: HiveGenerator, expression: exp.Expr, time_format:\n         return True\n \n     if time_format in HIVE_NON_PADDED_TIME_FORMATS:\n-        # The base render skips the lenient rewrite: a lax %m/%d pads back to MM/dd, an explicit %-m/%-d doesn't\n+        # The base render skips the lenient rewrite: a lax specifier pads back (e.g. %m -> MM),\n+        # an explicit non-padded specifier (e.g. %-m) doesn't\n         padded_format = generator.Generator.format_time(self, expression)\n         return padded_format in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT)\n \n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'MI'",
+     "'%Sstrict'": "'SS'",
+     "'%Hstrict'": "'HH24'",
+     "'%Istrict'": "'HH12'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%M'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Sstrict'": "'%S'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}}, '-': {'d': {0...",
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}, 's': {'t': {'r..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mm'",
+     "'%Hstrict'": "'HH'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:STRICT_TIME_FORMATS",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%i'",
+     "'%Sstrict'": "'%s'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%h'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True}, 'M': {0: True}, 'S': {0: True}, 'W': {0: True}, 'H': {':...",
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'M': ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mi'",
+     "'%Hstrict'": "'hh24'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mm'",
+     "'%Hstrict'": "'HH'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_hive.py::TestHive::test_ddl"
+  ]
+ },
+ {
+  "task": "66316e335f",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Spark 3 parses HH, hh, mm and ss in time formats strictly (exactly two digits), while %H, %M and %S in lenient dialects such as DuckDB and MySQL accept one or two digits. Transpiling a lenient time format to Spark, Hive or Databricks therefore gives a format that rejects inputs the source accepted. Lax hour/minute/second fields from a lenient dialect must become H, h, m and s in Spark-family dialects (as month and day already become M and d), while a zero-padded HH:mm:ss written in Spark still round-trips and maps to %H:%M:%S for lenient dialects. A time field directly adjacent to other digits (yyyyMMddHHmmss) stays zero-padded, since a digit run cannot be split.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT STRPTIME('2016-1-1 3:4:5', '%Y-%m-%d %H:%M:%S')\", read=\"duckdb\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d H:m:s')\n\ntranspile(\"SELECT STR_TO_DATE('04/05/2013 01:02:03', '%m/%d/%Y %H:%i:%s')\", read=\"mysql\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy H:m:s')\n\ntranspile(\"SELECT STR_TO_TIME(x, '%Y-%m-%d %H:%M:%S')\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP(x, 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP(x, 'yyyy-M-d H:m:s')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/dialects/dialect.py",
+   "line": 892,
+   "op": "delete",
+   "code": "\"S\": \"SECOND\","
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex a0bebcc..68f2613 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -135,9 +135,17 @@ class NormalizationStrategy(str, AutoName):\n     \"\"\"Always case-insensitive (uppercase), regardless of quotes.\"\"\"\n \n \n-# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd to these in TIME_MAPPING so they\n-# roundtrip, since a lax %m/%d renders non-padded there for parse expressions (see HiveGenerator.format_time).\n-STRICT_TIME_FORMATS = {\"%mstrict\": \"%m\", \"%dstrict\": \"%d\"}\n+# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd/HH/hh/mm/ss to these in\n+# TIME_MAPPING so they roundtrip, since a lax %m/%d renders non-padded there for parse expressions\n+# (see HiveGenerator.format_time).\n+STRICT_TIME_FORMATS = {\n+    \"%mstrict\": \"%m\",\n+    \"%dstrict\": \"%d\",\n+    \"%Hstrict\": \"%H\",\n+    \"%Istrict\": \"%I\",\n+    \"%Mstrict\": \"%M\",\n+    \"%Sstrict\": \"%S\",\n+}\n \n \n def _with_strict_time_inverse(inverse_mapping: dict[str, str]) -> dict[str, str]:\n@@ -881,7 +889,7 @@ class Dialect(metaclass=_Dialect):\n         \"MIN\": \"MINUTE\",\n         \"MINUTES\": \"MINUTE\",\n         \"MINS\": \"MINUTE\",\n-        \"S\": \"SECOND\",\n+\n         \"SEC\": \"SECOND\",\n         \"SECONDS\": \"SECOND\",\n         \"SECS\": \"SECOND\",\ndiff --git a/sqlglot/dialects/hive.py b/sqlglot/dialects/hive.py\nindex 121bda8..71be752 100644\n--- a/sqlglot/dialects/hive.py\n+++ b/sqlglot/dialects/hive.py\n@@ -52,18 +52,19 @@ class Hive(Dialect):\n         \"yy\": \"%y\",\n         \"MMMM\": \"%B\",\n         \"MMM\": \"%b\",\n-        # Hive 4.0+ parses MM/dd strictly (java.time.DateTimeFormatter, see HIVE-25458/HIVE-25576)\n+        # Hive 4.0+ parses MM/dd/HH/hh/mm/ss strictly (java.time.DateTimeFormatter, see\n+        # HIVE-25458/HIVE-25576)\n         \"MM\": \"%mstrict\",\n         \"M\": \"%-m\",\n         \"dd\": \"%dstrict\",\n         \"d\": \"%-d\",\n-        \"HH\": \"%H\",\n+        \"HH\": \"%Hstrict\",\n         \"H\": \"%-H\",\n-        \"hh\": \"%I\",\n+        \"hh\": \"%Istrict\",\n         \"h\": \"%-I\",\n-        \"mm\": \"%M\",\n+        \"mm\": \"%Mstrict\",\n         \"m\": \"%-M\",\n-        \"ss\": \"%S\",\n+        \"ss\": \"%Sstrict\",\n         \"s\": \"%-S\",\n         \"SSSSSS\": \"%f\",\n         \"a\": \"%p\",\ndiff --git a/sqlglot/dialects/spark.py b/sqlglot/dialects/spark.py\nindex eb1e2f5..4f084e3 100644\n--- a/sqlglot/dialects/spark.py\n+++ b/sqlglot/dialects/spark.py\n@@ -16,8 +16,16 @@ class Spark(Spark2):\n     ARRAY_FUNCS_PROPAGATES_NULLS = True\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 3+ parses MM/dd strictly, unlike Spark 2 (SimpleDateFormat)\n-    TIME_MAPPING = {**Spark2.TIME_MAPPING, \"MM\": \"%mstrict\", \"dd\": \"%dstrict\"}\n+    # Spark 3+ parses MM/dd/HH/hh/mm/ss strictly, unlike Spark 2 (SimpleDateFormat)\n+    TIME_MAPPING = {\n+        **Spark2.TIME_MAPPING,\n+        \"MM\": \"%mstrict\",\n+        \"dd\": \"%dstrict\",\n+        \"HH\": \"%Hstrict\",\n+        \"hh\": \"%Istrict\",\n+        \"mm\": \"%Mstrict\",\n+        \"ss\": \"%Sstrict\",\n+    }\n \n     class Tokenizer(Spark2.Tokenizer):\n         STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS = False\ndiff --git a/sqlglot/dialects/spark2.py b/sqlglot/dialects/spark2.py\nindex d11ab74..20b3ecf 100644\n--- a/sqlglot/dialects/spark2.py\n+++ b/sqlglot/dialects/spark2.py\n@@ -12,8 +12,16 @@ class Spark2(Hive):\n \n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 2.x parses MM/dd leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n-    TIME_MAPPING = {**Hive.TIME_MAPPING, \"MM\": \"%m\", \"dd\": \"%d\"}\n+    # Spark 2.x parses MM/dd/HH/hh/mm/ss leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n+    TIME_MAPPING = {\n+        **Hive.TIME_MAPPING,\n+        \"MM\": \"%m\",\n+        \"dd\": \"%d\",\n+        \"HH\": \"%H\",\n+        \"hh\": \"%I\",\n+        \"mm\": \"%M\",\n+        \"ss\": \"%S\",\n+    }\n \n     # https://spark.apache.org/docs/latest/api/sql/index.html#initcap\n     # https://docs.databricks.com/aws/en/sql/language-manual/functions/initcap\ndiff --git a/sqlglot/generators/hive.py b/sqlglot/generators/hive.py\nindex 7d58a86..c0daeab 100644\n--- a/sqlglot/generators/hive.py\n+++ b/sqlglot/generators/hive.py\n@@ -45,27 +45,35 @@ HIVE_TIME_FORMAT = \"'yyyy-MM-dd HH:mm:ss'\"\n HIVE_DATE_FORMAT = \"'yyyy-MM-dd'\"\n HIVE_DATEINT_FORMAT = \"'yyyyMMdd'\"\n \n-# The default formats above, as rendered by the lenient rewrite (non-padded month/day)\n-HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d HH:mm:ss'\", \"'yyyy-M-d'\")\n+# The default formats above, as rendered by the lenient rewrite (non-padded month/day/time)\n+HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d H:m:s'\", \"'yyyy-M-d'\")\n \n # Expressions that parse a string with a format (vs. formatting one, like TimeToStr).\n PARSE_TIME_EXPRESSIONS = (exp.StrToTime, exp.StrToDate, exp.StrToUnix, exp.TsOrDsToDate)\n \n-CANONICAL_TIME_FORMAT = re.compile(r\"%(?:mstrict|dstrict|[-:].|.)\")\n+CANONICAL_TIME_FORMAT = re.compile(r\"%(?:[mdHIMS]strict|[-:].|.)\")\n \n-LAX_TO_NON_PADDED_FORMATS = {\"%m\": \"%-m\", \"%d\": \"%-d\"}\n+LAX_TO_NON_PADDED_FORMATS = {\n+    \"%m\": \"%-m\",\n+    \"%d\": \"%-d\",\n+    \"%H\": \"%-H\",\n+    \"%I\": \"%-I\",\n+    \"%M\": \"%-M\",\n+    \"%S\": \"%-S\",\n+}\n \n \n def _lenient_parse_format(fmt: str) -> str:\n     \"\"\"\n-    Changes the lax %m/%d in a canonical format to the non-padded %-m/%-d, which java.time\n-    parses with or without a leading zero. This is only safe for delimited specifiers, because\n-    adjacent fields parse greedily, so e.g. 'yyyyMd' (from '%Y%m%d') can't even parse '20200101'.\n+    Changes a lax month/day/hour/minute/second in a canonical format to its non-padded form\n+    (e.g. %m -> %-m), which java.time parses with or without a leading zero. This is only safe\n+    for delimited specifiers, because adjacent fields parse greedily, so e.g. 'yyyyMd' (from\n+    '%Y%m%d') can't even parse '20200101'.\n \n     The format is decomposed into specifiers (`formats`) and the interleaved literal text (`parts`).\n-    Specifier i sits between parts[i] and parts[i + 1]. A %m/%d is changed only when its neighbors\n-    don't touch a digit run, i.e., neither side is another specifier or a literal digit. At the end,\n-    the pieces are zipped back together to produce the rewritten canonical format.\n+    Specifier i sits between parts[i] and parts[i + 1]. A specifier is changed only when its\n+    neighbors don't touch a digit run, i.e., neither side is another specifier or a literal digit.\n+    At the end, the pieces are zipped back together to produce the rewritten canonical format.\n     \"\"\"\n     parts = CANONICAL_TIME_FORMAT.split(fmt)\n     formats = CANONICAL_TIME_FORMAT.findall(fmt)\n@@ -175,7 +183,8 @@ def _is_cast_time_format(self: HiveGenerator, expression: exp.Expr, time_format:\n         return True\n \n     if time_format in HIVE_NON_PADDED_TIME_FORMATS:\n-        # The base render skips the lenient rewrite: a lax %m/%d pads back to MM/dd, an explicit %-m/%-d doesn't\n+        # The base render skips the lenient rewrite: a lax specifier pads back (e.g. %m -> MM),\n+        # an explicit non-padded specifier (e.g. %-m) doesn't\n         padded_format = generator.Generator.format_time(self, expression)\n         return padded_format in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT)\n \n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'S'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'MI'",
+     "'%Sstrict'": "'SS'",
+     "'%Hstrict'": "'HH24'",
+     "'%Istrict'": "'HH12'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%M'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Sstrict'": "'%S'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}}, '-': {'d': {0...",
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}, 's': {'t': {'r..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'S'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'S'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mm'",
+     "'%Hstrict'": "'HH'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'S'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'S'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.DATE_PART_MAPPING",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'S'": "'SECOND'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'S'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.dialect:STRICT_TIME_FORMATS",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%i'",
+     "'%Sstrict'": "'%s'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%h'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True}, 'M': {0: True}, 'S': {0: True}, 'W': {0: True}, 'H': {':...",
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'M': ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'S'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mi'",
+     "'%Hstrict'": "'hh24'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 39
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_tsql.py::TestTSQL::test_datepart"
+  ]
+ },
+ {
+  "task": "66316e335f",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Spark 3 parses HH, hh, mm and ss in time formats strictly (exactly two digits), while %H, %M and %S in lenient dialects such as DuckDB and MySQL accept one or two digits. Transpiling a lenient time format to Spark, Hive or Databricks therefore gives a format that rejects inputs the source accepted. Lax hour/minute/second fields from a lenient dialect must become H, h, m and s in Spark-family dialects (as month and day already become M and d), while a zero-padded HH:mm:ss written in Spark still round-trips and maps to %H:%M:%S for lenient dialects. A time field directly adjacent to other digits (yyyyMMddHHmmss) stays zero-padded, since a digit run cannot be split.\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT STRPTIME('2016-1-1 3:4:5', '%Y-%m-%d %H:%M:%S')\", read=\"duckdb\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('2016-1-1 3:4:5', 'yyyy-M-d H:m:s')\n\ntranspile(\"SELECT STR_TO_DATE('04/05/2013 01:02:03', '%m/%d/%Y %H:%i:%s')\", read=\"mysql\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP('04/05/2013 01:02:03', 'M/d/yyyy H:m:s')\n\ntranspile(\"SELECT STR_TO_TIME(x, '%Y-%m-%d %H:%M:%S')\", write=\"spark\")[0]\n# currently: SELECT TO_TIMESTAMP(x, 'yyyy-M-d HH:mm:ss')\n# expected:  SELECT TO_TIMESTAMP(x, 'yyyy-M-d H:m:s')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/dialects/dialect.py",
+   "line": 929,
+   "op": "delete",
+   "code": "\"MIL\": \"MILLENNIUM\","
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex a0bebcc..20da314 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -135,9 +135,17 @@ class NormalizationStrategy(str, AutoName):\n     \"\"\"Always case-insensitive (uppercase), regardless of quotes.\"\"\"\n \n \n-# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd to these in TIME_MAPPING so they\n-# roundtrip, since a lax %m/%d renders non-padded there for parse expressions (see HiveGenerator.format_time).\n-STRICT_TIME_FORMATS = {\"%mstrict\": \"%m\", \"%dstrict\": \"%d\"}\n+# \"Strict\" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd/HH/hh/mm/ss to these in\n+# TIME_MAPPING so they roundtrip, since a lax %m/%d renders non-padded there for parse expressions\n+# (see HiveGenerator.format_time).\n+STRICT_TIME_FORMATS = {\n+    \"%mstrict\": \"%m\",\n+    \"%dstrict\": \"%d\",\n+    \"%Hstrict\": \"%H\",\n+    \"%Istrict\": \"%I\",\n+    \"%Mstrict\": \"%M\",\n+    \"%Sstrict\": \"%S\",\n+}\n \n \n def _with_strict_time_inverse(inverse_mapping: dict[str, str]) -> dict[str, str]:\n@@ -918,7 +926,7 @@ class Dialect(metaclass=_Dialect):\n         \"DEC\": \"DECADE\",\n         \"DECS\": \"DECADE\",\n         \"DECADES\": \"DECADE\",\n-        \"MIL\": \"MILLENNIUM\",\n+\n         \"MILS\": \"MILLENNIUM\",\n         \"MILLENIA\": \"MILLENNIUM\",\n         \"C\": \"CENTURY\",\ndiff --git a/sqlglot/dialects/hive.py b/sqlglot/dialects/hive.py\nindex 121bda8..71be752 100644\n--- a/sqlglot/dialects/hive.py\n+++ b/sqlglot/dialects/hive.py\n@@ -52,18 +52,19 @@ class Hive(Dialect):\n         \"yy\": \"%y\",\n         \"MMMM\": \"%B\",\n         \"MMM\": \"%b\",\n-        # Hive 4.0+ parses MM/dd strictly (java.time.DateTimeFormatter, see HIVE-25458/HIVE-25576)\n+        # Hive 4.0+ parses MM/dd/HH/hh/mm/ss strictly (java.time.DateTimeFormatter, see\n+        # HIVE-25458/HIVE-25576)\n         \"MM\": \"%mstrict\",\n         \"M\": \"%-m\",\n         \"dd\": \"%dstrict\",\n         \"d\": \"%-d\",\n-        \"HH\": \"%H\",\n+        \"HH\": \"%Hstrict\",\n         \"H\": \"%-H\",\n-        \"hh\": \"%I\",\n+        \"hh\": \"%Istrict\",\n         \"h\": \"%-I\",\n-        \"mm\": \"%M\",\n+        \"mm\": \"%Mstrict\",\n         \"m\": \"%-M\",\n-        \"ss\": \"%S\",\n+        \"ss\": \"%Sstrict\",\n         \"s\": \"%-S\",\n         \"SSSSSS\": \"%f\",\n         \"a\": \"%p\",\ndiff --git a/sqlglot/dialects/spark.py b/sqlglot/dialects/spark.py\nindex eb1e2f5..4f084e3 100644\n--- a/sqlglot/dialects/spark.py\n+++ b/sqlglot/dialects/spark.py\n@@ -16,8 +16,16 @@ class Spark(Spark2):\n     ARRAY_FUNCS_PROPAGATES_NULLS = True\n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 3+ parses MM/dd strictly, unlike Spark 2 (SimpleDateFormat)\n-    TIME_MAPPING = {**Spark2.TIME_MAPPING, \"MM\": \"%mstrict\", \"dd\": \"%dstrict\"}\n+    # Spark 3+ parses MM/dd/HH/hh/mm/ss strictly, unlike Spark 2 (SimpleDateFormat)\n+    TIME_MAPPING = {\n+        **Spark2.TIME_MAPPING,\n+        \"MM\": \"%mstrict\",\n+        \"dd\": \"%dstrict\",\n+        \"HH\": \"%Hstrict\",\n+        \"hh\": \"%Istrict\",\n+        \"mm\": \"%Mstrict\",\n+        \"ss\": \"%Sstrict\",\n+    }\n \n     class Tokenizer(Spark2.Tokenizer):\n         STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS = False\ndiff --git a/sqlglot/dialects/spark2.py b/sqlglot/dialects/spark2.py\nindex d11ab74..20b3ecf 100644\n--- a/sqlglot/dialects/spark2.py\n+++ b/sqlglot/dialects/spark2.py\n@@ -12,8 +12,16 @@ class Spark2(Hive):\n \n     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()\n \n-    # Spark 2.x parses MM/dd leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n-    TIME_MAPPING = {**Hive.TIME_MAPPING, \"MM\": \"%m\", \"dd\": \"%d\"}\n+    # Spark 2.x parses MM/dd/HH/hh/mm/ss leniently (SimpleDateFormat), unlike strict Hive/Spark 3+\n+    TIME_MAPPING = {\n+        **Hive.TIME_MAPPING,\n+        \"MM\": \"%m\",\n+        \"dd\": \"%d\",\n+        \"HH\": \"%H\",\n+        \"hh\": \"%I\",\n+        \"mm\": \"%M\",\n+        \"ss\": \"%S\",\n+    }\n \n     # https://spark.apache.org/docs/latest/api/sql/index.html#initcap\n     # https://docs.databricks.com/aws/en/sql/language-manual/functions/initcap\ndiff --git a/sqlglot/generators/hive.py b/sqlglot/generators/hive.py\nindex 7d58a86..c0daeab 100644\n--- a/sqlglot/generators/hive.py\n+++ b/sqlglot/generators/hive.py\n@@ -45,27 +45,35 @@ HIVE_TIME_FORMAT = \"'yyyy-MM-dd HH:mm:ss'\"\n HIVE_DATE_FORMAT = \"'yyyy-MM-dd'\"\n HIVE_DATEINT_FORMAT = \"'yyyyMMdd'\"\n \n-# The default formats above, as rendered by the lenient rewrite (non-padded month/day)\n-HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d HH:mm:ss'\", \"'yyyy-M-d'\")\n+# The default formats above, as rendered by the lenient rewrite (non-padded month/day/time)\n+HIVE_NON_PADDED_TIME_FORMATS = (\"'yyyy-M-d H:m:s'\", \"'yyyy-M-d'\")\n \n # Expressions that parse a string with a format (vs. formatting one, like TimeToStr).\n PARSE_TIME_EXPRESSIONS = (exp.StrToTime, exp.StrToDate, exp.StrToUnix, exp.TsOrDsToDate)\n \n-CANONICAL_TIME_FORMAT = re.compile(r\"%(?:mstrict|dstrict|[-:].|.)\")\n+CANONICAL_TIME_FORMAT = re.compile(r\"%(?:[mdHIMS]strict|[-:].|.)\")\n \n-LAX_TO_NON_PADDED_FORMATS = {\"%m\": \"%-m\", \"%d\": \"%-d\"}\n+LAX_TO_NON_PADDED_FORMATS = {\n+    \"%m\": \"%-m\",\n+    \"%d\": \"%-d\",\n+    \"%H\": \"%-H\",\n+    \"%I\": \"%-I\",\n+    \"%M\": \"%-M\",\n+    \"%S\": \"%-S\",\n+}\n \n \n def _lenient_parse_format(fmt: str) -> str:\n     \"\"\"\n-    Changes the lax %m/%d in a canonical format to the non-padded %-m/%-d, which java.time\n-    parses with or without a leading zero. This is only safe for delimited specifiers, because\n-    adjacent fields parse greedily, so e.g. 'yyyyMd' (from '%Y%m%d') can't even parse '20200101'.\n+    Changes a lax month/day/hour/minute/second in a canonical format to its non-padded form\n+    (e.g. %m -> %-m), which java.time parses with or without a leading zero. This is only safe\n+    for delimited specifiers, because adjacent fields parse greedily, so e.g. 'yyyyMd' (from\n+    '%Y%m%d') can't even parse '20200101'.\n \n     The format is decomposed into specifiers (`formats`) and the interleaved literal text (`parts`).\n-    Specifier i sits between parts[i] and parts[i + 1]. A %m/%d is changed only when its neighbors\n-    don't touch a digit run, i.e., neither side is another specifier or a literal digit. At the end,\n-    the pieces are zipped back together to produce the rewritten canonical format.\n+    Specifier i sits between parts[i] and parts[i + 1]. A specifier is changed only when its\n+    neighbors don't touch a digit run, i.e., neither side is another specifier or a literal digit.\n+    At the end, the pieces are zipped back together to produce the rewritten canonical format.\n     \"\"\"\n     parts = CANONICAL_TIME_FORMAT.split(fmt)\n     formats = CANONICAL_TIME_FORMAT.findall(fmt)\n@@ -175,7 +183,8 @@ def _is_cast_time_format(self: HiveGenerator, expression: exp.Expr, time_format:\n         return True\n \n     if time_format in HIVE_NON_PADDED_TIME_FORMATS:\n-        # The base render skips the lenient rewrite: a lax %m/%d pads back to MM/dd, an explicit %-m/%-d doesn't\n+        # The base render skips the lenient rewrite: a lax specifier pads back (e.g. %m -> MM),\n+        # an explicit non-padded specifier (e.g. %-m) doesn't\n         padded_format = generator.Generator.format_time(self, expression)\n         return padded_format in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT)\n \n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'MIL'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'MI'",
+     "'%Sstrict'": "'SS'",
+     "'%Hstrict'": "'HH24'",
+     "'%Istrict'": "'HH12'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%M'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Sstrict'": "'%S'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}}, '-': {'d': {0...",
+      "{'m': {'/': {'%': {'d': {'/': {'%': {'y': {0: True}}}}}}, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'S': {'.': {'%': {'f': {0: True}}}, 's': {'t': {'r..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'MIL'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'MIL'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mm'",
+     "'%Hstrict'": "'HH'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'MIL'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'MIL'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.DATE_PART_MAPPING",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'MIL'": "'MILLENNIUM'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'MIL'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.dialect:STRICT_TIME_FORMATS",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'%i'",
+     "'%Sstrict'": "'%s'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%h'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.INVERSE_TIME_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True}, 'M': {0: True}, 'S': {0: True}, 'W': {0: True}, 'H': {':...",
+      "{'B': {0: True}, '-': {'m': {0: True}, 'd': {0: True}, 'H': {0: True}, 'I': {0: True}}, 'I': {0: True, 's': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'M': ..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.VALID_INTERVAL_UNITS",
+    "kind": "set",
+    "added": [],
+    "removed": [
+     "'MIL'"
+    ]
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Sstrict'": "'%S'",
+     "'%Hstrict'": "'%H'",
+     "'%Istrict'": "'%I'",
+     "'%Mstrict'": "'%M'"
+    },
+    "removed": {},
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_FORMAT_TRIE",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "'%'": [
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}}",
+      "{'m': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'd': {'s': {'t': {'r': {'i': {'c': {'t': {0: True}}}}}}}, 'H': {'s': {'t': {'r': {'i': {'c': {'t': {0..."
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.INVERSE_TIME_MAPPING",
+    "kind": "dict",
+    "added": {
+     "'%Mstrict'": "'mi'",
+     "'%Hstrict'": "'hh24'",
+     "'%Istrict'": "'hh'",
+     "'%Sstrict'": "'ss'"
+    },
+    "removed": {},
+    "changed": {}
+   }
+  ],
+  "output_changes": [],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 39
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ }
+]
