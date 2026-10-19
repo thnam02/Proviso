@@ -1,0 +1,1014 @@
+[
+ {
+  "task": "3086608e6f",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "Trino's JSON_QUERY requires a path mode, but sqlglot writes JSON_QUERY(x, '$.a') when transpiling to Trino. Paths without an explicit mode must be prefixed with the lax mode specifier: JSON_QUERY(x, 'lax $.a').\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT JSON_QUERY(x, '$.a')\", read=\"tsql\", write=\"trino\")[0]\n# currently: SELECT JSON_QUERY(x, '$.a')\n# expected:  SELECT JSON_QUERY(x, 'lax $.a')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "code_diff": "diff --git a/sqlglot/generators/trino.py b/sqlglot/generators/trino.py\nindex f7d985a..86cef65 100644\n--- a/sqlglot/generators/trino.py\n+++ b/sqlglot/generators/trino.py\n@@ -129,6 +129,14 @@ class TrinoGenerator(PrestoGenerator):\n             return super().jsonextract_sql(expression)\n \n         json_path = self.sql(expression, \"expression\")\n+\n+        # Trino's JSON_QUERY requires the path to start with a mode specifier. Paths coming from\n+        # dialects that don't have one (e.g. T-SQL) are parsed into a JSONPath, so we prefix the\n+        # standard default mode. Paths that failed to parse stay literals and keep their own mode.\n+        if isinstance(expression.expression, exp.JSONPath):\n+            quote = self.dialect.QUOTE_START\n+            json_path = f\"{quote}lax {json_path.removeprefix(quote)}\"\n+\n         option = self.sql(expression, \"option\")\n         option = f\" {option}\" if option else \"\"\n \n",
+  "import_changes": [],
+  "output_changes": [],
+  "new_probes": 0
+ },
+ {
+  "task": "3086608e6f",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Trino's JSON_QUERY requires a path mode, but sqlglot writes JSON_QUERY(x, '$.a') when transpiling to Trino. Paths without an explicit mode must be prefixed with the lax mode specifier: JSON_QUERY(x, 'lax $.a').\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT JSON_QUERY(x, '$.a')\", read=\"tsql\", write=\"trino\")[0]\n# currently: SELECT JSON_QUERY(x, '$.a')\n# expected:  SELECT JSON_QUERY(x, 'lax $.a')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generators/trino.py",
+   "line": 32,
+   "op": "delete",
+   "code": "exp.Merge: merge_without_target_sql,"
+  },
+  "code_diff": "diff --git a/sqlglot/generators/trino.py b/sqlglot/generators/trino.py\nindex f7d985a..eb35910 100644\n--- a/sqlglot/generators/trino.py\n+++ b/sqlglot/generators/trino.py\n@@ -29,7 +29,7 @@ class TrinoGenerator(PrestoGenerator):\n         exp.FromISO8601TimestampNanos: rename_func(\"FROM_ISO8601_TIMESTAMP_NANOS\"),\n         exp.GroupConcat: lambda self, e: groupconcat_sql(self, e, on_overflow=True),\n         exp.LocationProperty: lambda self, e: self.property_sql(e),\n-        exp.Merge: merge_without_target_sql,\n+\n         exp.Select: transforms.preprocess(\n             [\n                 transforms.eliminate_qualify,\n@@ -129,6 +129,14 @@ class TrinoGenerator(PrestoGenerator):\n             return super().jsonextract_sql(expression)\n \n         json_path = self.sql(expression, \"expression\")\n+\n+        # Trino's JSON_QUERY requires the path to start with a mode specifier. Paths coming from\n+        # dialects that don't have one (e.g. T-SQL) are parsed into a JSONPath, so we prefix the\n+        # standard default mode. Paths that failed to parse stay literals and keep their own mode.\n+        if isinstance(expression.expression, exp.JSONPath):\n+            quote = self.dialect.QUOTE_START\n+            json_path = f\"{quote}lax {json_path.removeprefix(quote)}\"\n+\n         option = self.sql(expression, \"option\")\n         option = f\" {option}\" if option else \"\"\n \n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generators.athena:AthenaTrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.dml.Merge'>": "<function merge_without_target_sql>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.dune:DuneGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.dml.Merge'>": "<function merge_without_target_sql>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.trino:TrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.dml.Merge'>": "<function merge_without_target_sql>"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 3
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_dialect.py::TestDialect::test_merge",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres"
+  ]
+ },
+ {
+  "task": "3086608e6f",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Trino's JSON_QUERY requires a path mode, but sqlglot writes JSON_QUERY(x, '$.a') when transpiling to Trino. Paths without an explicit mode must be prefixed with the lax mode specifier: JSON_QUERY(x, 'lax $.a').\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT JSON_QUERY(x, '$.a')\", read=\"tsql\", write=\"trino\")[0]\n# currently: SELECT JSON_QUERY(x, '$.a')\n# expected:  SELECT JSON_QUERY(x, 'lax $.a')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generators/trino.py",
+   "line": 29,
+   "op": "delete",
+   "code": "exp.FromISO8601TimestampNanos: rename_func(\"FROM_ISO8601_TIMESTAMP_NANOS\"),"
+  },
+  "code_diff": "diff --git a/sqlglot/generators/trino.py b/sqlglot/generators/trino.py\nindex f7d985a..3c8b77f 100644\n--- a/sqlglot/generators/trino.py\n+++ b/sqlglot/generators/trino.py\n@@ -26,7 +26,7 @@ class TrinoGenerator(PrestoGenerator):\n         ),\n         exp.ArrayUniqueAgg: lambda self, e: f\"ARRAY_AGG(DISTINCT {self.sql(e, 'this')})\",\n         exp.CurrentVersion: rename_func(\"VERSION\"),\n-        exp.FromISO8601TimestampNanos: rename_func(\"FROM_ISO8601_TIMESTAMP_NANOS\"),\n+\n         exp.GroupConcat: lambda self, e: groupconcat_sql(self, e, on_overflow=True),\n         exp.LocationProperty: lambda self, e: self.property_sql(e),\n         exp.Merge: merge_without_target_sql,\n@@ -129,6 +129,14 @@ class TrinoGenerator(PrestoGenerator):\n             return super().jsonextract_sql(expression)\n \n         json_path = self.sql(expression, \"expression\")\n+\n+        # Trino's JSON_QUERY requires the path to start with a mode specifier. Paths coming from\n+        # dialects that don't have one (e.g. T-SQL) are parsed into a JSONPath, so we prefix the\n+        # standard default mode. Paths that failed to parse stay literals and keep their own mode.\n+        if isinstance(expression.expression, exp.JSONPath):\n+            quote = self.dialect.QUOTE_START\n+            json_path = f\"{quote}lax {json_path.removeprefix(quote)}\"\n+\n         option = self.sql(expression, \"option\")\n         option = f\" {option}\" if option else \"\"\n \n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generators.athena:AthenaTrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.temporal.FromISO8601TimestampNanos'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.dune:DuneGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.temporal.FromISO8601TimestampNanos'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.trino:TrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.temporal.FromISO8601TimestampNanos'>": "<function rename_func.<locals>.<lambda>>"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "13008",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "SELECT FROM_ISO8601_TIMESTAMP_NANOS('2020-05-11T11:15:05.000000000')",
+    "before": "SELECT FROM_ISO8601_TIMESTAMP_NANOS('2020-05-11T11:15:05.000000000')",
+    "after": "SELECT CAST('2020-05-11T11:15:05.000000000' AS TIMESTAMP WITH TIME ZONE)"
+   },
+   {
+    "probe": "13009",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "SELECT FROM_ISO8601_TIMESTAMP_NANOS('2020-05-11T11:15:05.000000000')",
+    "before": "SELECT FROM_ISO8601_TIMESTAMP_NANOS('2020-05-11T11:15:05.000000000')",
+    "after": "SELECT CAST('2020-05-11T11:15:05.000000000' AS TIMESTAMP WITH TIME ZONE)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 2,
+   "imports": 3
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_trino.py::TestTrino::test_trino"
+  ]
+ },
+ {
+  "task": "3086608e6f",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Trino's JSON_QUERY requires a path mode, but sqlglot writes JSON_QUERY(x, '$.a') when transpiling to Trino. Paths without an explicit mode must be prefixed with the lax mode specifier: JSON_QUERY(x, 'lax $.a').\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT JSON_QUERY(x, '$.a')\", read=\"tsql\", write=\"trino\")[0]\n# currently: SELECT JSON_QUERY(x, '$.a')\n# expected:  SELECT JSON_QUERY(x, 'lax $.a')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generators/trino.py",
+   "line": 31,
+   "op": "delete",
+   "code": "exp.LocationProperty: lambda self, e: self.property_sql(e),"
+  },
+  "code_diff": "diff --git a/sqlglot/generators/trino.py b/sqlglot/generators/trino.py\nindex f7d985a..a0d2622 100644\n--- a/sqlglot/generators/trino.py\n+++ b/sqlglot/generators/trino.py\n@@ -28,7 +28,7 @@ class TrinoGenerator(PrestoGenerator):\n         exp.CurrentVersion: rename_func(\"VERSION\"),\n         exp.FromISO8601TimestampNanos: rename_func(\"FROM_ISO8601_TIMESTAMP_NANOS\"),\n         exp.GroupConcat: lambda self, e: groupconcat_sql(self, e, on_overflow=True),\n-        exp.LocationProperty: lambda self, e: self.property_sql(e),\n+\n         exp.Merge: merge_without_target_sql,\n         exp.Select: transforms.preprocess(\n             [\n@@ -129,6 +129,14 @@ class TrinoGenerator(PrestoGenerator):\n             return super().jsonextract_sql(expression)\n \n         json_path = self.sql(expression, \"expression\")\n+\n+        # Trino's JSON_QUERY requires the path to start with a mode specifier. Paths coming from\n+        # dialects that don't have one (e.g. T-SQL) are parsed into a JSONPath, so we prefix the\n+        # standard default mode. Paths that failed to parse stay literals and keep their own mode.\n+        if isinstance(expression.expression, exp.JSONPath):\n+            quote = self.dialect.QUOTE_START\n+            json_path = f\"{quote}lax {json_path.removeprefix(quote)}\"\n+\n         option = self.sql(expression, \"option\")\n         option = f\" {option}\" if option else \"\"\n \n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generators.dune:DuneGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.properties.LocationProperty'>": [
+      "<function TrinoGenerator.<lambda>>",
+      "<function Generator.<lambda>>"
+     ]
+    }
+   },
+   {
+    "key": "sqlglot.generators.trino:TrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {},
+    "changed": {
+     "<class 'sqlglot.expressions.properties.LocationProperty'>": [
+      "<function TrinoGenerator.<lambda>>",
+      "<function Generator.<lambda>>"
+     ]
+    }
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "12916",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "CREATE SCHEMA foo WITH (LOCATION='s3://bucket/foo')",
+    "before": "CREATE SCHEMA foo WITH (LOCATION='s3://bucket/foo')",
+    "after": "CREATE SCHEMA foo WITH (LOCATION 's3://bucket/foo')"
+   },
+   {
+    "probe": "12917",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "CREATE SCHEMA foo WITH (LOCATION='s3://bucket/foo')",
+    "before": "CREATE SCHEMA foo WITH (LOCATION='s3://bucket/foo')",
+    "after": "CREATE SCHEMA foo WITH (LOCATION 's3://bucket/foo')"
+   },
+   {
+    "probe": "12926",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "CREATE TABLE foo.bar WITH (LOCATION='s3://bucket/foo/bar') AS SELECT 1",
+    "before": "CREATE TABLE foo.bar WITH (LOCATION='s3://bucket/foo/bar') AS SELECT 1",
+    "after": "CREATE TABLE foo.bar WITH (LOCATION 's3://bucket/foo/bar') AS SELECT 1"
+   },
+   {
+    "probe": "12927",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "CREATE TABLE foo.bar WITH (LOCATION='s3://bucket/foo/bar') AS SELECT 1",
+    "before": "CREATE TABLE foo.bar WITH (LOCATION='s3://bucket/foo/bar') AS SELECT 1",
+    "after": "CREATE TABLE foo.bar WITH (LOCATION 's3://bucket/foo/bar') AS SELECT 1"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 4,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_trino.py::TestTrino::test_ddl"
+  ]
+ },
+ {
+  "task": "3086608e6f",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "Trino's JSON_QUERY requires a path mode, but sqlglot writes JSON_QUERY(x, '$.a') when transpiling to Trino. Paths without an explicit mode must be prefixed with the lax mode specifier: JSON_QUERY(x, 'lax $.a').\n\nFor example:\n\n```python\nfrom sqlglot import parse_one, transpile, exp\n\ntranspile(\"SELECT JSON_QUERY(x, '$.a')\", read=\"tsql\", write=\"trino\")[0]\n# currently: SELECT JSON_QUERY(x, '$.a')\n# expected:  SELECT JSON_QUERY(x, 'lax $.a')\n```\n\nOther forms of the same constructs described above should work as well.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/generators/trino.py",
+   "line": 58,
+   "op": "flip",
+   "code": "self.properties(characteristics, prefix=\" \", sep=\" \", wrapped=False)"
+  },
+  "code_diff": "diff --git a/sqlglot/generators/trino.py b/sqlglot/generators/trino.py\nindex f7d985a..0e2b966 100644\n--- a/sqlglot/generators/trino.py\n+++ b/sqlglot/generators/trino.py\n@@ -55,7 +55,7 @@ class TrinoGenerator(PrestoGenerator):\n     def functionspecification_sql(self, expression: exp.FunctionSpecification) -> str:\n         characteristics = expression.args.get(\"characteristics\")\n         characteristics_sql = (\n-            self.properties(characteristics, prefix=\" \", sep=\" \", wrapped=False)\n+            self.properties(characteristics, prefix=\" \", sep=\" \", wrapped=True)\n             if characteristics\n             else \"\"\n         )\n@@ -129,6 +129,14 @@ class TrinoGenerator(PrestoGenerator):\n             return super().jsonextract_sql(expression)\n \n         json_path = self.sql(expression, \"expression\")\n+\n+        # Trino's JSON_QUERY requires the path to start with a mode specifier. Paths coming from\n+        # dialects that don't have one (e.g. T-SQL) are parsed into a JSONPath, so we prefix the\n+        # standard default mode. Paths that failed to parse stay literals and keep their own mode.\n+        if isinstance(expression.expression, exp.JSONPath):\n+            quote = self.dialect.QUOTE_START\n+            json_path = f\"{quote}lax {json_path.removeprefix(quote)}\"\n+\n         option = self.sql(expression, \"option\")\n         option = f\" {option}\" if option else \"\"\n \n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "13084",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION count_evens(n BIGINT) RETURNS BIGINT BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; WHILE i < n DO SET total = total + 1; IF i = 0 THEN SET total = total + 1; END IF; SET i = i + 1; END WHILE; RETURN total; END SELECT COUNT_EVENS(3)",
+    "before": "WITH FUNCTION count_evens(n BIGINT) RETURNS BIGINT BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; WHILE i < n DO SET total = total + 1; IF i = 0 THEN SET total = total + 1; END IF; SET i = i + 1; END WHILE; RETURN total; END SELECT COUNT_EVENS(3)",
+    "after": "WITH FUNCTION count_evens(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; WHILE i < n DO SET total = total + 1; IF i = 0 THEN SET total = total + 1; END IF; SET i = i + 1; END WHILE; RETURN total; END SELECT COUNT_EVENS(3)"
+   },
+   {
+    "probe": "13085",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION count_evens(n BIGINT) RETURNS BIGINT BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; WHILE i < n DO SET total = total + 1; IF i = 0 THEN SET total = total + 1; END IF; SET i = i + 1; END WHILE; RETURN total; END SELECT COUNT_EVENS(3)",
+    "before": "WITH FUNCTION count_evens(n BIGINT) RETURNS BIGINT BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; WHILE i < n DO SET total = total + 1; IF i = 0 THEN SET total = total + 1; END IF; SET i = i + 1; END WHILE; RETURN total; END SELECT COUNT_EVENS(3)",
+    "after": "WITH FUNCTION count_evens(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; WHILE i < n DO SET total = total + 1; IF i = 0 THEN SET total = total + 1; END IF; SET i = i + 1; END WHILE; RETURN total; END SELECT COUNT_EVENS(3)"
+   },
+   {
+    "probe": "13086",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION custom_sqrt(a INTEGER) RETURNS DOUBLE COMMENT 'Custom sqrt function' RETURNS NULL ON NULL INPUT NOT DETERMINISTIC LANGUAGE SQL SECURITY DEFINER WITH (weight=42, cost='low') RETURN a SELECT CUSTOM_SQRT(4)",
+    "before": "WITH FUNCTION custom_sqrt(a INTEGER) RETURNS DOUBLE COMMENT 'Custom sqrt function' RETURNS NULL ON NULL INPUT NOT DETERMINISTIC LANGUAGE SQL SECURITY DEFINER WITH (weight=42, cost='low') RETURN a SELECT CUSTOM_SQRT(4)",
+    "after": "WITH FUNCTION custom_sqrt(a INTEGER) (RETURNS DOUBLE COMMENT 'Custom sqrt function' RETURNS NULL ON NULL INPUT NOT DETERMINISTIC LANGUAGE SQL SECURITY DEFINER) WITH (weight=42, cost='low') RETURN a SELECT CUSTOM_SQRT(4)"
+   },
+   {
+    "probe": "13087",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION custom_sqrt(a INTEGER) RETURNS DOUBLE COMMENT 'Custom sqrt function' RETURNS NULL ON NULL INPUT NOT DETERMINISTIC LANGUAGE SQL SECURITY DEFINER WITH (weight=42, cost='low') RETURN a SELECT CUSTOM_SQRT(4)",
+    "before": "WITH FUNCTION custom_sqrt(a INTEGER) RETURNS DOUBLE COMMENT 'Custom sqrt function' RETURNS NULL ON NULL INPUT NOT DETERMINISTIC LANGUAGE SQL SECURITY DEFINER WITH (weight=42, cost='low') RETURN a SELECT CUSTOM_SQRT(4)",
+    "after": "WITH FUNCTION custom_sqrt(a INTEGER) (RETURNS DOUBLE COMMENT 'Custom sqrt function' RETURNS NULL ON NULL INPUT NOT DETERMINISTIC LANGUAGE SQL SECURITY DEFINER) WITH (weight=42, cost='low') RETURN a SELECT CUSTOM_SQRT(4)"
+   },
+   {
+    "probe": "13088",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION declare() RETURNS INTEGER RETURN 1 SELECT DECLARE()",
+    "before": "WITH FUNCTION declare() RETURNS INTEGER RETURN 1 SELECT DECLARE()",
+    "after": "WITH FUNCTION declare() (RETURNS INTEGER) RETURN 1 SELECT DECLARE()"
+   },
+   {
+    "probe": "13089",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION declare() RETURNS INTEGER RETURN 1 SELECT DECLARE()",
+    "before": "WITH FUNCTION declare() RETURNS INTEGER RETURN 1 SELECT DECLARE()",
+    "after": "WITH FUNCTION declare() (RETURNS INTEGER) RETURN 1 SELECT DECLARE()"
+   },
+   {
+    "probe": "13090",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION doubled(x INTEGER) RETURNS INTEGER BEGIN RETURN x * 2; END WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t",
+    "before": "WITH FUNCTION doubled(x INTEGER) RETURNS INTEGER BEGIN RETURN x * 2; END WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t",
+    "after": "WITH FUNCTION doubled(x INTEGER) (RETURNS INTEGER) BEGIN RETURN x * 2; END WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t"
+   },
+   {
+    "probe": "13091",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION doubled(x INTEGER) RETURNS INTEGER BEGIN RETURN x * 2; END WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t",
+    "before": "WITH FUNCTION doubled(x INTEGER) RETURNS INTEGER BEGIN RETURN x * 2; END WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t",
+    "after": "WITH FUNCTION doubled(x INTEGER) (RETURNS INTEGER) BEGIN RETURN x * 2; END WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t"
+   },
+   {
+    "probe": "13092",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION doubled(x INTEGER) RETURNS INTEGER RETURN x * 2 WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t",
+    "before": "WITH FUNCTION doubled(x INTEGER) RETURNS INTEGER RETURN x * 2 WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t",
+    "after": "WITH FUNCTION doubled(x INTEGER) (RETURNS INTEGER) RETURN x * 2 WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t"
+   },
+   {
+    "probe": "13093",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION doubled(x INTEGER) RETURNS INTEGER RETURN x * 2 WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t",
+    "before": "WITH FUNCTION doubled(x INTEGER) RETURNS INTEGER RETURN x * 2 WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t",
+    "after": "WITH FUNCTION doubled(x INTEGER) (RETURNS INTEGER) RETURN x * 2 WITH t AS (SELECT 3 AS v) SELECT DOUBLED(v) FROM t"
+   },
+   {
+    "probe": "13094",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER BEGIN DECLARE first_name, last_name, middle_name VARCHAR(25); RETURN 1; END SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER BEGIN DECLARE first_name, last_name, middle_name VARCHAR(25); RETURN 1; END SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER) BEGIN DECLARE first_name, last_name, middle_name VARCHAR(25); RETURN 1; END SELECT F()"
+   },
+   {
+    "probe": "13095",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER BEGIN DECLARE first_name, last_name, middle_name VARCHAR(25); RETURN 1; END SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER BEGIN DECLARE first_name, last_name, middle_name VARCHAR(25); RETURN 1; END SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER) BEGIN DECLARE first_name, last_name, middle_name VARCHAR(25); RETURN 1; END SELECT F()"
+   },
+   {
+    "probe": "13096",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER BEGIN DECLARE x INTEGER DEFAULT 1; BEGIN SET x = x + 1; END; RETURN x; END SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER BEGIN DECLARE x INTEGER DEFAULT 1; BEGIN SET x = x + 1; END; RETURN x; END SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER) BEGIN DECLARE x INTEGER DEFAULT 1; BEGIN SET x = x + 1; END; RETURN x; END SELECT F()"
+   },
+   {
+    "probe": "13097",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER BEGIN DECLARE x INTEGER DEFAULT 1; BEGIN SET x = x + 1; END; RETURN x; END SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER BEGIN DECLARE x INTEGER DEFAULT 1; BEGIN SET x = x + 1; END; RETURN x; END SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER) BEGIN DECLARE x INTEGER DEFAULT 1; BEGIN SET x = x + 1; END; RETURN x; END SELECT F()"
+   },
+   {
+    "probe": "13098",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER CALLED ON NULL INPUT RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER CALLED ON NULL INPUT RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER CALLED ON NULL INPUT) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13099",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER CALLED ON NULL INPUT RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER CALLED ON NULL INPUT RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER CALLED ON NULL INPUT) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13100",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER COMMENT 'hi' RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER COMMENT 'hi' RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER COMMENT 'hi') RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13101",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER COMMENT 'hi' RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER COMMENT 'hi' RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER COMMENT 'hi') RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13102",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER DETERMINISTIC RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER DETERMINISTIC RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER DETERMINISTIC) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13103",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER DETERMINISTIC RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER DETERMINISTIC RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER DETERMINISTIC) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13104",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL NOT DETERMINISTIC BEGIN DECLARE x INTEGER DEFAULT 1; RETURN x; END SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL NOT DETERMINISTIC BEGIN DECLARE x INTEGER DEFAULT 1; RETURN x; END SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER LANGUAGE SQL NOT DETERMINISTIC) BEGIN DECLARE x INTEGER DEFAULT 1; RETURN x; END SELECT F()"
+   },
+   {
+    "probe": "13105",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL NOT DETERMINISTIC BEGIN DECLARE x INTEGER DEFAULT 1; RETURN x; END SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL NOT DETERMINISTIC BEGIN DECLARE x INTEGER DEFAULT 1; RETURN x; END SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER LANGUAGE SQL NOT DETERMINISTIC) BEGIN DECLARE x INTEGER DEFAULT 1; RETURN x; END SELECT F()"
+   },
+   {
+    "probe": "13106",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER LANGUAGE SQL) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13107",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER LANGUAGE SQL) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13108",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL WITH (weight=42, cost='low') RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL WITH (weight=42, cost='low') RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER LANGUAGE SQL) WITH (weight=42, cost='low') RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13109",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL WITH (weight=42, cost='low') RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER LANGUAGE SQL WITH (weight=42, cost='low') RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER LANGUAGE SQL) WITH (weight=42, cost='low') RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13110",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER NOT DETERMINISTIC RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER NOT DETERMINISTIC RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER NOT DETERMINISTIC) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13111",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER NOT DETERMINISTIC RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER NOT DETERMINISTIC RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER NOT DETERMINISTIC) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13112",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER RETURNS NULL ON NULL INPUT RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER RETURNS NULL ON NULL INPUT RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER RETURNS NULL ON NULL INPUT) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13113",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER RETURNS NULL ON NULL INPUT RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER RETURNS NULL ON NULL INPUT RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER RETURNS NULL ON NULL INPUT) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13114",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER SECURITY DEFINER RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER SECURITY DEFINER RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER SECURITY DEFINER) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13115",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER SECURITY DEFINER RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER SECURITY DEFINER RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER SECURITY DEFINER) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13116",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER SECURITY INVOKER RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER SECURITY INVOKER RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER SECURITY INVOKER) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13117",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER SECURITY INVOKER RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER SECURITY INVOKER RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER SECURITY INVOKER) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13118",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f() RETURNS INTEGER WITH (weight=42) RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER WITH (weight=42) RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER) WITH (weight=42) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13119",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f() RETURNS INTEGER WITH (weight=42) RETURN 1 SELECT F()",
+    "before": "WITH FUNCTION f() RETURNS INTEGER WITH (weight=42) RETURN 1 SELECT F()",
+    "after": "WITH FUNCTION f() (RETURNS INTEGER) WITH (weight=42) RETURN 1 SELECT F()"
+   },
+   {
+    "probe": "13120",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f(a INTEGER) RETURNS INTEGER BEGIN DECLARE result INTEGER DEFAULT 0; IF a > 0 THEN RETURN CASE WHEN a > 10 THEN 1 ELSE 2 END; ELSE SET result = -1; END IF; RETURN result; END SELECT F(1)",
+    "before": "WITH FUNCTION f(a INTEGER) RETURNS INTEGER BEGIN DECLARE result INTEGER DEFAULT 0; IF a > 0 THEN RETURN CASE WHEN a > 10 THEN 1 ELSE 2 END; ELSE SET result = -1; END IF; RETURN result; END SELECT F(1)",
+    "after": "WITH FUNCTION f(a INTEGER) (RETURNS INTEGER) BEGIN DECLARE result INTEGER DEFAULT 0; IF a > 0 THEN RETURN CASE WHEN a > 10 THEN 1 ELSE 2 END; ELSE SET result = -1; END IF; RETURN result; END SELECT F(1)"
+   },
+   {
+    "probe": "13121",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f(a INTEGER) RETURNS INTEGER BEGIN DECLARE result INTEGER DEFAULT 0; IF a > 0 THEN RETURN CASE WHEN a > 10 THEN 1 ELSE 2 END; ELSE SET result = -1; END IF; RETURN result; END SELECT F(1)",
+    "before": "WITH FUNCTION f(a INTEGER) RETURNS INTEGER BEGIN DECLARE result INTEGER DEFAULT 0; IF a > 0 THEN RETURN CASE WHEN a > 10 THEN 1 ELSE 2 END; ELSE SET result = -1; END IF; RETURN result; END SELECT F(1)",
+    "after": "WITH FUNCTION f(a INTEGER) (RETURNS INTEGER) BEGIN DECLARE result INTEGER DEFAULT 0; IF a > 0 THEN RETURN CASE WHEN a > 10 THEN 1 ELSE 2 END; ELSE SET result = -1; END IF; RETURN result; END SELECT F(1)"
+   },
+   {
+    "probe": "13122",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f(a INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; END IF; RETURN 'other'; END SELECT F(1)",
+    "before": "WITH FUNCTION f(a INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; END IF; RETURN 'other'; END SELECT F(1)",
+    "after": "WITH FUNCTION f(a INTEGER) (RETURNS VARCHAR) BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; END IF; RETURN 'other'; END SELECT F(1)"
+   },
+   {
+    "probe": "13123",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f(a INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; END IF; RETURN 'other'; END SELECT F(1)",
+    "before": "WITH FUNCTION f(a INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; END IF; RETURN 'other'; END SELECT F(1)",
+    "after": "WITH FUNCTION f(a INTEGER) (RETURNS VARCHAR) BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; END IF; RETURN 'other'; END SELECT F(1)"
+   },
+   {
+    "probe": "13124",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f(a INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; END IF; RETURN 'other'; END SELECT F(1)",
+    "before": "WITH FUNCTION f(a INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; END IF; RETURN 'other'; END SELECT F(1)",
+    "after": "WITH FUNCTION f(a INTEGER) (RETURNS VARCHAR) BEGIN IF a = 0 THEN RETURN 'zero'; END IF; RETURN 'other'; END SELECT F(1)"
+   },
+   {
+    "probe": "13125",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f(a INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; END IF; RETURN 'other'; END SELECT F(1)",
+    "before": "WITH FUNCTION f(a INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; END IF; RETURN 'other'; END SELECT F(1)",
+    "after": "WITH FUNCTION f(a INTEGER) (RETURNS VARCHAR) BEGIN IF a = 0 THEN RETURN 'zero'; END IF; RETURN 'other'; END SELECT F(1)"
+   },
+   {
+    "probe": "13126",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f(a INTEGER, b INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN IF b = 0 THEN RETURN 'both zero'; ELSE RETURN 'a zero'; END IF; ELSE RETURN 'a nonzero'; END IF; RETURN 'unreachable'; END SELECT F(1, 2)",
+    "before": "WITH FUNCTION f(a INTEGER, b INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN IF b = 0 THEN RETURN 'both zero'; ELSE RETURN 'a zero'; END IF; ELSE RETURN 'a nonzero'; END IF; RETURN 'unreachable'; END SELECT F(1, 2)",
+    "after": "WITH FUNCTION f(a INTEGER, b INTEGER) (RETURNS VARCHAR) BEGIN IF a = 0 THEN IF b = 0 THEN RETURN 'both zero'; ELSE RETURN 'a zero'; END IF; ELSE RETURN 'a nonzero'; END IF; RETURN 'unreachable'; END SELECT F(1, 2)"
+   },
+   {
+    "probe": "13127",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f(a INTEGER, b INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN IF b = 0 THEN RETURN 'both zero'; ELSE RETURN 'a zero'; END IF; ELSE RETURN 'a nonzero'; END IF; RETURN 'unreachable'; END SELECT F(1, 2)",
+    "before": "WITH FUNCTION f(a INTEGER, b INTEGER) RETURNS VARCHAR BEGIN IF a = 0 THEN IF b = 0 THEN RETURN 'both zero'; ELSE RETURN 'a zero'; END IF; ELSE RETURN 'a nonzero'; END IF; RETURN 'unreachable'; END SELECT F(1, 2)",
+    "after": "WITH FUNCTION f(a INTEGER, b INTEGER) (RETURNS VARCHAR) BEGIN IF a = 0 THEN IF b = 0 THEN RETURN 'both zero'; ELSE RETURN 'a zero'; END IF; ELSE RETURN 'a nonzero'; END IF; RETURN 'unreachable'; END SELECT F(1, 2)"
+   },
+   {
+    "probe": "13128",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f(num INTEGER) RETURNS INTEGER RETURN num SELECT F(1)",
+    "before": "WITH FUNCTION f(num INTEGER) RETURNS INTEGER RETURN num SELECT F(1)",
+    "after": "WITH FUNCTION f(num INTEGER) (RETURNS INTEGER) RETURN num SELECT F(1)"
+   },
+   {
+    "probe": "13129",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f(num INTEGER) RETURNS INTEGER RETURN num SELECT F(1)",
+    "before": "WITH FUNCTION f(num INTEGER) RETURNS INTEGER RETURN num SELECT F(1)",
+    "after": "WITH FUNCTION f(num INTEGER) (RETURNS INTEGER) RETURN num SELECT F(1)"
+   },
+   {
+    "probe": "13130",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f(num int)\n    RETURNS int\n    RETURN num\nSELECT f(1)",
+    "before": "WITH FUNCTION f(num INTEGER) RETURNS INTEGER RETURN num SELECT F(1)",
+    "after": "WITH FUNCTION f(num INTEGER) (RETURNS INTEGER) RETURN num SELECT F(1)"
+   },
+   {
+    "probe": "13131",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f(num int)\n    RETURNS int\n    RETURN num\nSELECT f(1)",
+    "before": "WITH FUNCTION f(num INTEGER) RETURNS INTEGER RETURN num SELECT F(1)",
+    "after": "WITH FUNCTION f(num INTEGER) (RETURNS INTEGER) RETURN num SELECT F(1)"
+   },
+   {
+    "probe": "13132",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION f(x INTEGER) RETURNS INTEGER RETURN x WITH RECURSIVE t(n) AS (SELECT 1 AS n) SELECT F(n) FROM t",
+    "before": "WITH FUNCTION f(x INTEGER) RETURNS INTEGER RETURN x WITH RECURSIVE t(n) AS (SELECT 1 AS n) SELECT F(n) FROM t",
+    "after": "WITH FUNCTION f(x INTEGER) (RETURNS INTEGER) RETURN x WITH RECURSIVE t(n) AS (SELECT 1 AS n) SELECT F(n) FROM t"
+   },
+   {
+    "probe": "13133",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION f(x INTEGER) RETURNS INTEGER RETURN x WITH RECURSIVE t(n) AS (SELECT 1 AS n) SELECT F(n) FROM t",
+    "before": "WITH FUNCTION f(x INTEGER) RETURNS INTEGER RETURN x WITH RECURSIVE t(n) AS (SELECT 1 AS n) SELECT F(n) FROM t",
+    "after": "WITH FUNCTION f(x INTEGER) (RETURNS INTEGER) RETURN x WITH RECURSIVE t(n) AS (SELECT 1 AS n) SELECT F(n) FROM t"
+   },
+   {
+    "probe": "13134",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION hello(name VARCHAR) RETURNS VARCHAR RETURN FORMAT('Hello %s!', name), FUNCTION bye() RETURNS VARCHAR RETURN 'Bye!' SELECT HELLO('Finn') || BYE()",
+    "before": "WITH FUNCTION hello(name VARCHAR) RETURNS VARCHAR RETURN FORMAT('Hello %s!', name), FUNCTION bye() RETURNS VARCHAR RETURN 'Bye!' SELECT HELLO('Finn') || BYE()",
+    "after": "WITH FUNCTION hello(name VARCHAR) (RETURNS VARCHAR) RETURN FORMAT('Hello %s!', name), FUNCTION bye() (RETURNS VARCHAR) RETURN 'Bye!' SELECT HELLO('Finn') || BYE()"
+   },
+   {
+    "probe": "13135",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION hello(name VARCHAR) RETURNS VARCHAR RETURN FORMAT('Hello %s!', name), FUNCTION bye() RETURNS VARCHAR RETURN 'Bye!' SELECT HELLO('Finn') || BYE()",
+    "before": "WITH FUNCTION hello(name VARCHAR) RETURNS VARCHAR RETURN FORMAT('Hello %s!', name), FUNCTION bye() RETURNS VARCHAR RETURN 'Bye!' SELECT HELLO('Finn') || BYE()",
+    "after": "WITH FUNCTION hello(name VARCHAR) (RETURNS VARCHAR) RETURN FORMAT('Hello %s!', name), FUNCTION bye() (RETURNS VARCHAR) RETURN 'Bye!' SELECT HELLO('Finn') || BYE()"
+   },
+   {
+    "probe": "13136",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION iter_count() RETURNS BIGINT BEGIN DECLARE a BIGINT DEFAULT 0; DECLARE b BIGINT DEFAULT 0; top: REPEAT SET a = a + 1; IF a <= 3 THEN ITERATE top; END IF; SET b = b + 1; UNTIL a >= 10 END REPEAT; RETURN b; END SELECT ITER_COUNT()",
+    "before": "WITH FUNCTION iter_count() RETURNS BIGINT BEGIN DECLARE a BIGINT DEFAULT 0; DECLARE b BIGINT DEFAULT 0; top: REPEAT SET a = a + 1; IF a <= 3 THEN ITERATE top; END IF; SET b = b + 1; UNTIL a >= 10 END REPEAT; RETURN b; END SELECT ITER_COUNT()",
+    "after": "WITH FUNCTION iter_count() (RETURNS BIGINT) BEGIN DECLARE a BIGINT DEFAULT 0; DECLARE b BIGINT DEFAULT 0; top: REPEAT SET a = a + 1; IF a <= 3 THEN ITERATE top; END IF; SET b = b + 1; UNTIL a >= 10 END REPEAT; RETURN b; END SELECT ITER_COUNT()"
+   },
+   {
+    "probe": "13137",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION iter_count() RETURNS BIGINT BEGIN DECLARE a BIGINT DEFAULT 0; DECLARE b BIGINT DEFAULT 0; top: REPEAT SET a = a + 1; IF a <= 3 THEN ITERATE top; END IF; SET b = b + 1; UNTIL a >= 10 END REPEAT; RETURN b; END SELECT ITER_COUNT()",
+    "before": "WITH FUNCTION iter_count() RETURNS BIGINT BEGIN DECLARE a BIGINT DEFAULT 0; DECLARE b BIGINT DEFAULT 0; top: REPEAT SET a = a + 1; IF a <= 3 THEN ITERATE top; END IF; SET b = b + 1; UNTIL a >= 10 END REPEAT; RETURN b; END SELECT ITER_COUNT()",
+    "after": "WITH FUNCTION iter_count() (RETURNS BIGINT) BEGIN DECLARE a BIGINT DEFAULT 0; DECLARE b BIGINT DEFAULT 0; top: REPEAT SET a = a + 1; IF a <= 3 THEN ITERATE top; END IF; SET b = b + 1; UNTIL a >= 10 END REPEAT; RETURN b; END SELECT ITER_COUNT()"
+   },
+   {
+    "probe": "13138",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION label_test(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; iterate: LOOP IF i >= n THEN LEAVE iterate; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST(5)",
+    "before": "WITH FUNCTION label_test(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; iterate: LOOP IF i >= n THEN LEAVE iterate; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST(5)",
+    "after": "WITH FUNCTION label_test(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; iterate: LOOP IF i >= n THEN LEAVE iterate; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST(5)"
+   },
+   {
+    "probe": "13139",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION label_test(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; iterate: LOOP IF i >= n THEN LEAVE iterate; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST(5)",
+    "before": "WITH FUNCTION label_test(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; iterate: LOOP IF i >= n THEN LEAVE iterate; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST(5)",
+    "after": "WITH FUNCTION label_test(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; iterate: LOOP IF i >= n THEN LEAVE iterate; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST(5)"
+   },
+   {
+    "probe": "13140",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION label_test2(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; leave: LOOP IF i >= n THEN LEAVE leave; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST2(5)",
+    "before": "WITH FUNCTION label_test2(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; leave: LOOP IF i >= n THEN LEAVE leave; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST2(5)",
+    "after": "WITH FUNCTION label_test2(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; leave: LOOP IF i >= n THEN LEAVE leave; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST2(5)"
+   },
+   {
+    "probe": "13141",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION label_test2(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; leave: LOOP IF i >= n THEN LEAVE leave; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST2(5)",
+    "before": "WITH FUNCTION label_test2(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; leave: LOOP IF i >= n THEN LEAVE leave; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST2(5)",
+    "after": "WITH FUNCTION label_test2(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; leave: LOOP IF i >= n THEN LEAVE leave; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST2(5)"
+   },
+   {
+    "probe": "13142",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION label_test3(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; set: LOOP IF i >= n THEN LEAVE set; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST3(5)",
+    "before": "WITH FUNCTION label_test3(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; set: LOOP IF i >= n THEN LEAVE set; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST3(5)",
+    "after": "WITH FUNCTION label_test3(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; set: LOOP IF i >= n THEN LEAVE set; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST3(5)"
+   },
+   {
+    "probe": "13143",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION label_test3(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; set: LOOP IF i >= n THEN LEAVE set; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST3(5)",
+    "before": "WITH FUNCTION label_test3(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; set: LOOP IF i >= n THEN LEAVE set; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST3(5)",
+    "after": "WITH FUNCTION label_test3(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; set: LOOP IF i >= n THEN LEAVE set; END IF; SET i = i + 1; END LOOP; RETURN i; END SELECT LABEL_TEST3(5)"
+   },
+   {
+    "probe": "13144",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION last_stmt(a INTEGER) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; ELSE RETURN 'other'; END CASE; END SELECT LAST_STMT(1)",
+    "before": "WITH FUNCTION last_stmt(a INTEGER) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; ELSE RETURN 'other'; END CASE; END SELECT LAST_STMT(1)",
+    "after": "WITH FUNCTION last_stmt(a INTEGER) (RETURNS VARCHAR) BEGIN CASE a WHEN 0 THEN RETURN 'zero'; ELSE RETURN 'other'; END CASE; END SELECT LAST_STMT(1)"
+   },
+   {
+    "probe": "13145",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION last_stmt(a INTEGER) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; ELSE RETURN 'other'; END CASE; END SELECT LAST_STMT(1)",
+    "before": "WITH FUNCTION last_stmt(a INTEGER) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; ELSE RETURN 'other'; END CASE; END SELECT LAST_STMT(1)",
+    "after": "WITH FUNCTION last_stmt(a INTEGER) (RETURNS VARCHAR) BEGIN CASE a WHEN 0 THEN RETURN 'zero'; ELSE RETURN 'other'; END CASE; END SELECT LAST_STMT(1)"
+   },
+   {
+    "probe": "13146",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION last_stmt(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; top: LOOP IF i >= n THEN LEAVE top; END IF; SET i = i + 1; END LOOP; END SELECT LAST_STMT(5)",
+    "before": "WITH FUNCTION last_stmt(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; top: LOOP IF i >= n THEN LEAVE top; END IF; SET i = i + 1; END LOOP; END SELECT LAST_STMT(5)",
+    "after": "WITH FUNCTION last_stmt(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; top: LOOP IF i >= n THEN LEAVE top; END IF; SET i = i + 1; END LOOP; END SELECT LAST_STMT(5)"
+   },
+   {
+    "probe": "13147",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION last_stmt(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; top: LOOP IF i >= n THEN LEAVE top; END IF; SET i = i + 1; END LOOP; END SELECT LAST_STMT(5)",
+    "before": "WITH FUNCTION last_stmt(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; top: LOOP IF i >= n THEN LEAVE top; END IF; SET i = i + 1; END LOOP; END SELECT LAST_STMT(5)",
+    "after": "WITH FUNCTION last_stmt(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; top: LOOP IF i >= n THEN LEAVE top; END IF; SET i = i + 1; END LOOP; END SELECT LAST_STMT(5)"
+   },
+   {
+    "probe": "13148",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION last_stmt(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; WHILE r < n DO SET r = r + 1; END WHILE; END SELECT LAST_STMT(5)",
+    "before": "WITH FUNCTION last_stmt(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; WHILE r < n DO SET r = r + 1; END WHILE; END SELECT LAST_STMT(5)",
+    "after": "WITH FUNCTION last_stmt(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE r BIGINT DEFAULT 1; WHILE r < n DO SET r = r + 1; END WHILE; END SELECT LAST_STMT(5)"
+   },
+   {
+    "probe": "13149",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION last_stmt(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; WHILE r < n DO SET r = r + 1; END WHILE; END SELECT LAST_STMT(5)",
+    "before": "WITH FUNCTION last_stmt(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; WHILE r < n DO SET r = r + 1; END WHILE; END SELECT LAST_STMT(5)",
+    "after": "WITH FUNCTION last_stmt(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE r BIGINT DEFAULT 1; WHILE r < n DO SET r = r + 1; END WHILE; END SELECT LAST_STMT(5)"
+   },
+   {
+    "probe": "13150",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION meaning_of_life() RETURNS INTEGER BEGIN DECLARE a INTEGER DEFAULT 6; DECLARE b INTEGER DEFAULT 7; RETURN a * b; END SELECT MEANING_OF_LIFE()",
+    "before": "WITH FUNCTION meaning_of_life() RETURNS INTEGER BEGIN DECLARE a INTEGER DEFAULT 6; DECLARE b INTEGER DEFAULT 7; RETURN a * b; END SELECT MEANING_OF_LIFE()",
+    "after": "WITH FUNCTION meaning_of_life() (RETURNS INTEGER) BEGIN DECLARE a INTEGER DEFAULT 6; DECLARE b INTEGER DEFAULT 7; RETURN a * b; END SELECT MEANING_OF_LIFE()"
+   },
+   {
+    "probe": "13151",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION meaning_of_life() RETURNS INTEGER BEGIN DECLARE a INTEGER DEFAULT 6; DECLARE b INTEGER DEFAULT 7; RETURN a * b; END SELECT MEANING_OF_LIFE()",
+    "before": "WITH FUNCTION meaning_of_life() RETURNS INTEGER BEGIN DECLARE a INTEGER DEFAULT 6; DECLARE b INTEGER DEFAULT 7; RETURN a * b; END SELECT MEANING_OF_LIFE()",
+    "after": "WITH FUNCTION meaning_of_life() (RETURNS INTEGER) BEGIN DECLARE a INTEGER DEFAULT 6; DECLARE b INTEGER DEFAULT 7; RETURN a * b; END SELECT MEANING_OF_LIFE()"
+   },
+   {
+    "probe": "13152",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION mix(a INTEGER) RETURNS INTEGER BEGIN DECLARE result INTEGER DEFAULT 0; CASE WHEN a > 0 THEN IF a > 10 THEN SET result = 1; ELSE SET result = 2; END IF; ELSE SET result = CASE WHEN a < -10 THEN -1 ELSE -2 END; END CASE; RETURN result; END SELECT MIX(1)",
+    "before": "WITH FUNCTION mix(a INTEGER) RETURNS INTEGER BEGIN DECLARE result INTEGER DEFAULT 0; CASE WHEN a > 0 THEN IF a > 10 THEN SET result = 1; ELSE SET result = 2; END IF; ELSE SET result = CASE WHEN a < -10 THEN -1 ELSE -2 END; END CASE; RETURN result; END SELECT MIX(1)",
+    "after": "WITH FUNCTION mix(a INTEGER) (RETURNS INTEGER) BEGIN DECLARE result INTEGER DEFAULT 0; CASE WHEN a > 0 THEN IF a > 10 THEN SET result = 1; ELSE SET result = 2; END IF; ELSE SET result = CASE WHEN a < -10 THEN -1 ELSE -2 END; END CASE; RETURN result; END SELECT MIX(1)"
+   },
+   {
+    "probe": "13153",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION mix(a INTEGER) RETURNS INTEGER BEGIN DECLARE result INTEGER DEFAULT 0; CASE WHEN a > 0 THEN IF a > 10 THEN SET result = 1; ELSE SET result = 2; END IF; ELSE SET result = CASE WHEN a < -10 THEN -1 ELSE -2 END; END CASE; RETURN result; END SELECT MIX(1)",
+    "before": "WITH FUNCTION mix(a INTEGER) RETURNS INTEGER BEGIN DECLARE result INTEGER DEFAULT 0; CASE WHEN a > 0 THEN IF a > 10 THEN SET result = 1; ELSE SET result = 2; END IF; ELSE SET result = CASE WHEN a < -10 THEN -1 ELSE -2 END; END CASE; RETURN result; END SELECT MIX(1)",
+    "after": "WITH FUNCTION mix(a INTEGER) (RETURNS INTEGER) BEGIN DECLARE result INTEGER DEFAULT 0; CASE WHEN a > 0 THEN IF a > 10 THEN SET result = 1; ELSE SET result = 2; END IF; ELSE SET result = CASE WHEN a < -10 THEN -1 ELSE -2 END; END CASE; RETURN result; END SELECT MIX(1)"
+   },
+   {
+    "probe": "13154",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION nested_case(a BIGINT, b BIGINT) RETURNS VARCHAR BEGIN DECLARE result VARCHAR; CASE WHEN a = 0 THEN CASE b WHEN 0 THEN SET result = 'a0b0'; ELSE SET result = 'a0bN'; END CASE; ELSE SET result = 'aN'; END CASE; RETURN result; END SELECT NESTED_CASE(0, 0)",
+    "before": "WITH FUNCTION nested_case(a BIGINT, b BIGINT) RETURNS VARCHAR BEGIN DECLARE result VARCHAR; CASE WHEN a = 0 THEN CASE b WHEN 0 THEN SET result = 'a0b0'; ELSE SET result = 'a0bN'; END CASE; ELSE SET result = 'aN'; END CASE; RETURN result; END SELECT NESTED_CASE(0, 0)",
+    "after": "WITH FUNCTION nested_case(a BIGINT, b BIGINT) (RETURNS VARCHAR) BEGIN DECLARE result VARCHAR; CASE WHEN a = 0 THEN CASE b WHEN 0 THEN SET result = 'a0b0'; ELSE SET result = 'a0bN'; END CASE; ELSE SET result = 'aN'; END CASE; RETURN result; END SELECT NESTED_CASE(0, 0)"
+   },
+   {
+    "probe": "13155",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION nested_case(a BIGINT, b BIGINT) RETURNS VARCHAR BEGIN DECLARE result VARCHAR; CASE WHEN a = 0 THEN CASE b WHEN 0 THEN SET result = 'a0b0'; ELSE SET result = 'a0bN'; END CASE; ELSE SET result = 'aN'; END CASE; RETURN result; END SELECT NESTED_CASE(0, 0)",
+    "before": "WITH FUNCTION nested_case(a BIGINT, b BIGINT) RETURNS VARCHAR BEGIN DECLARE result VARCHAR; CASE WHEN a = 0 THEN CASE b WHEN 0 THEN SET result = 'a0b0'; ELSE SET result = 'a0bN'; END CASE; ELSE SET result = 'aN'; END CASE; RETURN result; END SELECT NESTED_CASE(0, 0)",
+    "after": "WITH FUNCTION nested_case(a BIGINT, b BIGINT) (RETURNS VARCHAR) BEGIN DECLARE result VARCHAR; CASE WHEN a = 0 THEN CASE b WHEN 0 THEN SET result = 'a0b0'; ELSE SET result = 'a0bN'; END CASE; ELSE SET result = 'aN'; END CASE; RETURN result; END SELECT NESTED_CASE(0, 0)"
+   },
+   {
+    "probe": "13156",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION nested_test(n BIGINT) RETURNS BIGINT BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; DECLARE j BIGINT DEFAULT 0; outer_loop: WHILE i < n DO SET j = 0; inner_loop: LOOP IF j >= 3 THEN LEAVE inner_loop; END IF; SET total = total + 1; SET j = j + 1; END LOOP; SET i = i + 1; END WHILE; RETURN total; END SELECT NESTED_TEST(2)",
+    "before": "WITH FUNCTION nested_test(n BIGINT) RETURNS BIGINT BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; DECLARE j BIGINT DEFAULT 0; outer_loop: WHILE i < n DO SET j = 0; inner_loop: LOOP IF j >= 3 THEN LEAVE inner_loop; END IF; SET total = total + 1; SET j = j + 1; END LOOP; SET i = i + 1; END WHILE; RETURN total; END SELECT NESTED_TEST(2)",
+    "after": "WITH FUNCTION nested_test(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; DECLARE j BIGINT DEFAULT 0; outer_loop: WHILE i < n DO SET j = 0; inner_loop: LOOP IF j >= 3 THEN LEAVE inner_loop; END IF; SET total = total + 1; SET j = j + 1; END LOOP; SET i = i + 1; END WHILE; RETURN total; END SELECT NESTED_TEST(2)"
+   },
+   {
+    "probe": "13157",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION nested_test(n BIGINT) RETURNS BIGINT BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; DECLARE j BIGINT DEFAULT 0; outer_loop: WHILE i < n DO SET j = 0; inner_loop: LOOP IF j >= 3 THEN LEAVE inner_loop; END IF; SET total = total + 1; SET j = j + 1; END LOOP; SET i = i + 1; END WHILE; RETURN total; END SELECT NESTED_TEST(2)",
+    "before": "WITH FUNCTION nested_test(n BIGINT) RETURNS BIGINT BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; DECLARE j BIGINT DEFAULT 0; outer_loop: WHILE i < n DO SET j = 0; inner_loop: LOOP IF j >= 3 THEN LEAVE inner_loop; END IF; SET total = total + 1; SET j = j + 1; END LOOP; SET i = i + 1; END WHILE; RETURN total; END SELECT NESTED_TEST(2)",
+    "after": "WITH FUNCTION nested_test(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE total BIGINT DEFAULT 0; DECLARE i BIGINT DEFAULT 0; DECLARE j BIGINT DEFAULT 0; outer_loop: WHILE i < n DO SET j = 0; inner_loop: LOOP IF j >= 3 THEN LEAVE inner_loop; END IF; SET total = total + 1; SET j = j + 1; END LOOP; SET i = i + 1; END WHILE; RETURN total; END SELECT NESTED_TEST(2)"
+   },
+   {
+    "probe": "13158",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION no_else(a BIGINT) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; END CASE; RETURN 'fallthrough'; END SELECT NO_ELSE(0)",
+    "before": "WITH FUNCTION no_else(a BIGINT) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; END CASE; RETURN 'fallthrough'; END SELECT NO_ELSE(0)",
+    "after": "WITH FUNCTION no_else(a BIGINT) (RETURNS VARCHAR) BEGIN CASE a WHEN 0 THEN RETURN 'zero'; END CASE; RETURN 'fallthrough'; END SELECT NO_ELSE(0)"
+   },
+   {
+    "probe": "13159",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION no_else(a BIGINT) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; END CASE; RETURN 'fallthrough'; END SELECT NO_ELSE(0)",
+    "before": "WITH FUNCTION no_else(a BIGINT) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; END CASE; RETURN 'fallthrough'; END SELECT NO_ELSE(0)",
+    "after": "WITH FUNCTION no_else(a BIGINT) (RETURNS VARCHAR) BEGIN CASE a WHEN 0 THEN RETURN 'zero'; END CASE; RETURN 'fallthrough'; END SELECT NO_ELSE(0)"
+   },
+   {
+    "probe": "13160",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION no_operand_no_else(a INTEGER) RETURNS VARCHAR BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; END CASE; RETURN 'other'; END SELECT NO_OPERAND_NO_ELSE(1)",
+    "before": "WITH FUNCTION no_operand_no_else(a INTEGER) RETURNS VARCHAR BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; END CASE; RETURN 'other'; END SELECT NO_OPERAND_NO_ELSE(1)",
+    "after": "WITH FUNCTION no_operand_no_else(a INTEGER) (RETURNS VARCHAR) BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; END CASE; RETURN 'other'; END SELECT NO_OPERAND_NO_ELSE(1)"
+   },
+   {
+    "probe": "13161",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION no_operand_no_else(a INTEGER) RETURNS VARCHAR BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; END CASE; RETURN 'other'; END SELECT NO_OPERAND_NO_ELSE(1)",
+    "before": "WITH FUNCTION no_operand_no_else(a INTEGER) RETURNS VARCHAR BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; END CASE; RETURN 'other'; END SELECT NO_OPERAND_NO_ELSE(1)",
+    "after": "WITH FUNCTION no_operand_no_else(a INTEGER) (RETURNS VARCHAR) BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; END CASE; RETURN 'other'; END SELECT NO_OPERAND_NO_ELSE(1)"
+   },
+   {
+    "probe": "13162",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION npow(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW(5)",
+    "before": "WITH FUNCTION npow(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW(5)",
+    "after": "WITH FUNCTION npow(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW(5)"
+   },
+   {
+    "probe": "13163",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION npow(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW(5)",
+    "before": "WITH FUNCTION npow(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW(5)",
+    "after": "WITH FUNCTION npow(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW(5)"
+   },
+   {
+    "probe": "13164",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION npow_labeled(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; abc: WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW_LABELED(5)",
+    "before": "WITH FUNCTION npow_labeled(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; abc: WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW_LABELED(5)",
+    "after": "WITH FUNCTION npow_labeled(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; abc: WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW_LABELED(5)"
+   },
+   {
+    "probe": "13165",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION npow_labeled(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; abc: WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW_LABELED(5)",
+    "before": "WITH FUNCTION npow_labeled(n BIGINT) RETURNS BIGINT BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; abc: WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW_LABELED(5)",
+    "after": "WITH FUNCTION npow_labeled(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE r BIGINT DEFAULT 1; DECLARE p BIGINT DEFAULT n; abc: WHILE p > 1 DO SET r = r * n; SET p = p - 1; END WHILE; RETURN r; END SELECT NPOW_LABELED(5)"
+   },
+   {
+    "probe": "13166",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION one() RETURNS INTEGER BEGIN DECLARE counter INTEGER DEFAULT 1; SET counter = 0; SET counter = counter + 2; SET counter = counter / counter; RETURN counter; END SELECT ONE()",
+    "before": "WITH FUNCTION one() RETURNS INTEGER BEGIN DECLARE counter INTEGER DEFAULT 1; SET counter = 0; SET counter = counter + 2; SET counter = counter / counter; RETURN counter; END SELECT ONE()",
+    "after": "WITH FUNCTION one() (RETURNS INTEGER) BEGIN DECLARE counter INTEGER DEFAULT 1; SET counter = 0; SET counter = counter + 2; SET counter = counter / counter; RETURN counter; END SELECT ONE()"
+   },
+   {
+    "probe": "13167",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION one() RETURNS INTEGER BEGIN DECLARE counter INTEGER DEFAULT 1; SET counter = 0; SET counter = counter + 2; SET counter = counter / counter; RETURN counter; END SELECT ONE()",
+    "before": "WITH FUNCTION one() RETURNS INTEGER BEGIN DECLARE counter INTEGER DEFAULT 1; SET counter = 0; SET counter = counter + 2; SET counter = counter / counter; RETURN counter; END SELECT ONE()",
+    "after": "WITH FUNCTION one() (RETURNS INTEGER) BEGIN DECLARE counter INTEGER DEFAULT 1; SET counter = 0; SET counter = counter + 2; SET counter = counter / counter; RETURN counter; END SELECT ONE()"
+   },
+   {
+    "probe": "13168",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION searched_case(a BIGINT) RETURNS VARCHAR BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; WHEN a = 1 THEN RETURN 'one'; ELSE RETURN 'other'; END CASE; RETURN NULL; END SELECT SEARCHED_CASE(0)",
+    "before": "WITH FUNCTION searched_case(a BIGINT) RETURNS VARCHAR BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; WHEN a = 1 THEN RETURN 'one'; ELSE RETURN 'other'; END CASE; RETURN NULL; END SELECT SEARCHED_CASE(0)",
+    "after": "WITH FUNCTION searched_case(a BIGINT) (RETURNS VARCHAR) BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; WHEN a = 1 THEN RETURN 'one'; ELSE RETURN 'other'; END CASE; RETURN NULL; END SELECT SEARCHED_CASE(0)"
+   },
+   {
+    "probe": "13169",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION searched_case(a BIGINT) RETURNS VARCHAR BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; WHEN a = 1 THEN RETURN 'one'; ELSE RETURN 'other'; END CASE; RETURN NULL; END SELECT SEARCHED_CASE(0)",
+    "before": "WITH FUNCTION searched_case(a BIGINT) RETURNS VARCHAR BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; WHEN a = 1 THEN RETURN 'one'; ELSE RETURN 'other'; END CASE; RETURN NULL; END SELECT SEARCHED_CASE(0)",
+    "after": "WITH FUNCTION searched_case(a BIGINT) (RETURNS VARCHAR) BEGIN CASE WHEN a = 0 THEN RETURN 'zero'; WHEN a = 1 THEN RETURN 'one'; ELSE RETURN 'other'; END CASE; RETURN NULL; END SELECT SEARCHED_CASE(0)"
+   },
+   {
+    "probe": "13170",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION simple_case(a BIGINT) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; WHEN 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END CASE; RETURN NULL; END SELECT SIMPLE_CASE(0)",
+    "before": "WITH FUNCTION simple_case(a BIGINT) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; WHEN 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END CASE; RETURN NULL; END SELECT SIMPLE_CASE(0)",
+    "after": "WITH FUNCTION simple_case(a BIGINT) (RETURNS VARCHAR) BEGIN CASE a WHEN 0 THEN RETURN 'zero'; WHEN 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END CASE; RETURN NULL; END SELECT SIMPLE_CASE(0)"
+   },
+   {
+    "probe": "13171",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION simple_case(a BIGINT) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; WHEN 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END CASE; RETURN NULL; END SELECT SIMPLE_CASE(0)",
+    "before": "WITH FUNCTION simple_case(a BIGINT) RETURNS VARCHAR BEGIN CASE a WHEN 0 THEN RETURN 'zero'; WHEN 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END CASE; RETURN NULL; END SELECT SIMPLE_CASE(0)",
+    "after": "WITH FUNCTION simple_case(a BIGINT) (RETURNS VARCHAR) BEGIN CASE a WHEN 0 THEN RETURN 'zero'; WHEN 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END CASE; RETURN NULL; END SELECT SIMPLE_CASE(0)"
+   },
+   {
+    "probe": "13172",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION simple_if(a BIGINT) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END IF; END SELECT SIMPLE_IF(3)",
+    "before": "WITH FUNCTION simple_if(a BIGINT) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END IF; END SELECT SIMPLE_IF(3)",
+    "after": "WITH FUNCTION simple_if(a BIGINT) (RETURNS VARCHAR) BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END IF; END SELECT SIMPLE_IF(3)"
+   },
+   {
+    "probe": "13173",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION simple_if(a BIGINT) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END IF; END SELECT SIMPLE_IF(3)",
+    "before": "WITH FUNCTION simple_if(a BIGINT) RETURNS VARCHAR BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END IF; END SELECT SIMPLE_IF(3)",
+    "after": "WITH FUNCTION simple_if(a BIGINT) (RETURNS VARCHAR) BEGIN IF a = 0 THEN RETURN 'zero'; ELSEIF a = 1 THEN RETURN 'one'; ELSE RETURN 'more than one or negative'; END IF; END SELECT SIMPLE_IF(3)"
+   },
+   {
+    "probe": "13174",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION test_repeat(a BIGINT) RETURNS BIGINT BEGIN REPEAT SET a = a + 1; UNTIL a >= 10 END REPEAT; RETURN a; END SELECT TEST_REPEAT(5)",
+    "before": "WITH FUNCTION test_repeat(a BIGINT) RETURNS BIGINT BEGIN REPEAT SET a = a + 1; UNTIL a >= 10 END REPEAT; RETURN a; END SELECT TEST_REPEAT(5)",
+    "after": "WITH FUNCTION test_repeat(a BIGINT) (RETURNS BIGINT) BEGIN REPEAT SET a = a + 1; UNTIL a >= 10 END REPEAT; RETURN a; END SELECT TEST_REPEAT(5)"
+   },
+   {
+    "probe": "13175",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION test_repeat(a BIGINT) RETURNS BIGINT BEGIN REPEAT SET a = a + 1; UNTIL a >= 10 END REPEAT; RETURN a; END SELECT TEST_REPEAT(5)",
+    "before": "WITH FUNCTION test_repeat(a BIGINT) RETURNS BIGINT BEGIN REPEAT SET a = a + 1; UNTIL a >= 10 END REPEAT; RETURN a; END SELECT TEST_REPEAT(5)",
+    "after": "WITH FUNCTION test_repeat(a BIGINT) (RETURNS BIGINT) BEGIN REPEAT SET a = a + 1; UNTIL a >= 10 END REPEAT; RETURN a; END SELECT TEST_REPEAT(5)"
+   },
+   {
+    "probe": "13176",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION to_one_hundred(start_value BIGINT, step BIGINT) RETURNS BIGINT BEGIN DECLARE count BIGINT DEFAULT 0; DECLARE current BIGINT DEFAULT 0; SET current = start_value; abc: LOOP IF current >= 100 THEN LEAVE abc; END IF; SET count = count + 1; SET current = current + step; END LOOP; RETURN count; END SELECT TO_ONE_HUNDRED(0, 10)",
+    "before": "WITH FUNCTION to_one_hundred(start_value BIGINT, step BIGINT) RETURNS BIGINT BEGIN DECLARE count BIGINT DEFAULT 0; DECLARE current BIGINT DEFAULT 0; SET current = start_value; abc: LOOP IF current >= 100 THEN LEAVE abc; END IF; SET count = count + 1; SET current = current + step; END LOOP; RETURN count; END SELECT TO_ONE_HUNDRED(0, 10)",
+    "after": "WITH FUNCTION to_one_hundred(start_value BIGINT, step BIGINT) (RETURNS BIGINT) BEGIN DECLARE count BIGINT DEFAULT 0; DECLARE current BIGINT DEFAULT 0; SET current = start_value; abc: LOOP IF current >= 100 THEN LEAVE abc; END IF; SET count = count + 1; SET current = current + step; END LOOP; RETURN count; END SELECT TO_ONE_HUNDRED(0, 10)"
+   },
+   {
+    "probe": "13177",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION to_one_hundred(start_value BIGINT, step BIGINT) RETURNS BIGINT BEGIN DECLARE count BIGINT DEFAULT 0; DECLARE current BIGINT DEFAULT 0; SET current = start_value; abc: LOOP IF current >= 100 THEN LEAVE abc; END IF; SET count = count + 1; SET current = current + step; END LOOP; RETURN count; END SELECT TO_ONE_HUNDRED(0, 10)",
+    "before": "WITH FUNCTION to_one_hundred(start_value BIGINT, step BIGINT) RETURNS BIGINT BEGIN DECLARE count BIGINT DEFAULT 0; DECLARE current BIGINT DEFAULT 0; SET current = start_value; abc: LOOP IF current >= 100 THEN LEAVE abc; END IF; SET count = count + 1; SET current = current + step; END LOOP; RETURN count; END SELECT TO_ONE_HUNDRED(0, 10)",
+    "after": "WITH FUNCTION to_one_hundred(start_value BIGINT, step BIGINT) (RETURNS BIGINT) BEGIN DECLARE count BIGINT DEFAULT 0; DECLARE current BIGINT DEFAULT 0; SET current = start_value; abc: LOOP IF current >= 100 THEN LEAVE abc; END IF; SET count = count + 1; SET current = current + step; END LOOP; RETURN count; END SELECT TO_ONE_HUNDRED(0, 10)"
+   },
+   {
+    "probe": "13178",
+    "source": "trino",
+    "dialect": "trino",
+    "input": "WITH FUNCTION while_case(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; WHILE i < n DO CASE WHEN i = 0 THEN SET i = 1; ELSE SET i = i + 1; END CASE; END WHILE; RETURN i; END SELECT WHILE_CASE(3)",
+    "before": "WITH FUNCTION while_case(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; WHILE i < n DO CASE WHEN i = 0 THEN SET i = 1; ELSE SET i = i + 1; END CASE; END WHILE; RETURN i; END SELECT WHILE_CASE(3)",
+    "after": "WITH FUNCTION while_case(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; WHILE i < n DO CASE WHEN i = 0 THEN SET i = 1; ELSE SET i = i + 1; END CASE; END WHILE; RETURN i; END SELECT WHILE_CASE(3)"
+   },
+   {
+    "probe": "13179",
+    "source": "trino",
+    "dialect": "dune",
+    "input": "WITH FUNCTION while_case(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; WHILE i < n DO CASE WHEN i = 0 THEN SET i = 1; ELSE SET i = i + 1; END CASE; END WHILE; RETURN i; END SELECT WHILE_CASE(3)",
+    "before": "WITH FUNCTION while_case(n BIGINT) RETURNS BIGINT BEGIN DECLARE i BIGINT DEFAULT 0; WHILE i < n DO CASE WHEN i = 0 THEN SET i = 1; ELSE SET i = i + 1; END CASE; END WHILE; RETURN i; END SELECT WHILE_CASE(3)",
+    "after": "WITH FUNCTION while_case(n BIGINT) (RETURNS BIGINT) BEGIN DECLARE i BIGINT DEFAULT 0; WHILE i < n DO CASE WHEN i = 0 THEN SET i = 1; ELSE SET i = i + 1; END CASE; END WHILE; RETURN i; END SELECT WHILE_CASE(3)"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 96,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_trino.py::TestTrino::test_inline_udf",
+   "tests/dialects/test_trino.py::TestTrino::test_inline_udf_begin_end",
+   "tests/dialects/test_trino.py::TestTrino::test_inline_udf_case",
+   "tests/dialects/test_trino.py::TestTrino::test_inline_udf_if",
+   "tests/dialects/test_trino.py::TestTrino::test_inline_udf_loop_repeat",
+   "tests/dialects/test_trino.py::TestTrino::test_inline_udf_while"
+  ]
+ }
+]
