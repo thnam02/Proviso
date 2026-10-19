@@ -1,0 +1,1998 @@
+[
+ {
+  "task": "ba0bff3d91",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "fix(jsonpath): preserve falsey union members (#7957)\n\nCo-authored-by: dev-willbird1936 <dev-willbird1936@users.noreply.github.com>",
+  "code_diff": "diff --git a/sqlglot/jsonpath.py b/sqlglot/jsonpath.py\nindex 074cd1c..2ff98c0 100644\n--- a/sqlglot/jsonpath.py\n+++ b/sqlglot/jsonpath.py\n@@ -135,14 +135,14 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:\n             while _match(TokenType.COMMA):\n                 literal = _parse_slice()\n \n-                if literal:\n+                if isinstance(literal, str) or literal is not False:\n                     indexes.append(literal)\n \n             if len(indexes) == 1:\n-                if isinstance(literal, str):\n+                if isinstance(indexes[0], str):\n                     node: exp.JSONPathPart = exp.JSONPathKey(this=indexes[0])\n-                elif isinstance(literal, exp.JSONPathPart) and isinstance(\n-                    literal, (exp.JSONPathScript, exp.JSONPathFilter)\n+                elif isinstance(indexes[0], exp.JSONPathPart) and isinstance(\n+                    indexes[0], (exp.JSONPathScript, exp.JSONPathFilter)\n                 ):\n                     node = exp.JSONPathSelector(this=indexes[0])\n                 else:\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "13478",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')"
+   },
+   {
+    "probe": "13479",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13480",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13481",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT(x, '$[1,0]')"
+   },
+   {
+    "probe": "13482",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13483",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13484",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')"
+   },
+   {
+    "probe": "13485",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13486",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "EXC: ValueError"
+   }
+  ],
+  "new_probes": 12
+ },
+ {
+  "task": "ba0bff3d91",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(jsonpath): preserve falsey union members (#7957)\n\nCo-authored-by: dev-willbird1936 <dev-willbird1936@users.noreply.github.com>",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/jsonpath.py",
+   "line": 141,
+   "op": "flip",
+   "code": "if len(indexes) == 1:"
+  },
+  "code_diff": "diff --git a/sqlglot/jsonpath.py b/sqlglot/jsonpath.py\nindex 074cd1c..ade1dea 100644\n--- a/sqlglot/jsonpath.py\n+++ b/sqlglot/jsonpath.py\n@@ -135,14 +135,14 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:\n             while _match(TokenType.COMMA):\n                 literal = _parse_slice()\n \n-                if literal:\n+                if isinstance(literal, str) or literal is not False:\n                     indexes.append(literal)\n \n-            if len(indexes) == 1:\n-                if isinstance(literal, str):\n+            if len(indexes) != 1:\n+                if isinstance(indexes[0], str):\n                     node: exp.JSONPathPart = exp.JSONPathKey(this=indexes[0])\n-                elif isinstance(literal, exp.JSONPathPart) and isinstance(\n-                    literal, (exp.JSONPathScript, exp.JSONPathFilter)\n+                elif isinstance(indexes[0], exp.JSONPathPart) and isinstance(\n+                    indexes[0], (exp.JSONPathScript, exp.JSONPathFilter)\n                 ):\n                     node = exp.JSONPathSelector(this=indexes[0])\n                 else:\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "404",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "406",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "1571",
+    "source": "databricks",
+    "dialect": "databricks",
+    "input": "SELECT GET_JSON_OBJECT(GET_JSON_OBJECT(col, '$[0]'), '$.a')",
+    "before": "SELECT GET_JSON_OBJECT(GET_JSON_OBJECT(col, '$[0]'), '$.a')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "1572",
+    "source": "databricks",
+    "dialect": "databricks",
+    "input": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "before": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "1835",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "'{\"farm\": [\"a\", \"b\", \"c\"]}' ->> '$.farm[0]'",
+    "before": "'{\"farm\": [\"a\", \"b\", \"c\"]}' ->> '$.farm[0]'",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "2125",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT '{\"foo\": [1, 2, 3]}' -> 'foo' -> 0",
+    "before": "SELECT '{\"foo\": [1, 2, 3]}' -> '$.foo' -> '$[0]'",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "2298",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON_EXTRACT(c, '$[*].id')[0:2]",
+    "before": "SELECT (c -> '$[*].id')[0:2]",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "2301",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON_EXTRACT_STRING(c, '$[*].id')[0:2]",
+    "before": "SELECT (c ->> '$[*].id')[0:2]",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "2594",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x -> '$.y[0].z'",
+    "before": "x -> '$.y[0].z'",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "2596",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x ->> '$.y[0].z'",
+    "before": "x ->> '$.y[0].z'",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "4464",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_JSON(x, 'y', '0', 'z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "4988",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[1]')",
+    "before": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '1')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "4992",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[1]', '$[0]')",
+    "before": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '1')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "5000",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT(a, '$.b[2]') FROM t",
+    "before": "SELECT JSON_EXTRACT_JSON(a, 'b', '2') FROM t",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "8587",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "8588",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "8593",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "8594",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "9853",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "GET_PATH(x, 'y[0].z')",
+    "before": "GET_PATH(x, 'y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "9864",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "JSON_EXTRACT_PATH_TEXT(x, 'y[0].z')",
+    "before": "JSON_EXTRACT_PATH_TEXT(x, 'y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "10407",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0]:z')",
+    "before": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "10410",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT GET_PATH(v, 'attr[0].name') FROM vartab",
+    "before": "SELECT GET_PATH(v, 'attr[0].name') FROM vartab",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "11080",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "WITH vartab(v) AS (select parse_json('[{\"attr\": [{\"name\": \"banana\"}]}]')) SELECT GET_PATH(v, '[0].attr[0].name') FROM vartab",
+    "before": "WITH vartab(v) AS (SELECT PARSE_JSON('[{\"attr\": [{\"name\": \"banana\"}]}]')) SELECT GET_PATH(v, '[0].attr[0].name') FROM vartab",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "11081",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "WITH vartab(v) AS (select parse_json('{\"attr\": [{\"name\": \"banana\"}]}')) SELECT GET_PATH(v, 'attr[0].name') FROM vartab",
+    "before": "WITH vartab(v) AS (SELECT PARSE_JSON('{\"attr\": [{\"name\": \"banana\"}]}')) SELECT GET_PATH(v, 'attr[0].name') FROM vartab",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "11290",
+    "source": "spark",
+    "dialect": "spark",
+    "input": "GET_JSON_OBJECT(x, \"$.y[0].z\")",
+    "before": "GET_JSON_OBJECT(x, '$.y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "11291",
+    "source": "spark",
+    "dialect": "databricks",
+    "input": "GET_JSON_OBJECT(x, \"$.y[0].z\")",
+    "before": "GET_JSON_OBJECT(x, '$.y[0].z')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "11598",
+    "source": "spark",
+    "dialect": "spark",
+    "input": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "before": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "11599",
+    "source": "spark",
+    "dialect": "databricks",
+    "input": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "before": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "12136",
+    "source": "sqlite",
+    "dialect": "sqlite",
+    "input": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[1]')",
+    "before": "SELECT '[10, 20, [30, 40]]' -> '$[1]'",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "12137",
+    "source": "sqlite",
+    "dialect": "sqlite",
+    "input": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[1]', '$[0]')",
+    "before": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[1]', '$[0]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "12138",
+    "source": "sqlite",
+    "dialect": "sqlite",
+    "input": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[2]', '$[0]', '$[1]')",
+    "before": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[2]', '$[0]', '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "12175",
+    "source": "sqlite",
+    "dialect": "sqlite",
+    "input": "x -> '$.y[0].z'",
+    "before": "x -> '$.y[0].z'",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "12177",
+    "source": "sqlite",
+    "dialect": "sqlite",
+    "input": "x ->> '$.y[0].z'",
+    "before": "x ->> '$.y[0].z'",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13476",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[\"\"]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13477",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[\"\"]')",
+    "after": "EXC: ValueError"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 44,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_databricks.py::TestDatabricks::test_databricks",
+   "tests/dialects/test_databricks.py::TestDatabricks::test_json",
+   "tests/dialects/test_dialect.py::TestDialect::test_json",
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb",
+   "tests/dialects/test_mysql.py::TestMySQL::test_mysql",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres",
+   "tests/dialects/test_presto.py::TestPresto::test_json",
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_json_extract",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake",
+   "tests/dialects/test_sqlite.py::TestSQLite::test_sqlite",
+   "tests/test_jsonpath.py::TestJsonpath::test_cts_file",
+   "tests/test_jsonpath.py::TestJsonpath::test_jsonpath",
+   "tests/test_jsonpath.py::TestJsonpath::test_union_preserves_falsey_members"
+  ]
+ },
+ {
+  "task": "ba0bff3d91",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(jsonpath): preserve falsey union members (#7957)\n\nCo-authored-by: dev-willbird1936 <dev-willbird1936@users.noreply.github.com>",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/jsonpath.py",
+   "line": 20,
+   "op": "delete",
+   "code": "\":\": TokenType.COLON,"
+  },
+  "code_diff": "diff --git a/sqlglot/jsonpath.py b/sqlglot/jsonpath.py\nindex 074cd1c..7a49592 100644\n--- a/sqlglot/jsonpath.py\n+++ b/sqlglot/jsonpath.py\n@@ -17,7 +17,7 @@ class JSONPathTokenizer(Tokenizer):\n         \")\": TokenType.R_PAREN,\n         \"[\": TokenType.L_BRACKET,\n         \"]\": TokenType.R_BRACKET,\n-        \":\": TokenType.COLON,\n+\n         \",\": TokenType.COMMA,\n         \"-\": TokenType.DASH,\n         \".\": TokenType.DOT,\n@@ -135,14 +135,14 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:\n             while _match(TokenType.COMMA):\n                 literal = _parse_slice()\n \n-                if literal:\n+                if isinstance(literal, str) or literal is not False:\n                     indexes.append(literal)\n \n             if len(indexes) == 1:\n-                if isinstance(literal, str):\n+                if isinstance(indexes[0], str):\n                     node: exp.JSONPathPart = exp.JSONPathKey(this=indexes[0])\n-                elif isinstance(literal, exp.JSONPathPart) and isinstance(\n-                    literal, (exp.JSONPathScript, exp.JSONPathFilter)\n+                elif isinstance(indexes[0], exp.JSONPathPart) and isinstance(\n+                    indexes[0], (exp.JSONPathScript, exp.JSONPathFilter)\n                 ):\n                     node = exp.JSONPathSelector(this=indexes[0])\n                 else:\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.JSONPathTokenizer.SINGLE_TOKENS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "':'": "<TokenType.COLON: 11>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.jsonpath:JSONPathTokenizer.SINGLE_TOKENS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "':'": "<TokenType.COLON: 11>"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "10407",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0]:z')",
+    "before": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0].z')",
+    "after": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0][\":z\"]')"
+   },
+   {
+    "probe": "13478",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')"
+   },
+   {
+    "probe": "13479",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13480",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13481",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT(x, '$[1,0]')"
+   },
+   {
+    "probe": "13482",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13483",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13484",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')"
+   },
+   {
+    "probe": "13485",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13486",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "EXC: ValueError"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 1,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake",
+   "tests/test_jsonpath.py::TestJsonpath::test_cts_file",
+   "tests/test_jsonpath.py::TestJsonpath::test_jsonpath"
+  ]
+ },
+ {
+  "task": "ba0bff3d91",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(jsonpath): preserve falsey union members (#7957)\n\nCo-authored-by: dev-willbird1936 <dev-willbird1936@users.noreply.github.com>",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/jsonpath.py",
+   "line": 78,
+   "op": "flip",
+   "code": "def _match(token_type, raise_unmatched=False):"
+  },
+  "code_diff": "diff --git a/sqlglot/jsonpath.py b/sqlglot/jsonpath.py\nindex 074cd1c..332cbb4 100644\n--- a/sqlglot/jsonpath.py\n+++ b/sqlglot/jsonpath.py\n@@ -75,7 +75,7 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:\n     def _match(token_type: TokenType, raise_unmatched: t.Literal[False] = False) -> Token | None:\n         pass\n \n-    def _match(token_type, raise_unmatched=False):\n+    def _match(token_type, raise_unmatched=True):\n         if _curr() == token_type:\n             return _advance()\n         if raise_unmatched:\n@@ -135,14 +135,14 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:\n             while _match(TokenType.COMMA):\n                 literal = _parse_slice()\n \n-                if literal:\n+                if isinstance(literal, str) or literal is not False:\n                     indexes.append(literal)\n \n             if len(indexes) == 1:\n-                if isinstance(literal, str):\n+                if isinstance(indexes[0], str):\n                     node: exp.JSONPathPart = exp.JSONPathKey(this=indexes[0])\n-                elif isinstance(literal, exp.JSONPathPart) and isinstance(\n-                    literal, (exp.JSONPathScript, exp.JSONPathFilter)\n+                elif isinstance(indexes[0], exp.JSONPathPart) and isinstance(\n+                    indexes[0], (exp.JSONPathScript, exp.JSONPathFilter)\n                 ):\n                     node = exp.JSONPathSelector(this=indexes[0])\n                 else:\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "2125",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT '{\"foo\": [1, 2, 3]}' -> 'foo' -> 0",
+    "before": "SELECT '{\"foo\": [1, 2, 3]}' -> '$.foo' -> '$[0]'",
+    "after": "SELECT '{\"foo\": [1, 2, 3]}' -> 'foo' -> 0"
+   },
+   {
+    "probe": "2289",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON('{\"fruit\": {\"foo\": \"banana\"}}') -> 'fruit' -> 'foo'",
+    "before": "SELECT JSON('{\"fruit\": {\"foo\": \"banana\"}}') -> '$.fruit' -> '$.foo'",
+    "after": "SELECT JSON('{\"fruit\": {\"foo\": \"banana\"}}') -> 'fruit' -> 'foo'"
+   },
+   {
+    "probe": "2290",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON('{\"fruit\":\"banana\"}') -> 'fruit'",
+    "before": "SELECT JSON('{\"fruit\":\"banana\"}') -> '$.fruit'",
+    "after": "SELECT JSON('{\"fruit\":\"banana\"}') -> 'fruit'"
+   },
+   {
+    "probe": "2595",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x -> 'y'",
+    "before": "x -> '$.y'",
+    "after": "x -> 'y'"
+   },
+   {
+    "probe": "2597",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x ->> 'y'",
+    "before": "x ->> '$.y'",
+    "after": "x ->> 'y'"
+   },
+   {
+    "probe": "4464",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_JSON(x, 'y', '0', 'z')",
+    "after": "JSON_EXTRACT_JSON(x, '$.y[0].z')"
+   },
+   {
+    "probe": "4988",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[1]')",
+    "before": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '1')",
+    "after": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '$[1]')"
+   },
+   {
+    "probe": "4992",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT('[10, 20, [30, 40]]', '$[1]', '$[0]')",
+    "before": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '1')",
+    "after": "SELECT JSON_EXTRACT_JSON('[10, 20, [30, 40]]', '$[1]', '$[0]')"
+   },
+   {
+    "probe": "5000",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT(a, '$.b[2]') FROM t",
+    "before": "SELECT JSON_EXTRACT_JSON(a, 'b', '2') FROM t",
+    "after": "SELECT JSON_EXTRACT_JSON(a, '$.b[2]') FROM t"
+   },
+   {
+    "probe": "9851",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "GET_PATH(json_data, '$id')",
+    "before": "GET_PATH(json_data, '[\"$id\"]')",
+    "after": "GET_PATH(json_data, '$id')"
+   },
+   {
+    "probe": "10407",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0]:z')",
+    "before": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0].z')",
+    "after": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0]:z')"
+   },
+   {
+    "probe": "13478",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')"
+   },
+   {
+    "probe": "13479",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')"
+   },
+   {
+    "probe": "13480",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')"
+   },
+   {
+    "probe": "13481",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT(x, '$[1,0]')"
+   },
+   {
+    "probe": "13482",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT(x, '$[1,0]')"
+   },
+   {
+    "probe": "13483",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT(x, '$[1,0]')"
+   },
+   {
+    "probe": "13484",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')"
+   },
+   {
+    "probe": "13485",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')"
+   },
+   {
+    "probe": "13486",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 17,
+   "imports": 17
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_dialect.py::TestDialect::test_json",
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres",
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_json_extract",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_get_extract",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake",
+   "tests/test_jsonpath.py::TestJsonpath::test_cts_file",
+   "tests/test_jsonpath.py::TestJsonpath::test_identity",
+   "tests/test_jsonpath.py::TestJsonpath::test_jsonpath",
+   "tests/test_jsonpath.py::TestJsonpath::test_union_preserves_falsey_members"
+  ]
+ },
+ {
+  "task": "ba0bff3d91",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(jsonpath): preserve falsey union members (#7957)\n\nCo-authored-by: dev-willbird1936 <dev-willbird1936@users.noreply.github.com>",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/jsonpath.py",
+   "line": 171,
+   "op": "flip",
+   "code": "start = 0 if prev_index < 0 else tokens[prev_index].end + 1"
+  },
+  "code_diff": "diff --git a/sqlglot/jsonpath.py b/sqlglot/jsonpath.py\nindex 074cd1c..379eff0 100644\n--- a/sqlglot/jsonpath.py\n+++ b/sqlglot/jsonpath.py\n@@ -135,14 +135,14 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:\n             while _match(TokenType.COMMA):\n                 literal = _parse_slice()\n \n-                if literal:\n+                if isinstance(literal, str) or literal is not False:\n                     indexes.append(literal)\n \n             if len(indexes) == 1:\n-                if isinstance(literal, str):\n+                if isinstance(indexes[0], str):\n                     node: exp.JSONPathPart = exp.JSONPathKey(this=indexes[0])\n-                elif isinstance(literal, exp.JSONPathPart) and isinstance(\n-                    literal, (exp.JSONPathScript, exp.JSONPathFilter)\n+                elif isinstance(indexes[0], exp.JSONPathPart) and isinstance(\n+                    indexes[0], (exp.JSONPathScript, exp.JSONPathFilter)\n                 ):\n                     node = exp.JSONPathSelector(this=indexes[0])\n                 else:\n@@ -168,7 +168,7 @@ def parse(path: str, dialect: DialectType = None) -> exp.JSONPath:\n         while _match_set(jsonpath_tokenizer.VAR_TOKENS):\n             pass\n \n-        start = 0 if prev_index < 0 else tokens[prev_index].end + 1\n+        start = 0 if prev_index >= 0 else tokens[prev_index].end + 1\n \n         if i >= len(tokens):\n             # This key is the last token for the path, so it's text is the remaining path\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "37",
+    "source": "(default)",
+    "dialect": "(default)",
+    "input": "JSON_KEYS(foo, '$.a')",
+    "before": "JSON_KEYS(foo, '$.a')",
+    "after": "JSON_KEYS(foo, '$[\"$.a\"]')"
+   },
+   {
+    "probe": "403",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "JSON_EXTRACT(x, '$.y')",
+    "before": "JSON_EXTRACT(x, '$.y')",
+    "after": "JSON_EXTRACT(x, '$[\\'$.y\\']')"
+   },
+   {
+    "probe": "404",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT(x, '$[\\'$.y\\'][0][\\'$.y[0].z\\']')"
+   },
+   {
+    "probe": "405",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y')",
+    "after": "JSON_EXTRACT_SCALAR(x, '$[\\'$.y\\']')"
+   },
+   {
+    "probe": "406",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT_SCALAR(x, '$[\\'$.y\\'][0][\\'$.y[0].z\\']')"
+   },
+   {
+    "probe": "407",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "JSON_EXTRACT_STRING_ARRAY(PARSE_JSON('{\"fruits\": [\"apples\", \"oranges\", \"grapes\"]}'), '$.fruits')",
+    "before": "JSON_VALUE_ARRAY(PARSE_JSON('{\"fruits\": [\"apples\", \"oranges\", \"grapes\"]}'), '$.fruits')",
+    "after": "JSON_VALUE_ARRAY(PARSE_JSON('{\"fruits\": [\"apples\", \"oranges\", \"grapes\"]}'), '$[\\'$.fruits\\']')"
+   },
+   {
+    "probe": "714",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT INT64(JSON_QUERY(JSON '{\"key\": 2000}', '$.key'))",
+    "before": "SELECT INT64(JSON_QUERY(PARSE_JSON('{\"key\": 2000}'), '$.key'))",
+    "after": "SELECT INT64(JSON_QUERY(PARSE_JSON('{\"key\": 2000}'), '$.\"$.key\"'))"
+   },
+   {
+    "probe": "724",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT JSON_QUERY('{\"class\": {\"students\": []}}', '$.class')",
+    "before": "SELECT JSON_QUERY('{\"class\": {\"students\": []}}', '$.class')",
+    "after": "SELECT JSON_QUERY('{\"class\": {\"students\": []}}', '$.\"$.class\"')"
+   },
+   {
+    "probe": "725",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT JSON_QUERY(foo, '$.class')",
+    "before": "SELECT JSON_QUERY(foo, '$.class')",
+    "after": "SELECT JSON_QUERY(foo, '$.\"$.class\"')"
+   },
+   {
+    "probe": "726",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT JSON_VALUE_ARRAY('{\"arr\": [1, \"a\"]}', '$.arr')",
+    "before": "SELECT JSON_VALUE_ARRAY('{\"arr\": [1, \"a\"]}', '$.arr')",
+    "after": "SELECT JSON_VALUE_ARRAY('{\"arr\": [1, \"a\"]}', '$[\\'$.arr\\']')"
+   },
+   {
+    "probe": "931",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT JSON_EXTRACT(c, '$.x-y') FROM t",
+    "before": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT JSON_EXTRACT(c, '$.x-y') FROM t",
+    "after": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT JSON_EXTRACT(c, '$[\\'$.x-y\\']') FROM t"
+   },
+   {
+    "probe": "1571",
+    "source": "databricks",
+    "dialect": "databricks",
+    "input": "SELECT GET_JSON_OBJECT(GET_JSON_OBJECT(col, '$[0]'), '$.a')",
+    "before": "SELECT GET_JSON_OBJECT(GET_JSON_OBJECT(col, '$[0]'), '$.a')",
+    "after": "SELECT GET_JSON_OBJECT(GET_JSON_OBJECT(col, '$[0]'), '$[\"$.a\"]')"
+   },
+   {
+    "probe": "1572",
+    "source": "databricks",
+    "dialect": "databricks",
+    "input": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "before": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "after": "SELECT GET_JSON_OBJECT(c1, '$[\"$.item\"][1][\"$.item[1].price\"]')"
+   },
+   {
+    "probe": "1573",
+    "source": "databricks",
+    "dialect": "databricks",
+    "input": "SELECT GET_JSON_OBJECT(c1, '$.price') FROM VALUES ('{ \"price\": 5 }') AS T(c1)",
+    "before": "SELECT GET_JSON_OBJECT(c1, '$.price') FROM VALUES ('{ \"price\": 5 }') AS T(c1)",
+    "after": "SELECT GET_JSON_OBJECT(c1, '$[\"$.price\"]') FROM VALUES ('{ \"price\": 5 }') AS T(c1)"
+   },
+   {
+    "probe": "1658",
+    "source": "databricks",
+    "dialect": "databricks",
+    "input": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT get_json_object(c, '$.x-y') FROM t",
+    "before": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$[\"x-y\"]') FROM t",
+    "after": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$[\"$.x-y\"]') FROM t"
+   },
+   {
+    "probe": "1707",
+    "source": "doris",
+    "dialect": "doris",
+    "input": "JSON_EXTRACT(x, '$.y')",
+    "before": "JSON_EXTRACT(x, '$.y')",
+    "after": "JSON_EXTRACT(x, '$.\"$.y\"')"
+   },
+   {
+    "probe": "1708",
+    "source": "doris",
+    "dialect": "doris",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT(x, '$.\"$.y\"[0].\"$.y[0].z\"')"
+   },
+   {
+    "probe": "1710",
+    "source": "doris",
+    "dialect": "doris",
+    "input": "JSON_KEYS(foo, '$.a')",
+    "before": "JSON_KEYS(foo, '$.a')",
+    "after": "JSON_KEYS(foo, '$.\"$.a\"')"
+   },
+   {
+    "probe": "1727",
+    "source": "doris",
+    "dialect": "doris",
+    "input": "SELECT JSON_EXTRACT(CAST('{\"key\": 1}' AS JSONB), '$.key')",
+    "before": "SELECT JSON_EXTRACT(CAST('{\"key\": 1}' AS JSONB), '$.key')",
+    "after": "SELECT JSON_EXTRACT(CAST('{\"key\": 1}' AS JSONB), '$.\"$.key\"')"
+   },
+   {
+    "probe": "1829",
+    "source": "druid",
+    "dialect": "druid",
+    "input": "SELECT JSON_VALUE(x, '$.a' RETURNING BIGINT) FROM t",
+    "before": "SELECT JSON_VALUE(x, '$.a' RETURNING BIGINT) FROM t",
+    "after": "SELECT JSON_VALUE(x, '$[\"$.a\"]' RETURNING BIGINT) FROM t"
+   },
+   {
+    "probe": "1835",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "'{\"farm\": [\"a\", \"b\", \"c\"]}' ->> '$.farm[0]'",
+    "before": "'{\"farm\": [\"a\", \"b\", \"c\"]}' ->> '$.farm[0]'",
+    "after": "'{\"farm\": [\"a\", \"b\", \"c\"]}' ->> '$.\"$.farm\"[0]'"
+   },
+   {
+    "probe": "2034",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "JSON_EXTRACT(x, '$.family')",
+    "before": "x -> '$.family'",
+    "after": "x -> '$.\"$.family\"'"
+   },
+   {
+    "probe": "2035",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "JSON_EXTRACT_PATH(x, '$.family')",
+    "before": "x -> '$.family'",
+    "after": "x -> '$.\"$.family\"'"
+   },
+   {
+    "probe": "2036",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "JSON_EXTRACT_PATH_TEXT(x, '$.family')",
+    "before": "x ->> '$.family'",
+    "after": "x ->> '$.\"$.family\"'"
+   },
+   {
+    "probe": "2037",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "JSON_EXTRACT_STRING(x, '$.family')",
+    "before": "x ->> '$.family'",
+    "after": "x ->> '$.\"$.family\"'"
+   },
+   {
+    "probe": "2039",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "JSON_KEYS(foo, '$.a')",
+    "before": "JSON_KEYS(foo, '$.a')",
+    "after": "JSON_KEYS(foo, '$.\"$.a\"')"
+   },
+   {
+    "probe": "2125",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT '{\"foo\": [1, 2, 3]}' -> 'foo' -> 0",
+    "before": "SELECT '{\"foo\": [1, 2, 3]}' -> '$.foo' -> '$[0]'",
+    "after": "SELECT '{\"foo\": [1, 2, 3]}' -> '$.\"\"' -> '$[0]'"
+   },
+   {
+    "probe": "2135",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT (data -> '$.value') = 1",
+    "before": "SELECT (data -> '$.value') = 1",
+    "after": "SELECT (data -> '$.\"$.value\"') = 1"
+   },
+   {
+    "probe": "2225",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT CASE WHEN JSON_TYPE(JSON('{\"a\": null}') -> '$.a') = 'NULL' THEN NULL ELSE JSON('{\"a\": null}') -> '$.a' END",
+    "before": "SELECT CASE WHEN JSON_TYPE(JSON('{\"a\": null}') -> '$.a') = 'NULL' THEN NULL ELSE JSON('{\"a\": null}') -> '$.a' END",
+    "after": "SELECT CASE WHEN JSON_TYPE(JSON('{\"a\": null}') -> '$.\"$.a\"') = 'NULL' THEN NULL ELSE JSON('{\"a\": null}') -> '$.\"$.a\"' END"
+   },
+   {
+    "probe": "2289",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON('{\"fruit\": {\"foo\": \"banana\"}}') -> 'fruit' -> 'foo'",
+    "before": "SELECT JSON('{\"fruit\": {\"foo\": \"banana\"}}') -> '$.fruit' -> '$.foo'",
+    "after": "SELECT JSON('{\"fruit\": {\"foo\": \"banana\"}}') -> '$.\"\"' -> '$.\"\"'"
+   },
+   {
+    "probe": "2290",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON('{\"fruit\":\"banana\"}') -> 'fruit'",
+    "before": "SELECT JSON('{\"fruit\":\"banana\"}') -> '$.fruit'",
+    "after": "SELECT JSON('{\"fruit\":\"banana\"}') -> '$.\"\"'"
+   },
+   {
+    "probe": "2297",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON_EXTRACT(c, '$.k1') = 'v1'",
+    "before": "SELECT (c -> '$.k1') = 'v1'",
+    "after": "SELECT (c -> '$.\"$.k1\"') = 'v1'"
+   },
+   {
+    "probe": "2298",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON_EXTRACT(c, '$[*].id')[0:2]",
+    "before": "SELECT (c -> '$[*].id')[0:2]",
+    "after": "SELECT (c -> '$[*].\"$[*].id\"')[0:2]"
+   },
+   {
+    "probe": "2300",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON_EXTRACT_STRING(c, '$.k1') = 'v1'",
+    "before": "SELECT (c ->> '$.k1') = 'v1'",
+    "after": "SELECT (c ->> '$.\"$.k1\"') = 'v1'"
+   },
+   {
+    "probe": "2301",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT JSON_EXTRACT_STRING(c, '$[*].id')[0:2]",
+    "before": "SELECT (c ->> '$[*].id')[0:2]",
+    "after": "SELECT (c ->> '$[*].\"$[*].id\"')[0:2]"
+   },
+   {
+    "probe": "2347",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT NOT (data -> '$.value')",
+    "before": "SELECT NOT (data -> '$.value')",
+    "after": "SELECT NOT (data -> '$.\"$.value\"')"
+   },
+   {
+    "probe": "2348",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT NOT (data -> '$.value.nested')",
+    "before": "SELECT NOT (data -> '$.value.nested')",
+    "after": "SELECT NOT (data -> '$.\"$.value\".\"$.value.nested\"')"
+   },
+   {
+    "probe": "2435",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT col FROM t WHERE JSON_EXTRACT_STRING(col, '$.id') NOT IN ('b')",
+    "before": "SELECT col FROM t WHERE NOT (col ->> '$.id') IN ('b')",
+    "after": "SELECT col FROM t WHERE NOT (col ->> '$.\"$.id\"') IN ('b')"
+   },
+   {
+    "probe": "2592",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x -> '$.family'",
+    "before": "x -> '$.family'",
+    "after": "x -> '$.\"$.family\"'"
+   },
+   {
+    "probe": "2593",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x -> '$.x.y.z'",
+    "before": "x -> '$.x.y.z'",
+    "after": "x -> '$.\"$.x\".\"$.x.y\".\"$.x.y.z\"'"
+   },
+   {
+    "probe": "2594",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x -> '$.y[0].z'",
+    "before": "x -> '$.y[0].z'",
+    "after": "x -> '$.\"$.y\"[0].\"$.y[0].z\"'"
+   },
+   {
+    "probe": "2595",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x -> 'y'",
+    "before": "x -> '$.y'",
+    "after": "x -> '$.\"\"'"
+   },
+   {
+    "probe": "2596",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x ->> '$.y[0].z'",
+    "before": "x ->> '$.y[0].z'",
+    "after": "x ->> '$.\"$.y\"[0].\"$.y[0].z\"'"
+   },
+   {
+    "probe": "2597",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "x ->> 'y'",
+    "before": "x ->> '$.y'",
+    "after": "x ->> '$.\"\"'"
+   },
+   {
+    "probe": "2692",
+    "source": "exasol",
+    "dialect": "exasol",
+    "input": "SELECT JSON_VALUE('{\"d\":\"a\"}', '$.d' NULL ON ERROR) AS x",
+    "before": "SELECT JSON_VALUE('{\"d\":\"a\"}', '$.d' NULL ON ERROR) AS x",
+    "after": "SELECT JSON_VALUE('{\"d\":\"a\"}', '$[\"$.d\"]' NULL ON ERROR) AS x"
+   },
+   {
+    "probe": "3159",
+    "source": "hive",
+    "dialect": "hive",
+    "input": "GET_JSON_OBJECT(x, '$.name')",
+    "before": "GET_JSON_OBJECT(x, '$.name')",
+    "after": "GET_JSON_OBJECT(x, '$[\\'$.name\\']')"
+   },
+   {
+    "probe": "3160",
+    "source": "hive",
+    "dialect": "databricks",
+    "input": "GET_JSON_OBJECT(x, '$.name')",
+    "before": "GET_JSON_OBJECT(x, '$.name')",
+    "after": "GET_JSON_OBJECT(x, '$[\"$.name\"]')"
+   },
+   {
+    "probe": "3161",
+    "source": "hive",
+    "dialect": "spark",
+    "input": "GET_JSON_OBJECT(x, '$.name')",
+    "before": "GET_JSON_OBJECT(x, '$.name')",
+    "after": "GET_JSON_OBJECT(x, '$[\\'$.name\\']')"
+   },
+   {
+    "probe": "3162",
+    "source": "hive",
+    "dialect": "spark2",
+    "input": "GET_JSON_OBJECT(x, '$.name')",
+    "before": "GET_JSON_OBJECT(x, '$.name')",
+    "after": "GET_JSON_OBJECT(x, '$[\\'$.name\\']')"
+   },
+   {
+    "probe": "3615",
+    "source": "hive",
+    "dialect": "hive",
+    "input": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$.x-y') FROM t",
+    "before": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$.x-y') FROM t",
+    "after": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$[\\'$.x-y\\']') FROM t"
+   },
+   {
+    "probe": "3616",
+    "source": "hive",
+    "dialect": "databricks",
+    "input": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$.x-y') FROM t",
+    "before": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$[\"x-y\"]') FROM t",
+    "after": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$[\"$.x-y\"]') FROM t"
+   },
+   {
+    "probe": "3617",
+    "source": "hive",
+    "dialect": "spark",
+    "input": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$.x-y') FROM t",
+    "before": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$.x-y') FROM t",
+    "after": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$[\\'$.x-y\\']') FROM t"
+   },
+   {
+    "probe": "3618",
+    "source": "hive",
+    "dialect": "spark2",
+    "input": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$.x-y') FROM t",
+    "before": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$.x-y') FROM t",
+    "after": "WITH t AS (SELECT '{\"x-y\": \"z\"}' AS c) SELECT GET_JSON_OBJECT(c, '$[\\'$.x-y\\']') FROM t"
+   },
+   {
+    "probe": "4458",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "JSON_EXTRACT(x, '$.y')",
+    "before": "JSON_EXTRACT(x, '$.y')",
+    "after": "JSON_EXTRACT(x, '$.\"$.y\"')"
+   },
+   {
+    "probe": "4459",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "JSON_EXTRACT(x, '$.y')",
+    "before": "JSON_EXTRACT(x, '$.y')",
+    "after": "JSON_EXTRACT(x, '$.\"$.y\"')"
+   },
+   {
+    "probe": "4460",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "JSON_EXTRACT(x, '$.y')",
+    "before": "JSON_EXTRACT_JSON(x, 'y')",
+    "after": "JSON_EXTRACT_JSON(x, '$.y')"
+   },
+   {
+    "probe": "4461",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "JSON_EXTRACT(x, '$.y')",
+    "before": "x -> '$.y'",
+    "after": "x -> '$.\"$.y\"'"
+   },
+   {
+    "probe": "4462",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT(x, '$.\"$.y\"[0].\"$.y[0].z\"')"
+   },
+   {
+    "probe": "4463",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT(x, '$.\"$.y\"[0].\"$.y[0].z\"')"
+   },
+   {
+    "probe": "4464",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_JSON(x, 'y', '0', 'z')",
+    "after": "JSON_EXTRACT_JSON(x, '$.y', '0', '$.y[0].z')"
+   },
+   {
+    "probe": "4465",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "x -> '$.y[0].z'",
+    "after": "x -> '$.\"$.y\"[0].\"$.y[0].z\"'"
+   },
+   {
+    "probe": "4470",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "JSON_KEYS(foo, '$.a')",
+    "before": "JSON_KEYS(foo, '$.a')",
+    "after": "JSON_KEYS(foo, '$.\"$.a\"')"
+   },
+   {
+    "probe": "4471",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "JSON_KEYS(foo, '$.a')",
+    "before": "JSON_KEYS(foo, '$.a')",
+    "after": "JSON_KEYS(foo, '$.\"$.a\"')"
+   },
+   {
+    "probe": "4473",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "JSON_KEYS(foo, '$.a')",
+    "before": "JSON_KEYS(foo, '$.a')",
+    "after": "JSON_KEYS(foo, '$.\"$.a\"')"
+   },
+   {
+    "probe": "4606",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.value'))",
+    "before": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.value'))",
+    "after": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.\"$.value\"'))"
+   },
+   {
+    "probe": "4607",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.value'))",
+    "before": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.value'))",
+    "after": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.\"$.value\"'))"
+   },
+   {
+    "probe": "4608",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.value'))",
+    "before": "SELECT * FROM foo WHERE JSON_ARRAY_CONTAINS_JSON(JSON_EXTRACT_JSON(info, 'value'), TO_JSON(3))",
+    "after": "SELECT * FROM foo WHERE JSON_ARRAY_CONTAINS_JSON(JSON_EXTRACT_JSON(info, '$.value'), TO_JSON(3))"
+   },
+   {
+    "probe": "4609",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.value'))",
+    "before": "SELECT * FROM foo WHERE 3 MEMBER OF(info -> '$.value')",
+    "after": "SELECT * FROM foo WHERE 3 MEMBER OF(info -> '$.\"$.value\"')"
+   },
+   {
+    "probe": "4610",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT * FROM foo WHERE 3 MEMBER OF(info->'$.value')",
+    "before": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.value'))",
+    "after": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.\"$.value\"'))"
+   },
+   {
+    "probe": "4611",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT * FROM foo WHERE 3 MEMBER OF(info->'$.value')",
+    "before": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.value'))",
+    "after": "SELECT * FROM foo WHERE 3 MEMBER OF(JSON_EXTRACT(info, '$.\"$.value\"'))"
+   },
+   {
+    "probe": "4613",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT * FROM foo WHERE 3 MEMBER OF(info->'$.value')",
+    "before": "SELECT * FROM foo WHERE 3 MEMBER OF(info -> '$.value')",
+    "after": "SELECT * FROM foo WHERE 3 MEMBER OF(info -> '$.\"$.value\"')"
+   },
+   {
+    "probe": "4994",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT JSON_EXTRACT(a, '$.b') FROM t",
+    "before": "SELECT JSON_EXTRACT(a, '$.b') FROM t",
+    "after": "SELECT JSON_EXTRACT(a, '$.\"$.b\"') FROM t"
+   },
+   {
+    "probe": "4995",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT JSON_EXTRACT(a, '$.b') FROM t",
+    "before": "SELECT JSON_EXTRACT(a, '$.b') FROM t",
+    "after": "SELECT JSON_EXTRACT(a, '$.\"$.b\"') FROM t"
+   },
+   {
+    "probe": "4996",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT(a, '$.b') FROM t",
+    "before": "SELECT JSON_EXTRACT_JSON(a, 'b') FROM t",
+    "after": "SELECT JSON_EXTRACT_JSON(a, '$.b') FROM t"
+   },
+   {
+    "probe": "4997",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT JSON_EXTRACT(a, '$.b') FROM t",
+    "before": "SELECT a -> '$.b' FROM t",
+    "after": "SELECT a -> '$.\"$.b\"' FROM t"
+   },
+   {
+    "probe": "4998",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT JSON_EXTRACT(a, '$.b[2]') FROM t",
+    "before": "SELECT JSON_EXTRACT(a, '$.b[2]') FROM t",
+    "after": "SELECT JSON_EXTRACT(a, '$.\"$.b\"[2]') FROM t"
+   },
+   {
+    "probe": "4999",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT JSON_EXTRACT(a, '$.b[2]') FROM t",
+    "before": "SELECT JSON_EXTRACT(a, '$.b[2]') FROM t",
+    "after": "SELECT JSON_EXTRACT(a, '$.\"$.b\"[2]') FROM t"
+   },
+   {
+    "probe": "5000",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_EXTRACT(a, '$.b[2]') FROM t",
+    "before": "SELECT JSON_EXTRACT_JSON(a, 'b', '2') FROM t",
+    "after": "SELECT JSON_EXTRACT_JSON(a, '$.b', '2') FROM t"
+   },
+   {
+    "probe": "5001",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT JSON_EXTRACT(a, '$.b[2]') FROM t",
+    "before": "SELECT a -> '$.b[2]' FROM t",
+    "after": "SELECT a -> '$.\"$.b\"[2]' FROM t"
+   },
+   {
+    "probe": "5006",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.price' RETURNING DECIMAL(4, 2))",
+    "before": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.price' RETURNING DECIMAL(4, 2))",
+    "after": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.\"$.price\"' RETURNING DECIMAL(4, 2))"
+   },
+   {
+    "probe": "5007",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.price' RETURNING DECIMAL(4, 2))",
+    "before": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.price' RETURNING DECIMAL(4, 2))",
+    "after": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.\"$.price\"' RETURNING DECIMAL(4, 2))"
+   },
+   {
+    "probe": "5008",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.price' RETURNING DECIMAL(4, 2))",
+    "before": "SELECT JSON_EXTRACT_STRING('{\"item\": \"shoes\", \"price\": \"49.95\"}', 'price') :> DECIMAL(4, 2)",
+    "after": "SELECT JSON_EXTRACT_STRING('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.price') :> DECIMAL(4, 2)"
+   },
+   {
+    "probe": "5009",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.price' RETURNING DECIMAL(4, 2))",
+    "before": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.price' RETURNING DECIMAL(4, 2))",
+    "after": "SELECT JSON_VALUE('{\"item\": \"shoes\", \"price\": \"49.95\"}', '$.\"$.price\"' RETURNING DECIMAL(4, 2))"
+   },
+   {
+    "probe": "5610",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "x ->> '$.name'",
+    "before": "x ->> '$.name'",
+    "after": "x ->> '$.\"$.name\"'"
+   },
+   {
+    "probe": "5611",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "x ->> '$.name'",
+    "before": "JSON_EXTRACT(x, '$.name')",
+    "after": "JSON_EXTRACT(x, '$.\"$.name\"')"
+   },
+   {
+    "probe": "5613",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "x ->> '$.name'",
+    "before": "x ->> '$.name'",
+    "after": "x ->> '$.\"$.name\"'"
+   },
+   {
+    "probe": "5791",
+    "source": "oracle",
+    "dialect": "oracle",
+    "input": "SELECT JSON_EXISTS('{\"a\":1}', '$.a')",
+    "before": "SELECT JSON_EXISTS('{\"a\":1}', '$.a')",
+    "after": "SELECT JSON_EXISTS('{\"a\":1}', '$[\"$.a\"]')"
+   },
+   {
+    "probe": "7371",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', 'a')",
+    "before": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', 'a')",
+    "after": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', '')"
+   },
+   {
+    "probe": "7372",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', 'a')",
+    "before": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', 'a')",
+    "after": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', '')"
+   },
+   {
+    "probe": "7373",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', 'a')",
+    "before": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', 'a')",
+    "after": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', '')"
+   },
+   {
+    "probe": "7374",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', 'a')",
+    "before": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', 'a')",
+    "after": "SELECT JSONB_EXISTS('{\"a\": [1,2,3]}', '')"
+   },
+   {
+    "probe": "8583",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "JSON_EXTRACT(x, '$.y')",
+    "before": "JSON_EXTRACT(x, '$.y')",
+    "after": "JSON_EXTRACT(x, '$[\"$.y\"]')"
+   },
+   {
+    "probe": "8584",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "JSON_EXTRACT(x, '$.y')",
+    "before": "JSON_EXTRACT(x, '$.y')",
+    "after": "JSON_EXTRACT(x, '$[\"$.y\"]')"
+   },
+   {
+    "probe": "8585",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "JSON_EXTRACT(x, '$.y')",
+    "before": "JSON_EXTRACT(x, '$.y')",
+    "after": "JSON_EXTRACT(x, '$[\"$.y\"]')"
+   },
+   {
+    "probe": "8586",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT(x, '$[\"$.y\"][0][\"$.y[0].z\"]')"
+   },
+   {
+    "probe": "8587",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT(x, '$[\"$.y\"][0][\"$.y[0].z\"]')"
+   },
+   {
+    "probe": "8588",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "JSON_EXTRACT(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT(x, '$[\"$.y\"][0][\"$.y[0].z\"]')"
+   },
+   {
+    "probe": "8589",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y')",
+    "after": "JSON_EXTRACT_SCALAR(x, '$[\"$.y\"]')"
+   },
+   {
+    "probe": "8590",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y')",
+    "after": "JSON_EXTRACT_SCALAR(x, '$[\"$.y\"]')"
+   },
+   {
+    "probe": "8591",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y')",
+    "after": "JSON_EXTRACT_SCALAR(x, '$[\"$.y\"]')"
+   },
+   {
+    "probe": "8592",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT_SCALAR(x, '$[\"$.y\"][0][\"$.y[0].z\"]')"
+   },
+   {
+    "probe": "8593",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT_SCALAR(x, '$[\"$.y\"][0][\"$.y[0].z\"]')"
+   },
+   {
+    "probe": "8594",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "before": "JSON_EXTRACT_SCALAR(x, '$.y[0].z')",
+    "after": "JSON_EXTRACT_SCALAR(x, '$[\"$.y\"][0][\"$.y[0].z\"]')"
+   },
+   {
+    "probe": "8832",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT(x, '$.name')",
+    "before": "SELECT JSON_EXTRACT(x, '$.name')",
+    "after": "SELECT JSON_EXTRACT(x, '$[\"$.name\"]')"
+   },
+   {
+    "probe": "8833",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$.name')",
+    "before": "SELECT JSON_EXTRACT(x, '$.name')",
+    "after": "SELECT JSON_EXTRACT(x, '$[\"$.name\"]')"
+   },
+   {
+    "probe": "8834",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$.name')",
+    "before": "SELECT JSON_EXTRACT(x, '$.name')",
+    "after": "SELECT JSON_EXTRACT(x, '$[\"$.name\"]')"
+   },
+   {
+    "probe": "8835",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'), COUNT(*) FROM table_a GROUP BY DISTINCT (JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'))",
+    "before": "SELECT JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'), COUNT(*) FROM table_a GROUP BY DISTINCT (JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'))",
+    "after": "SELECT JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$[\"$.value_b\"]'), COUNT(*) FROM table_a GROUP BY DISTINCT (JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$[\"$.value_b\"]'))"
+   },
+   {
+    "probe": "8836",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'), COUNT(*) FROM table_a GROUP BY DISTINCT (JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'))",
+    "before": "SELECT JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'), COUNT(*) FROM table_a GROUP BY DISTINCT (JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'))",
+    "after": "SELECT JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$[\"$.value_b\"]'), COUNT(*) FROM table_a GROUP BY DISTINCT (JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$[\"$.value_b\"]'))"
+   },
+   {
+    "probe": "8837",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'), COUNT(*) FROM table_a GROUP BY DISTINCT (JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'))",
+    "before": "SELECT JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'), COUNT(*) FROM table_a GROUP BY DISTINCT (JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$.value_b'))",
+    "after": "SELECT JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$[\"$.value_b\"]'), COUNT(*) FROM table_a GROUP BY DISTINCT (JSON_EXTRACT_SCALAR(CAST(extra AS JSON), '$[\"$.value_b\"]'))"
+   },
+   {
+    "probe": "8838",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT_SCALAR(TRY(FILTER(CAST(JSON_EXTRACT('{\"k1\": [{\"k2\": \"{\\\"k3\\\": 1}\", \"k4\": \"v\"}]}', '$.k1') AS ARRAY(MAP(VARCHAR, VARCHAR))), x -> x['k4'] = 'v')[1]['k2']), '$.k3')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(TRY(FILTER(CAST(JSON_EXTRACT('{\"k1\": [{\"k2\": \"{\\\"k3\\\": 1}\", \"k4\": \"v\"}]}', '$.k1') AS ARRAY(MAP(VARCHAR, VARCHAR))), x -> x['k4'] = 'v')[1]['k2']), '$.k3')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(TRY(FILTER(CAST(JSON_EXTRACT('{\"k1\": [{\"k2\": \"{\\\"k3\\\": 1}\", \"k4\": \"v\"}]}', '$[\"$.k1\"]') AS ARRAY(MAP(VARCHAR, VARCHAR))), x -> x['k4'] = 'v')[1]['k2']), '$[\"$.k3\"]')"
+   },
+   {
+    "probe": "8839",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT_SCALAR(TRY(FILTER(CAST(JSON_EXTRACT('{\"k1\": [{\"k2\": \"{\\\"k3\\\": 1}\", \"k4\": \"v\"}]}', '$.k1') AS ARRAY(MAP(VARCHAR, VARCHAR))), x -> x['k4'] = 'v')[1]['k2']), '$.k3')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(FILTER(CAST(JSON_EXTRACT('{\"k1\": [{\"k2\": \"{\\\"k3\\\": 1}\", \"k4\": \"v\"}]}', '$.k1') AS ARRAY(MAP(VARCHAR, VARCHAR))), x -> x['k4'] = 'v')[1]['k2'], '$.k3')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(FILTER(CAST(JSON_EXTRACT('{\"k1\": [{\"k2\": \"{\\\"k3\\\": 1}\", \"k4\": \"v\"}]}', '$[\"$.k1\"]') AS ARRAY(MAP(VARCHAR, VARCHAR))), x -> x['k4'] = 'v')[1]['k2'], '$[\"$.k3\"]')"
+   },
+   {
+    "probe": "8840",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT_SCALAR(TRY(FILTER(CAST(JSON_EXTRACT('{\"k1\": [{\"k2\": \"{\\\"k3\\\": 1}\", \"k4\": \"v\"}]}', '$.k1') AS ARRAY(MAP(VARCHAR, VARCHAR))), x -> x['k4'] = 'v')[1]['k2']), '$.k3')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(TRY(FILTER(CAST(JSON_EXTRACT('{\"k1\": [{\"k2\": \"{\\\"k3\\\": 1}\", \"k4\": \"v\"}]}', '$.k1') AS ARRAY(MAP(VARCHAR, VARCHAR))), x -> x['k4'] = 'v')[1]['k2']), '$.k3')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(TRY(FILTER(CAST(JSON_EXTRACT('{\"k1\": [{\"k2\": \"{\\\"k3\\\": 1}\", \"k4\": \"v\"}]}', '$[\"$.k1\"]') AS ARRAY(MAP(VARCHAR, VARCHAR))), x -> x['k4'] = 'v')[1]['k2']), '$[\"$.k3\"]')"
+   },
+   {
+    "probe": "8841",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$.name')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$.name')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(x, '$[\"$.name\"]')"
+   },
+   {
+    "probe": "8842",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$.name')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$.name')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(x, '$[\"$.name\"]')"
+   },
+   {
+    "probe": "8843",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$.name')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$.name')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(x, '$[\"$.name\"]')"
+   },
+   {
+    "probe": "9851",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "GET_PATH(json_data, '$id')",
+    "before": "GET_PATH(json_data, '[\"$id\"]')",
+    "after": "GET_PATH(json_data, '[\"\"]')"
+   },
+   {
+    "probe": "9852",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "GET_PATH(x, 'y')",
+    "before": "GET_PATH(x, 'y')",
+    "after": "GET_PATH(x, '[\"\"]')"
+   },
+   {
+    "probe": "9853",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "GET_PATH(x, 'y[0].z')",
+    "before": "GET_PATH(x, 'y[0].z')",
+    "after": "GET_PATH(x, '[\"\"][0][\"y[0].z\"]')"
+   },
+   {
+    "probe": "9863",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "JSON_EXTRACT_PATH_TEXT(x, 'y')",
+    "before": "JSON_EXTRACT_PATH_TEXT(x, 'y')",
+    "after": "JSON_EXTRACT_PATH_TEXT(x, '[\"\"]')"
+   },
+   {
+    "probe": "9864",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "JSON_EXTRACT_PATH_TEXT(x, 'y[0].z')",
+    "before": "JSON_EXTRACT_PATH_TEXT(x, 'y[0].z')",
+    "after": "JSON_EXTRACT_PATH_TEXT(x, '[\"\"][0][\"y[0].z\"]')"
+   },
+   {
+    "probe": "10407",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0]:z')",
+    "before": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), 'y[0].z')",
+    "after": "SELECT GET_PATH(PARSE_JSON('{\"y\": [{\"z\": 1}]}'), '[\"\"][0][\"y[0]:z\"]')"
+   },
+   {
+    "probe": "10408",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT GET_PATH(PARSE_JSON(foo), 'bar')",
+    "before": "SELECT GET_PATH(PARSE_JSON(foo), 'bar')",
+    "after": "SELECT GET_PATH(PARSE_JSON(foo), '[\"\"]')"
+   },
+   {
+    "probe": "10409",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT GET_PATH(foo, 'bar')",
+    "before": "SELECT GET_PATH(foo, 'bar')",
+    "after": "SELECT GET_PATH(foo, '[\"\"]')"
+   },
+   {
+    "probe": "10410",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT GET_PATH(v, 'attr[0].name') FROM vartab",
+    "before": "SELECT GET_PATH(v, 'attr[0].name') FROM vartab",
+    "after": "SELECT GET_PATH(v, '[\"\"][0][\"attr[0].name\"]') FROM vartab"
+   },
+   {
+    "probe": "10443",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT IS_NULL_VALUE(GET_PATH(payload, 'field'))",
+    "before": "SELECT IS_NULL_VALUE(GET_PATH(payload, 'field'))",
+    "after": "SELECT IS_NULL_VALUE(GET_PATH(payload, '[\"\"]'))"
+   },
+   {
+    "probe": "10642",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "SELECT STRIP_NULL_VALUE(GET_PATH(PARSE_JSON('{\"a\": null}'), 'a'))",
+    "before": "SELECT STRIP_NULL_VALUE(GET_PATH(PARSE_JSON('{\"a\": null}'), 'a'))",
+    "after": "SELECT STRIP_NULL_VALUE(GET_PATH(PARSE_JSON('{\"a\": null}'), '[\"\"]'))"
+   },
+   {
+    "probe": "11080",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "WITH vartab(v) AS (select parse_json('[{\"attr\": [{\"name\": \"banana\"}]}]')) SELECT GET_PATH(v, '[0].attr[0].name') FROM vartab",
+    "before": "WITH vartab(v) AS (SELECT PARSE_JSON('[{\"attr\": [{\"name\": \"banana\"}]}]')) SELECT GET_PATH(v, '[0].attr[0].name') FROM vartab",
+    "after": "WITH vartab(v) AS (SELECT PARSE_JSON('[{\"attr\": [{\"name\": \"banana\"}]}]')) SELECT GET_PATH(v, '[0][\"[0].attr\"][0][\"[0].attr[0].name\"]') FROM vartab"
+   },
+   {
+    "probe": "11081",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "WITH vartab(v) AS (select parse_json('{\"attr\": [{\"name\": \"banana\"}]}')) SELECT GET_PATH(v, 'attr[0].name') FROM vartab",
+    "before": "WITH vartab(v) AS (SELECT PARSE_JSON('{\"attr\": [{\"name\": \"banana\"}]}')) SELECT GET_PATH(v, 'attr[0].name') FROM vartab",
+    "after": "WITH vartab(v) AS (SELECT PARSE_JSON('{\"attr\": [{\"name\": \"banana\"}]}')) SELECT GET_PATH(v, '[\"\"][0][\"attr[0].name\"]') FROM vartab"
+   },
+   {
+    "probe": "11290",
+    "source": "spark",
+    "dialect": "spark",
+    "input": "GET_JSON_OBJECT(x, \"$.y[0].z\")",
+    "before": "GET_JSON_OBJECT(x, '$.y[0].z')",
+    "after": "GET_JSON_OBJECT(x, '$[\\'$.y\\'][0][\\'$.y[0].z\\']')"
+   },
+   {
+    "probe": "11291",
+    "source": "spark",
+    "dialect": "databricks",
+    "input": "GET_JSON_OBJECT(x, \"$.y[0].z\")",
+    "before": "GET_JSON_OBJECT(x, '$.y[0].z')",
+    "after": "GET_JSON_OBJECT(x, '$[\"$.y\"][0][\"$.y[0].z\"]')"
+   },
+   {
+    "probe": "11292",
+    "source": "spark",
+    "dialect": "spark",
+    "input": "GET_JSON_OBJECT(x, '$.y')",
+    "before": "GET_JSON_OBJECT(x, '$.y')",
+    "after": "GET_JSON_OBJECT(x, '$[\\'$.y\\']')"
+   },
+   {
+    "probe": "11293",
+    "source": "spark",
+    "dialect": "databricks",
+    "input": "GET_JSON_OBJECT(x, '$.y')",
+    "before": "GET_JSON_OBJECT(x, '$.y')",
+    "after": "GET_JSON_OBJECT(x, '$[\"$.y\"]')"
+   },
+   {
+    "probe": "11598",
+    "source": "spark",
+    "dialect": "spark",
+    "input": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "before": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "after": "SELECT GET_JSON_OBJECT(c1, '$[\\'$.item\\'][1][\\'$.item[1].price\\']')"
+   },
+   {
+    "probe": "11599",
+    "source": "spark",
+    "dialect": "databricks",
+    "input": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "before": "SELECT GET_JSON_OBJECT(c1, '$.item[1].price')",
+    "after": "SELECT GET_JSON_OBJECT(c1, '$[\"$.item\"][1][\"$.item[1].price\"]')"
+   },
+   {
+    "probe": "12174",
+    "source": "sqlite",
+    "dialect": "sqlite",
+    "input": "x -> '$.y'",
+    "before": "x -> '$.y'",
+    "after": "x -> '$.\"$.y\"'"
+   },
+   {
+    "probe": "12175",
+    "source": "sqlite",
+    "dialect": "sqlite",
+    "input": "x -> '$.y[0].z'",
+    "before": "x -> '$.y[0].z'",
+    "after": "x -> '$.\"$.y\"[0].\"$.y[0].z\"'"
+   },
+   {
+    "probe": "12176",
+    "source": "sqlite",
+    "dialect": "sqlite",
+    "input": "x ->> '$.y'",
+    "before": "x ->> '$.y'",
+    "after": "x ->> '$.\"$.y\"'"
+   },
+   {
+    "probe": "12177",
+    "source": "sqlite",
+    "dialect": "sqlite",
+    "input": "x ->> '$.y[0].z'",
+    "before": "x ->> '$.y[0].z'",
+    "after": "x ->> '$.\"$.y\"[0].\"$.y[0].z\"'"
+   },
+   {
+    "probe": "12217",
+    "source": "starrocks",
+    "dialect": "starrocks",
+    "input": "JSON_KEYS(foo, '$.a')",
+    "before": "JSON_KEYS(foo, '$.a')",
+    "after": "JSON_KEYS(foo, '$.\"$.a\"')"
+   },
+   {
+    "probe": "12268",
+    "source": "starrocks",
+    "dialect": "starrocks",
+    "input": "x -> '$.y'",
+    "before": "x -> '$.y'",
+    "after": "x -> '$.\"$.y\"'"
+   },
+   {
+    "probe": "12269",
+    "source": "starrocks",
+    "dialect": "starrocks",
+    "input": "x -> '$.y[0].z'",
+    "before": "x -> '$.y[0].z'",
+    "after": "x -> '$.\"$.y\"[0].\"$.y[0].z\"'"
+   },
+   {
+    "probe": "13033",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "JSON_QUERY(r.JSON, '$.Attr_INT')",
+    "before": "ISNULL(JSON_QUERY(r.JSON, '$.Attr_INT'), JSON_VALUE(r.JSON, '$.Attr_INT'))",
+    "after": "ISNULL(JSON_QUERY(r.JSON, '$.\"$.Attr_INT\"'), JSON_VALUE(r.JSON, '$.\"$.Attr_INT\"'))"
+   },
+   {
+    "probe": "13034",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "JSON_QUERY(r.JSON, '$.Attr_INT')",
+    "before": "ISNULL(JSON_QUERY(r.JSON, '$.Attr_INT'), JSON_VALUE(r.JSON, '$.Attr_INT'))",
+    "after": "ISNULL(JSON_QUERY(r.JSON, '$.\"$.Attr_INT\"'), JSON_VALUE(r.JSON, '$.\"$.Attr_INT\"'))"
+   },
+   {
+    "probe": "13035",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "JSON_VALUE(r.JSON, '$.Attr_INT')",
+    "before": "ISNULL(JSON_QUERY(r.JSON, '$.Attr_INT'), JSON_VALUE(r.JSON, '$.Attr_INT'))",
+    "after": "ISNULL(JSON_QUERY(r.JSON, '$.\"$.Attr_INT\"'), JSON_VALUE(r.JSON, '$.\"$.Attr_INT\"'))"
+   },
+   {
+    "probe": "13036",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "JSON_VALUE(r.JSON, '$.Attr_INT')",
+    "before": "ISNULL(JSON_QUERY(r.JSON, '$.Attr_INT'), JSON_VALUE(r.JSON, '$.Attr_INT'))",
+    "after": "ISNULL(JSON_QUERY(r.JSON, '$.\"$.Attr_INT\"'), JSON_VALUE(r.JSON, '$.\"$.Attr_INT\"'))"
+   },
+   {
+    "probe": "13478",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')"
+   },
+   {
+    "probe": "13479",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13480",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$[\"a\",\"\"]')",
+    "before": "SELECT JSON_EXTRACT(x, '$.a')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13481",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT(x, '$[1,0]')"
+   },
+   {
+    "probe": "13482",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13483",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT(x, '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13484",
+    "source": "presto",
+    "dialect": "presto",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')"
+   },
+   {
+    "probe": "13485",
+    "source": "presto",
+    "dialect": "dune",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "EXC: ValueError"
+   },
+   {
+    "probe": "13486",
+    "source": "presto",
+    "dialect": "trino",
+    "input": "SELECT JSON_EXTRACT_SCALAR(x, '$[1,0]')",
+    "before": "SELECT JSON_EXTRACT_SCALAR(x, '$[1]')",
+    "after": "EXC: ValueError"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 145,
+   "imports": 2
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_databricks.py::TestDatabricks::test_databricks",
+   "tests/dialects/test_databricks.py::TestDatabricks::test_json",
+   "tests/dialects/test_dialect.py::TestDialect::test_json",
+   "tests/dialects/test_dialect.py::TestDialect::test_json_keys",
+   "tests/dialects/test_doris.py::TestDoris::test_doris",
+   "tests/dialects/test_druid.py::TestDruid::test_json_value",
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb",
+   "tests/dialects/test_exasol.py::TestExasol::test_json",
+   "tests/dialects/test_hive.py::TestHive::test_hive",
+   "tests/dialects/test_mysql.py::TestMySQL::test_identity",
+   "tests/dialects/test_mysql.py::TestMySQL::test_json_value",
+   "tests/dialects/test_oracle.py::TestOracle::test_json_functions",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres",
+   "tests/dialects/test_postgres.py::TestPostgres::test_unnest_json_array",
+   "tests/dialects/test_presto.py::TestPresto::test_json",
+   "tests/dialects/test_presto.py::TestPresto::test_presto",
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_json",
+   "tests/dialects/test_singlestore.py::TestSingleStore::test_json_extract",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_get_extract",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake"
+  ]
+ }
+]

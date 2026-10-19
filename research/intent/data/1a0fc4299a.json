@@ -1,0 +1,364 @@
+[
+ {
+  "task": "1a0fc4299a",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "fix(parser): `ALTER` actions/options in any order. (#8565)\n\nAn `ALTER TABLE` in MySQL doesn't care what order options and actions\nare provided. This commit changes the parser to accept `ALTER`\nstatements in any order.",
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex e218cb5..61ad200 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -9457,20 +9457,25 @@ class Parser:\n \n         actions = ensure_list(parser(self) if parser else None)\n         if actions or options:\n-            # More actions of a different kind may follow, e.g. ADD COLUMN a INT, DROP COLUMN b.\n-            # The comma before them may have already been consumed by the previous parser\n-            while (\n-                self.ALTER_TABLE_MIXED_ACTIONS\n-                and (self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA)\n-                and not self._match_texts(self.PROPERTY_PARSERS, advance=False)\n-                and self._match_texts(self.ALTER_PARSERS)\n+            # Actions of different kinds and table options may alternate, e.g. MySQL's\n+            # ADD c INT, AUTO_INCREMENT=5, ADD d INT. The comma before an item may have already\n+            # been consumed by the previous parser\n+            while self.ALTER_TABLE_MIXED_ACTIONS and (\n+                self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA\n             ):\n-                parser = self.ALTER_PARSERS[self._prev.text.upper()]\n-                parsed = ensure_list(self._try_parse(lambda: parser(self)))\n-                if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n-                    return self._parse_as_command(start)\n-\n-                actions.extend(parsed)\n+                if not self._match_texts(\n+                    self.PROPERTY_PARSERS, advance=False\n+                ) and self._match_texts(self.ALTER_PARSERS):\n+                    parser = self.ALTER_PARSERS[self._prev.text.upper()]\n+                    parsed = ensure_list(self._try_parse(lambda: parser(self)))\n+                    if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n+                        return self._parse_as_command(start)\n+\n+                    actions.extend(parsed)\n+                elif properties := self._try_parse(self._parse_properties):\n+                    options.extend(properties.expressions)\n+                else:\n+                    break\n \n             not_valid = self._match_text_seq(\"NOT\", \"VALID\")\n             if properties := self._try_parse(self._parse_properties):\n",
+  "import_changes": [],
+  "output_changes": [],
+  "new_probes": 5
+ },
+ {
+  "task": "1a0fc4299a",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): `ALTER` actions/options in any order. (#8565)\n\nAn `ALTER TABLE` in MySQL doesn't care what order options and actions\nare provided. This commit changes the parser to accept `ALTER`\nstatements in any order.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 9450,
+   "op": "flip",
+   "code": "and alter_token.token_type == TokenType.TABLE"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex e218cb5..38a58bb 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -9447,7 +9447,7 @@ class Parser:\n         options: list[exp.Expr] = []\n         if (\n             not parser\n-            and alter_token.token_type == TokenType.TABLE\n+            and alter_token.token_type != TokenType.TABLE\n             and not self.ALTER_TABLE_REQUIRES_ACTION\n         ):\n             # Table options may precede the actions, e.g. MySQL's ENGINE=InnoDB, ADD COLUMN a INT.\n@@ -9457,20 +9457,25 @@ class Parser:\n \n         actions = ensure_list(parser(self) if parser else None)\n         if actions or options:\n-            # More actions of a different kind may follow, e.g. ADD COLUMN a INT, DROP COLUMN b.\n-            # The comma before them may have already been consumed by the previous parser\n-            while (\n-                self.ALTER_TABLE_MIXED_ACTIONS\n-                and (self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA)\n-                and not self._match_texts(self.PROPERTY_PARSERS, advance=False)\n-                and self._match_texts(self.ALTER_PARSERS)\n+            # Actions of different kinds and table options may alternate, e.g. MySQL's\n+            # ADD c INT, AUTO_INCREMENT=5, ADD d INT. The comma before an item may have already\n+            # been consumed by the previous parser\n+            while self.ALTER_TABLE_MIXED_ACTIONS and (\n+                self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA\n             ):\n-                parser = self.ALTER_PARSERS[self._prev.text.upper()]\n-                parsed = ensure_list(self._try_parse(lambda: parser(self)))\n-                if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n-                    return self._parse_as_command(start)\n-\n-                actions.extend(parsed)\n+                if not self._match_texts(\n+                    self.PROPERTY_PARSERS, advance=False\n+                ) and self._match_texts(self.ALTER_PARSERS):\n+                    parser = self.ALTER_PARSERS[self._prev.text.upper()]\n+                    parsed = ensure_list(self._try_parse(lambda: parser(self)))\n+                    if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n+                        return self._parse_as_command(start)\n+\n+                    actions.extend(parsed)\n+                elif properties := self._try_parse(self._parse_properties):\n+                    options.extend(properties.expressions)\n+                else:\n+                    break\n \n             not_valid = self._match_text_seq(\"NOT\", \"VALID\")\n             if properties := self._try_parse(self._parse_properties):\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "4093",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t COMMENT 'hi'",
+    "before": "ALTER TABLE t COMMENT='hi'",
+    "after": "ALTER TABLE t COMMENT 'hi'"
+   },
+   {
+    "probe": "4095",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t COMMENT 'hi'",
+    "before": "ALTER TABLE t COMMENT='hi'",
+    "after": "ALTER TABLE t COMMENT 'hi'"
+   },
+   {
+    "probe": "4098",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t COMMENT='hi'",
+    "before": "ALTER TABLE t COMMENT 'hi'",
+    "after": "ALTER TABLE t COMMENT='hi'"
+   },
+   {
+    "probe": "4100",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t COMMENT='hi'",
+    "before": "ALTER TABLE t COMMENT 'hi'",
+    "after": "ALTER TABLE t COMMENT='hi'"
+   },
+   {
+    "probe": "4249",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "4250",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED, 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "4251",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8"
+   },
+   {
+    "probe": "4252",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8",
+    "before": "ALTER TABLE t ROW_FORMAT=COMPRESSED, 'KEY_BLOCK_SIZE'=8",
+    "after": "ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 8,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_alter_mixed_actions",
+   "tests/dialects/test_mysql.py::TestMySQL::test_alter_table_auto_increment",
+   "tests/dialects/test_mysql.py::TestMySQL::test_ddl"
+  ]
+ },
+ {
+  "task": "1a0fc4299a",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): `ALTER` actions/options in any order. (#8565)\n\nAn `ALTER TABLE` in MySQL doesn't care what order options and actions\nare provided. This commit changes the parser to accept `ALTER`\nstatements in any order.",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/parser.py",
+   "line": 1149,
+   "op": "delete",
+   "code": "exp.Tuple: lambda self: self._parse_value(values=False),"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex e218cb5..979c730 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -1146,7 +1146,7 @@ class Parser:\n         exp.Sort: lambda self: self._parse_sort(exp.Sort, TokenType.SORT_BY),\n         exp.Table: lambda self: self._parse_table_parts(),\n         exp.TableAlias: lambda self: self._parse_table_alias(),\n-        exp.Tuple: lambda self: self._parse_value(values=False),\n+\n         exp.Whens: lambda self: self._parse_when_matched(),\n         exp.Where: lambda self: self._parse_where(),\n         exp.Window: lambda self: self._parse_named_window(),\n@@ -9457,20 +9457,25 @@ class Parser:\n \n         actions = ensure_list(parser(self) if parser else None)\n         if actions or options:\n-            # More actions of a different kind may follow, e.g. ADD COLUMN a INT, DROP COLUMN b.\n-            # The comma before them may have already been consumed by the previous parser\n-            while (\n-                self.ALTER_TABLE_MIXED_ACTIONS\n-                and (self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA)\n-                and not self._match_texts(self.PROPERTY_PARSERS, advance=False)\n-                and self._match_texts(self.ALTER_PARSERS)\n+            # Actions of different kinds and table options may alternate, e.g. MySQL's\n+            # ADD c INT, AUTO_INCREMENT=5, ADD d INT. The comma before an item may have already\n+            # been consumed by the previous parser\n+            while self.ALTER_TABLE_MIXED_ACTIONS and (\n+                self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA\n             ):\n-                parser = self.ALTER_PARSERS[self._prev.text.upper()]\n-                parsed = ensure_list(self._try_parse(lambda: parser(self)))\n-                if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n-                    return self._parse_as_command(start)\n-\n-                actions.extend(parsed)\n+                if not self._match_texts(\n+                    self.PROPERTY_PARSERS, advance=False\n+                ) and self._match_texts(self.ALTER_PARSERS):\n+                    parser = self.ALTER_PARSERS[self._prev.text.upper()]\n+                    parsed = ensure_list(self._try_parse(lambda: parser(self)))\n+                    if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n+                        return self._parse_as_command(start)\n+\n+                    actions.extend(parsed)\n+                elif properties := self._try_parse(self._parse_properties):\n+                    options.extend(properties.expressions)\n+                else:\n+                    break\n \n             not_valid = self._match_text_seq(\"NOT\", \"VALID\")\n             if properties := self._try_parse(self._parse_properties):\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.parser:Parser.EXPRESSION_PARSERS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.query.Tuple'>": "<function Parser.<lambda>>"
+    },
+    "changed": {}
+   }
+  ],
+  "output_changes": [],
+  "differs_from_fix": {
+   "outputs": 0,
+   "imports": 1
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/test_parser.py::TestParser::test_parse_into"
+  ]
+ },
+ {
+  "task": "1a0fc4299a",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): `ALTER` actions/options in any order. (#8565)\n\nAn `ALTER TABLE` in MySQL doesn't care what order options and actions\nare provided. This commit changes the parser to accept `ALTER`\nstatements in any order.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 7263,
+   "op": "flip",
+   "code": "self.SUPPORTS_DIGIT_PREFIXED_FIELD_NAMES and self._prev.token_type == TokenType.DOT"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex e218cb5..844c6ee 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -7260,7 +7260,7 @@ class Parser:\n         anonymous_func: bool = False,\n     ) -> exp.Expr | None:\n         after_dot = (\n-            self.SUPPORTS_DIGIT_PREFIXED_FIELD_NAMES and self._prev.token_type == TokenType.DOT\n+            self.SUPPORTS_DIGIT_PREFIXED_FIELD_NAMES and self._prev.token_type != TokenType.DOT\n         )\n \n         if anonymous_func:\n@@ -9457,20 +9457,25 @@ class Parser:\n \n         actions = ensure_list(parser(self) if parser else None)\n         if actions or options:\n-            # More actions of a different kind may follow, e.g. ADD COLUMN a INT, DROP COLUMN b.\n-            # The comma before them may have already been consumed by the previous parser\n-            while (\n-                self.ALTER_TABLE_MIXED_ACTIONS\n-                and (self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA)\n-                and not self._match_texts(self.PROPERTY_PARSERS, advance=False)\n-                and self._match_texts(self.ALTER_PARSERS)\n+            # Actions of different kinds and table options may alternate, e.g. MySQL's\n+            # ADD c INT, AUTO_INCREMENT=5, ADD d INT. The comma before an item may have already\n+            # been consumed by the previous parser\n+            while self.ALTER_TABLE_MIXED_ACTIONS and (\n+                self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA\n             ):\n-                parser = self.ALTER_PARSERS[self._prev.text.upper()]\n-                parsed = ensure_list(self._try_parse(lambda: parser(self)))\n-                if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n-                    return self._parse_as_command(start)\n-\n-                actions.extend(parsed)\n+                if not self._match_texts(\n+                    self.PROPERTY_PARSERS, advance=False\n+                ) and self._match_texts(self.ALTER_PARSERS):\n+                    parser = self.ALTER_PARSERS[self._prev.text.upper()]\n+                    parsed = ensure_list(self._try_parse(lambda: parser(self)))\n+                    if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n+                        return self._parse_as_command(start)\n+\n+                    actions.extend(parsed)\n+                elif properties := self._try_parse(self._parse_properties):\n+                    options.extend(properties.expressions)\n+                else:\n+                    break\n \n             not_valid = self._match_text_seq(\"NOT\", \"VALID\")\n             if properties := self._try_parse(self._parse_properties):\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "826",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT STRING(data.144) FROM t",
+    "before": "SELECT STRING(data.`144`) FROM t",
+    "after": "SELECT STRING(data.144) FROM t"
+   },
+   {
+    "probe": "827",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT STRING(data.1e10) FROM t",
+    "before": "SELECT STRING(data.`1e10`) FROM t",
+    "after": "SELECT STRING(data.1e10) FROM t"
+   },
+   {
+    "probe": "890",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT data.144A_FLAG FROM t",
+    "before": "SELECT data.`144A_FLAG` FROM t",
+    "after": "SELECT data.144 AS A_FLAG FROM t"
+   },
+   {
+    "probe": "908",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT t.144 A_FLAG FROM t",
+    "before": "SELECT t.`144` AS A_FLAG FROM t",
+    "after": "SELECT t.144 AS A_FLAG FROM t"
+   },
+   {
+    "probe": "909",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT t.1a FROM t",
+    "before": "SELECT t.`1a` FROM t",
+    "after": "SELECT t.1 AS a FROM t"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 5,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/test_parser.py::TestParser::test_type_literals"
+  ]
+ },
+ {
+  "task": "1a0fc4299a",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(parser): `ALTER` actions/options in any order. (#8565)\n\nAn `ALTER TABLE` in MySQL doesn't care what order options and actions\nare provided. This commit changes the parser to accept `ALTER`\nstatements in any order.",
+  "bug": {
+   "kind": "function",
+   "file": "sqlglot/parser.py",
+   "line": 2694,
+   "op": "flip",
+   "code": "schema=True, is_db_reference=create_token_type == TokenType.SCHEMA"
+  },
+  "code_diff": "diff --git a/sqlglot/parser.py b/sqlglot/parser.py\nindex e218cb5..36cdce9 100644\n--- a/sqlglot/parser.py\n+++ b/sqlglot/parser.py\n@@ -2691,7 +2691,7 @@ class Parser:\n                 return self._parse_as_command(start)\n         elif create_token_type in self.DB_CREATABLES:\n             table_parts = self._parse_table_parts(\n-                schema=True, is_db_reference=create_token_type == TokenType.SCHEMA\n+                schema=True, is_db_reference=create_token_type != TokenType.SCHEMA\n             )\n \n             # exp.Properties.Location.POST_NAME\n@@ -9457,20 +9457,25 @@ class Parser:\n \n         actions = ensure_list(parser(self) if parser else None)\n         if actions or options:\n-            # More actions of a different kind may follow, e.g. ADD COLUMN a INT, DROP COLUMN b.\n-            # The comma before them may have already been consumed by the previous parser\n-            while (\n-                self.ALTER_TABLE_MIXED_ACTIONS\n-                and (self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA)\n-                and not self._match_texts(self.PROPERTY_PARSERS, advance=False)\n-                and self._match_texts(self.ALTER_PARSERS)\n+            # Actions of different kinds and table options may alternate, e.g. MySQL's\n+            # ADD c INT, AUTO_INCREMENT=5, ADD d INT. The comma before an item may have already\n+            # been consumed by the previous parser\n+            while self.ALTER_TABLE_MIXED_ACTIONS and (\n+                self._match(TokenType.COMMA) or self._prev.token_type == TokenType.COMMA\n             ):\n-                parser = self.ALTER_PARSERS[self._prev.text.upper()]\n-                parsed = ensure_list(self._try_parse(lambda: parser(self)))\n-                if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n-                    return self._parse_as_command(start)\n-\n-                actions.extend(parsed)\n+                if not self._match_texts(\n+                    self.PROPERTY_PARSERS, advance=False\n+                ) and self._match_texts(self.ALTER_PARSERS):\n+                    parser = self.ALTER_PARSERS[self._prev.text.upper()]\n+                    parsed = ensure_list(self._try_parse(lambda: parser(self)))\n+                    if not parsed or any(isinstance(action, exp.Command) for action in parsed):\n+                        return self._parse_as_command(start)\n+\n+                    actions.extend(parsed)\n+                elif properties := self._try_parse(self._parse_properties):\n+                    options.extend(properties.expressions)\n+                else:\n+                    break\n \n             not_valid = self._match_text_seq(\"NOT\", \"VALID\")\n             if properties := self._try_parse(self._parse_properties):\n",
+  "import_changes": [],
+  "output_changes": [
+   {
+    "probe": "12",
+    "source": "(default)",
+    "dialect": "(default)",
+    "input": "CREATE TABLE IF NOT EXISTS foo.bar.baz (a INTEGER)",
+    "before": "CREATE TABLE IF NOT EXISTS foo.bar.baz (a INT)",
+    "after": "CREATE TABLE IF NOT EXISTS bar.baz (a INT)"
+   },
+   {
+    "probe": "13",
+    "source": "(default)",
+    "dialect": "(default)",
+    "input": "CREATE TABLE IF NOT EXISTS foo.bar.baz AS SELECT '2020' AS z FROM a.b.c",
+    "before": "CREATE TABLE IF NOT EXISTS foo.bar.baz AS SELECT '2020' AS z FROM a.b.c",
+    "after": "CREATE TABLE IF NOT EXISTS bar.baz AS SELECT '2020' AS z FROM a.b.c"
+   },
+   {
+    "probe": "14",
+    "source": "(default)",
+    "dialect": "(default)",
+    "input": "CREATE TABLE IF NOT EXISTS foo.bar.baz AS WITH cte1 AS (SELECT 1 AS col_a), cte2 AS (SELECT 1 AS col_b) SELECT col_a FROM cte1 UNION ALL SELECT col_b FROM cte2",
+    "before": "CREATE TABLE IF NOT EXISTS foo.bar.baz AS WITH cte1 AS (SELECT 1 AS col_a), cte2 AS (SELECT 1 AS col_b) SELECT col_a FROM cte1 UNION ALL SELECT col_b FROM cte2",
+    "after": "CREATE TABLE IF NOT EXISTS bar.baz AS WITH cte1 AS (SELECT 1 AS col_a), cte2 AS (SELECT 1 AS col_b) SELECT col_a FROM cte1 UNION ALL SELECT col_b FROM cte2"
+   },
+   {
+    "probe": "15",
+    "source": "(default)",
+    "dialect": "(default)",
+    "input": "CREATE TABLE foo.bar.baz AS SELECT * FROM a.b.c",
+    "before": "CREATE TABLE foo.bar.baz AS SELECT * FROM a.b.c",
+    "after": "CREATE TABLE bar.baz AS SELECT * FROM a.b.c"
+   },
+   {
+    "probe": "310",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "CREATE MODEL project_id.mydataset.mymodel\nINPUT(\n  f1 INT64,\n  f2 FLOAT64,\n  f3 STRING,\n  f4 ARRAY<INT64>\n)\nOUTPUT(\n  out1 INT64,\n  out2 INT64\n)\nREMOTE WITH CONNECTION myproject.us.test_connection\nOPTIONS (\n  ENDPOINT='https://us-central1-aiplatform.googleapis.com/v1/projects/myproject/locations/us-central1/endpoints/1234'\n)",
+    "before": "CREATE MODEL project_id.mydataset.mymodel INPUT(f1 INT64, f2 FLOAT64, f3 STRING, f4 ARRAY<INT64>) OUTPUT(out1 INT64, out2 INT64) REMOTE WITH CONNECTION myproject.us.test_connection OPTIONS (ENDPOINT='https://us-central1-aiplatform.googleapis.com/v1/projects/myproject/locations/us-central1/endpoints/1234')",
+    "after": "CREATE MODEL mydataset.mymodel INPUT(f1 INT64, f2 FLOAT64, f3 STRING, f4 ARRAY<INT64>) OUTPUT(out1 INT64, out2 INT64) REMOTE WITH CONNECTION myproject.us.test_connection OPTIONS (ENDPOINT='https://us-central1-aiplatform.googleapis.com/v1/projects/myproject/locations/us-central1/endpoints/1234')"
+   },
+   {
+    "probe": "2097",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "CREATE TABLE foo.bar.baz AS (SELECT * FROM a.b.c)",
+    "before": "CREATE TABLE foo.bar.baz AS (SELECT * FROM a.b.c)",
+    "after": "CREATE TABLE bar.baz AS (SELECT * FROM a.b.c)"
+   },
+   {
+    "probe": "11005",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "CREATE OR REPLACE TABLE EXAMPLE_DB.DEMO.USERS (ID DECIMAL(38, 0) NOT NULL, PRIMARY KEY (ID), FOREIGN KEY (CITY_CODE) REFERENCES EXAMPLE_DB.DEMO.CITIES (CITY_CODE))",
+    "before": "CREATE OR REPLACE TABLE EXAMPLE_DB.DEMO.USERS (ID DECIMAL(38, 0) NOT NULL, PRIMARY KEY (ID), FOREIGN KEY (CITY_CODE) REFERENCES EXAMPLE_DB.DEMO.CITIES (CITY_CODE))",
+    "after": "CREATE OR REPLACE TABLE DEMO.USERS (ID DECIMAL(38, 0) NOT NULL, PRIMARY KEY (ID), FOREIGN KEY (CITY_CODE) REFERENCES EXAMPLE_DB.DEMO.CITIES (CITY_CODE))"
+   },
+   {
+    "probe": "11010",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "CREATE OR REPLACE TAG IF NOT EXISTS cost_center COMMENT='cost_center tag'",
+    "before": "CREATE OR REPLACE TAG IF NOT EXISTS cost_center COMMENT='cost_center tag'",
+    "after": "CREATE OR REPLACE TAG IF NOT EXISTS  COMMENT='cost_center tag'"
+   },
+   {
+    "probe": "11032",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "CREATE STORAGE INTEGRATION s3_int\nTYPE=EXTERNAL_STAGE\nSTORAGE_PROVIDER='S3'\nSTORAGE_AWS_ROLE_ARN='arn:aws:iam::001234567890:role/myrole'\nENABLED=TRUE\nSTORAGE_ALLOWED_LOCATIONS=('s3://mybucket1/path1/', 's3://mybucket2/path2/')",
+    "before": "CREATE STORAGE INTEGRATION s3_int TYPE=EXTERNAL_STAGE STORAGE_PROVIDER='S3' STORAGE_AWS_ROLE_ARN='arn:aws:iam::001234567890:role/myrole' ENABLED=TRUE STORAGE_ALLOWED_LOCATIONS=('s3://mybucket1/path1/', 's3://mybucket2/path2/')",
+    "after": "CREATE STORAGE INTEGRATION  TYPE=EXTERNAL_STAGE STORAGE_PROVIDER='S3' STORAGE_AWS_ROLE_ARN='arn:aws:iam::001234567890:role/myrole' ENABLED=TRUE STORAGE_ALLOWED_LOCATIONS=('s3://mybucket1/path1/', 's3://mybucket2/path2/')"
+   },
+   {
+    "probe": "11033",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "CREATE STREAMLIT x",
+    "before": "CREATE STREAMLIT x",
+    "after": "CREATE STREAMLIT"
+   },
+   {
+    "probe": "11071",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "CREATE TAG cost_center ALLOWED_VALUES 'a', 'b'",
+    "before": "CREATE TAG cost_center ALLOWED_VALUES 'a', 'b'",
+    "after": "CREATE TAG  ALLOWED_VALUES 'a', 'b'"
+   },
+   {
+    "probe": "11083",
+    "source": "snowflake",
+    "dialect": "snowflake",
+    "input": "CREATE WAREHOUSE x",
+    "before": "CREATE WAREHOUSE x",
+    "after": "CREATE WAREHOUSE"
+   },
+   {
+    "probe": "14664",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "CREATE OR ALTER VIEW a.b AS SELECT 1",
+    "before": "CREATE OR ALTER VIEW a.b AS SELECT 1",
+    "after": "CREATE OR ALTER VIEW b AS SELECT 1"
+   },
+   {
+    "probe": "14665",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "CREATE OR ALTER VIEW a.b AS SELECT 1",
+    "before": "CREATE OR ALTER VIEW a.b AS SELECT 1",
+    "after": "CREATE OR ALTER VIEW b AS SELECT 1"
+   },
+   {
+    "probe": "14764",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "CREATE view a.b.c",
+    "before": "CREATE VIEW b.c",
+    "after": "CREATE VIEW c"
+   },
+   {
+    "probe": "14765",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "CREATE view a.b.c",
+    "before": "CREATE VIEW b.c",
+    "after": "CREATE VIEW c"
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 16,
+   "imports": 0
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_clickhouse.py::TestClickhouse::test_create_table_as_alias",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_ddl",
+   "tests/dialects/test_snowflake.py::TestSnowflake::test_storage_integration",
+   "tests/dialects/test_tsql.py::TestTSQL::test_ddl",
+   "tests/dialects/test_tsql.py::TestTSQL::test_identifier_prefixes",
+   "tests/dialects/test_tsql.py::TestTSQL::test_tsql",
+   "tests/test_expressions.py::TestExprs::test_find",
+   "tests/test_parser.py::TestParser::test_create_table_error",
+   "tests/test_parser.py::TestParser::test_parse_create_schema",
+   "tests/test_transpile.py::TestTranspile::test_identity"
+  ]
+ }
+]

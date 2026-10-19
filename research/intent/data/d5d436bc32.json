@@ -1,0 +1,2039 @@
+[
+ {
+  "task": "d5d436bc32",
+  "variant": "fix",
+  "label": "intended",
+  "prompt": "fix(generator): escape identifier escape chars when generating quoted identifiers (#8533)",
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 226b13c..cac5b02 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -347,6 +347,13 @@ class _Dialect(type):\n             if v == \"\\\\\" or (not v.isprintable() and k[1:] != v)\n         }\n \n+        identifier_escapes = klass.tokenizer_class.IDENTIFIER_ESCAPES\n+        klass.IDENTIFIER_ESCAPED_SEQUENCES = {\n+            v: k\n+            for k, v in klass.UNESCAPED_SEQUENCES.items()\n+            if k[0] in identifier_escapes and v in identifier_escapes\n+        }\n+\n         # Prefer hex, then octal, then Unicode for numeric control-character escapes.\n         numeric_escapes = klass.tokenizer_class.NUMERIC_ESCAPES\n         if \"x\" in numeric_escapes:\n@@ -491,6 +498,9 @@ class Dialect(metaclass=_Dialect):\n     BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES: bool = False\n     \"\"\"Whether byte string literals support escape sequences. Set by the metaclass based on the tokenizer's BYTE_STRING_ESCAPES.\"\"\"\n \n+    IDENTIFIER_ESCAPED_SEQUENCES: dict[str, str] = {}\n+    \"\"\"Mapping of an identifier escape char (`\\\\`) to its escaped version (`\\\\\\\\`). Set by the metaclass based on the tokenizer's IDENTIFIER_ESCAPES.\"\"\"\n+\n     INVERSE_VECTOR_TYPE_ALIASES: dict[str, str] = {}\n     \"\"\"Mapping of vector type aliases back to their canonical names. Overridden by dialects like SingleStore.\"\"\"\n \ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 324418c..fa41d06 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -900,6 +900,7 @@ class Generator:\n         \"_escaped_quote_end\",\n         \"_escaped_byte_quote_end\",\n         \"_escaped_identifier_end\",\n+        \"_identifier_escaped_sequences\",\n         \"_next_name\",\n         \"_identifier_start\",\n         \"_identifier_end\",\n@@ -952,6 +953,7 @@ class Generator:\n             else \"\"\n         )\n         self._escaped_identifier_end = self.dialect.IDENTIFIER_END * 2\n+        self._identifier_escaped_sequences = self.dialect.IDENTIFIER_ESCAPED_SEQUENCES\n \n         self._next_name = name_sequence(\"_t\")\n \n@@ -2047,6 +2049,9 @@ class Generator:\n         lower = text.lower()\n         quoted = expression.quoted\n         text = lower if self.normalize and not quoted else text\n+        if self._identifier_escaped_sequences:\n+            for char, escaped in self._identifier_escaped_sequences.items():\n+                text = text.replace(char, escaped)\n         text = text.replace(self._identifier_end, self._escaped_identifier_end)\n         if (\n             quoted\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generator:Generator.__slots__",
+    "kind": "tuple",
+    "added": [
+     "'_identifier_escaped_sequences'"
+    ],
+    "removed": []
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {
+     "'\\\\'": "'\\\\\\\\'"
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dune:Dune.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.exasol:Exasol.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.fabric:Fabric.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.oracle:Oracle.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.presto:Presto.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.prql:PRQL.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.solr:Solr.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.spark2:Spark2.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.spark:Spark.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.sqlite:SQLite.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.tableau:Tableau.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.teradata:Teradata.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.trino:Trino.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.tsql:TSQL.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.executor.python:Python.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.generator:Generator._identifier_escaped_sequences",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": "<member '_identifier_escaped_sequences' of 'Generator' objects>"
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "15298",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"",
+    "before": "SELECT \"a\\\"",
+    "after": "SELECT \"a\\\\\""
+   },
+   {
+    "probe": "15299",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"\"b\"",
+    "before": "SELECT \"a\\\"\"b\"",
+    "after": "SELECT \"a\\\\\"\"b\""
+   },
+   {
+    "probe": "15300",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\b\"",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   },
+   {
+    "probe": "15301",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT `a\\\\b`",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   }
+  ],
+  "new_probes": 8
+ },
+ {
+  "task": "d5d436bc32",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(generator): escape identifier escape chars when generating quoted identifiers (#8533)",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generator.py",
+   "line": 745,
+   "op": "delete",
+   "code": "exp.FreespaceProperty: exp.Properties.Location.POST_NAME,"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 226b13c..cac5b02 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -347,6 +347,13 @@ class _Dialect(type):\n             if v == \"\\\\\" or (not v.isprintable() and k[1:] != v)\n         }\n \n+        identifier_escapes = klass.tokenizer_class.IDENTIFIER_ESCAPES\n+        klass.IDENTIFIER_ESCAPED_SEQUENCES = {\n+            v: k\n+            for k, v in klass.UNESCAPED_SEQUENCES.items()\n+            if k[0] in identifier_escapes and v in identifier_escapes\n+        }\n+\n         # Prefer hex, then octal, then Unicode for numeric control-character escapes.\n         numeric_escapes = klass.tokenizer_class.NUMERIC_ESCAPES\n         if \"x\" in numeric_escapes:\n@@ -491,6 +498,9 @@ class Dialect(metaclass=_Dialect):\n     BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES: bool = False\n     \"\"\"Whether byte string literals support escape sequences. Set by the metaclass based on the tokenizer's BYTE_STRING_ESCAPES.\"\"\"\n \n+    IDENTIFIER_ESCAPED_SEQUENCES: dict[str, str] = {}\n+    \"\"\"Mapping of an identifier escape char (`\\\\`) to its escaped version (`\\\\\\\\`). Set by the metaclass based on the tokenizer's IDENTIFIER_ESCAPES.\"\"\"\n+\n     INVERSE_VECTOR_TYPE_ALIASES: dict[str, str] = {}\n     \"\"\"Mapping of vector type aliases back to their canonical names. Overridden by dialects like SingleStore.\"\"\"\n \ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 324418c..108cf3d 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -742,7 +742,7 @@ class Generator:\n         exp.ExternalProperty: exp.Properties.Location.POST_CREATE,\n         exp.FallbackProperty: exp.Properties.Location.POST_NAME,\n         exp.FileFormatProperty: exp.Properties.Location.POST_WITH,\n-        exp.FreespaceProperty: exp.Properties.Location.POST_NAME,\n+\n         exp.GlobalProperty: exp.Properties.Location.POST_CREATE,\n         exp.HeapProperty: exp.Properties.Location.POST_WITH,\n         exp.HybridProperty: exp.Properties.Location.POST_CREATE,\n@@ -900,6 +900,7 @@ class Generator:\n         \"_escaped_quote_end\",\n         \"_escaped_byte_quote_end\",\n         \"_escaped_identifier_end\",\n+        \"_identifier_escaped_sequences\",\n         \"_next_name\",\n         \"_identifier_start\",\n         \"_identifier_end\",\n@@ -952,6 +953,7 @@ class Generator:\n             else \"\"\n         )\n         self._escaped_identifier_end = self.dialect.IDENTIFIER_END * 2\n+        self._identifier_escaped_sequences = self.dialect.IDENTIFIER_ESCAPED_SEQUENCES\n \n         self._next_name = name_sequence(\"_t\")\n \n@@ -2047,6 +2049,9 @@ class Generator:\n         lower = text.lower()\n         quoted = expression.quoted\n         text = lower if self.normalize and not quoted else text\n+        if self._identifier_escaped_sequences:\n+            for char, escaped in self._identifier_escaped_sequences.items():\n+                text = text.replace(char, escaped)\n         text = text.replace(self._identifier_end, self._escaped_identifier_end)\n         if (\n             quoted\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generator:Generator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generator:Generator.__slots__",
+    "kind": "tuple",
+    "added": [
+     "'_identifier_escaped_sequences'"
+    ],
+    "removed": []
+   },
+   {
+    "key": "sqlglot.generators.athena:AthenaTrinoGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.clickhouse:ClickHouseGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.drill:DrillGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.UNSUPPORTED: 'UNSUPPORTED'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.hive:HiveGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.oracle:OracleGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.postgres:PostgresGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.presto:PrestoGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.snowflake:SnowflakeGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.spark2:Spark2Generator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.sqlite:SQLiteGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.UNSUPPORTED: 'UNSUPPORTED'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.tableau:TableauGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.teradata:TeradataGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.trino:TrinoGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.tsql:TSQLGenerator.PROPERTIES_LOCATION",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.FreespaceProperty'>": "<PropertiesLocation.POST_NAME: 'POST_NAME'>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {
+     "'\\\\'": "'\\\\\\\\'"
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dune:Dune.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.exasol:Exasol.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.fabric:Fabric.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.oracle:Oracle.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "13697",
+    "source": "teradata",
+    "dialect": "teradata",
+    "input": "CREATE TABLE a, BEFORE JOURNAL, AFTER JOURNAL, FREESPACE=1, DEFAULT DATABLOCKSIZE, BLOCKCOMPRESSION=DEFAULT (a INT)",
+    "before": "CREATE TABLE a, BEFORE JOURNAL, AFTER JOURNAL, FREESPACE=1, DEFAULT DATABLOCKSIZE, BLOCKCOMPRESSION=DEFAULT (a INT)",
+    "after": "EXC: KeyError"
+   },
+   {
+    "probe": "13711",
+    "source": "teradata",
+    "dialect": "teradata",
+    "input": "CREATE VOLATILE MULTISET TABLE a, NOT LOCAL AFTER JOURNAL, FREESPACE=1 PERCENT, DATABLOCKSIZE=10 BYTES, WITH NO CONCURRENT ISOLATED LOADING FOR ALL (a INT)",
+    "before": "CREATE VOLATILE MULTISET TABLE a, NOT LOCAL AFTER JOURNAL, FREESPACE=1 PERCENT, DATABLOCKSIZE=10 BYTES, WITH NO CONCURRENT ISOLATED LOADING FOR ALL (a INT)",
+    "after": "EXC: KeyError"
+   },
+   {
+    "probe": "15298",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"",
+    "before": "SELECT \"a\\\"",
+    "after": "SELECT \"a\\\\\""
+   },
+   {
+    "probe": "15299",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"\"b\"",
+    "before": "SELECT \"a\\\"\"b\"",
+    "after": "SELECT \"a\\\\\"\"b\""
+   },
+   {
+    "probe": "15300",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\b\"",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   },
+   {
+    "probe": "15301",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT `a\\\\b`",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 2,
+   "imports": 21
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_teradata.py::TestTeradata::test_create"
+  ]
+ },
+ {
+  "task": "d5d436bc32",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(generator): escape identifier escape chars when generating quoted identifiers (#8533)",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generator.py",
+   "line": 147,
+   "op": "delete",
+   "code": "exp.ArrayContainsAll: lambda self, e: self.binary(e, \"@>\"),"
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 226b13c..cac5b02 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -347,6 +347,13 @@ class _Dialect(type):\n             if v == \"\\\\\" or (not v.isprintable() and k[1:] != v)\n         }\n \n+        identifier_escapes = klass.tokenizer_class.IDENTIFIER_ESCAPES\n+        klass.IDENTIFIER_ESCAPED_SEQUENCES = {\n+            v: k\n+            for k, v in klass.UNESCAPED_SEQUENCES.items()\n+            if k[0] in identifier_escapes and v in identifier_escapes\n+        }\n+\n         # Prefer hex, then octal, then Unicode for numeric control-character escapes.\n         numeric_escapes = klass.tokenizer_class.NUMERIC_ESCAPES\n         if \"x\" in numeric_escapes:\n@@ -491,6 +498,9 @@ class Dialect(metaclass=_Dialect):\n     BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES: bool = False\n     \"\"\"Whether byte string literals support escape sequences. Set by the metaclass based on the tokenizer's BYTE_STRING_ESCAPES.\"\"\"\n \n+    IDENTIFIER_ESCAPED_SEQUENCES: dict[str, str] = {}\n+    \"\"\"Mapping of an identifier escape char (`\\\\`) to its escaped version (`\\\\\\\\`). Set by the metaclass based on the tokenizer's IDENTIFIER_ESCAPES.\"\"\"\n+\n     INVERSE_VECTOR_TYPE_ALIASES: dict[str, str] = {}\n     \"\"\"Mapping of vector type aliases back to their canonical names. Overridden by dialects like SingleStore.\"\"\"\n \ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 324418c..8d56bf2 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -144,7 +144,7 @@ class Generator:\n         exp.AnalyzeColumns: lambda self, e: self.sql(e, \"this\"),\n         exp.AnalyzeWith: lambda self, e: self.expressions(e, prefix=\"WITH \", sep=\" \"),\n         exp.ArrayContainedBy: lambda self, e: self.binary(e, \"<@\"),\n-        exp.ArrayContainsAll: lambda self, e: self.binary(e, \"@>\"),\n+\n         exp.ArrayOverlaps: lambda self, e: self.binary(e, \"&&\"),\n         exp.AssumeColumnConstraint: lambda self, e: f\"ASSUME ({self.sql(e, 'this')})\",\n         exp.AutoRefreshProperty: lambda self, e: f\"AUTO REFRESH {self.sql(e, 'this')}\",\n@@ -900,6 +900,7 @@ class Generator:\n         \"_escaped_quote_end\",\n         \"_escaped_byte_quote_end\",\n         \"_escaped_identifier_end\",\n+        \"_identifier_escaped_sequences\",\n         \"_next_name\",\n         \"_identifier_start\",\n         \"_identifier_end\",\n@@ -952,6 +953,7 @@ class Generator:\n             else \"\"\n         )\n         self._escaped_identifier_end = self.dialect.IDENTIFIER_END * 2\n+        self._identifier_escaped_sequences = self.dialect.IDENTIFIER_ESCAPED_SEQUENCES\n \n         self._next_name = name_sequence(\"_t\")\n \n@@ -2047,6 +2049,9 @@ class Generator:\n         lower = text.lower()\n         quoted = expression.quoted\n         text = lower if self.normalize and not quoted else text\n+        if self._identifier_escaped_sequences:\n+            for char, escaped in self._identifier_escaped_sequences.items():\n+                text = text.replace(char, escaped)\n         text = text.replace(self._identifier_end, self._escaped_identifier_end)\n         if (\n             quoted\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generator:Generator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generator:Generator.__slots__",
+    "kind": "tuple",
+    "added": [
+     "'_identifier_escaped_sequences'"
+    ],
+    "removed": []
+   },
+   {
+    "key": "sqlglot.generators.athena:AthenaTrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.clickhouse:ClickHouseGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.databricks:DatabricksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.dremio:DremioGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.drill:DrillGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.druid:DruidGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.dune:DuneGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.exasol:ExasolGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.fabric:FabricGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.hive:HiveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.oracle:OracleGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.postgres:PostgresGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.presto:PrestoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.singlestore:SingleStoreGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.snowflake:SnowflakeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.spark2:Spark2Generator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.spark:SparkGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.sqlite:SQLiteGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.tableau:TableauGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.teradata:TeradataGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.trino:TrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.tsql:TSQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.array.ArrayContainsAll'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {
+     "'\\\\'": "'\\\\\\\\'"
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "2564",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "SELECT [1, 2, 3] @> [1, 2]",
+    "before": "SELECT [1, 2, 3] @> [1, 2]",
+    "after": "SELECT ARRAY_CONTAINS_ALL([1, 2, 3], [1, 2])"
+   },
+   {
+    "probe": "2718",
+    "source": "duckdb",
+    "dialect": "duckdb",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "ARRAY_CONTAINS_ALL(a, b)"
+   },
+   {
+    "probe": "7900",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "after": "SELECT ARRAY_CONTAINS_ALL(ARRAY[1, 2, 3], ARRAY[1, 2])"
+   },
+   {
+    "probe": "7901",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "after": "SELECT ARRAY_CONTAINS_ALL(ARRAY[1, 2, 3], ARRAY[1, 2])"
+   },
+   {
+    "probe": "7902",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "after": "SELECT ARRAY_CONTAINS_ALL(ARRAY[1, 2, 3], ARRAY[1, 2])"
+   },
+   {
+    "probe": "7903",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "before": "SELECT ARRAY[1, 2, 3] @> ARRAY[1, 2]",
+    "after": "SELECT ARRAY_CONTAINS_ALL(ARRAY[1, 2, 3], ARRAY[1, 2])"
+   },
+   {
+    "probe": "8932",
+    "source": "postgres",
+    "dialect": "postgres",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "ARRAY_CONTAINS_ALL(a, b)"
+   },
+   {
+    "probe": "8933",
+    "source": "postgres",
+    "dialect": "materialize",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "ARRAY_CONTAINS_ALL(a, b)"
+   },
+   {
+    "probe": "8934",
+    "source": "postgres",
+    "dialect": "redshift",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "ARRAY_CONTAINS_ALL(a, b)"
+   },
+   {
+    "probe": "8935",
+    "source": "postgres",
+    "dialect": "risingwave",
+    "input": "a @> b",
+    "before": "a @> b",
+    "after": "ARRAY_CONTAINS_ALL(a, b)"
+   },
+   {
+    "probe": "15298",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"",
+    "before": "SELECT \"a\\\"",
+    "after": "SELECT \"a\\\\\""
+   },
+   {
+    "probe": "15299",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"\"b\"",
+    "before": "SELECT \"a\\\"\"b\"",
+    "after": "SELECT \"a\\\\\"\"b\""
+   },
+   {
+    "probe": "15300",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\b\"",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   },
+   {
+    "probe": "15301",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT `a\\\\b`",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 10,
+   "imports": 30
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_duckdb.py::TestDuckDB::test_duckdb",
+   "tests/dialects/test_postgres.py::TestPostgres::test_postgres"
+  ]
+ },
+ {
+  "task": "d5d436bc32",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(generator): escape identifier escape chars when generating quoted identifiers (#8533)",
+  "bug": {
+   "kind": "module",
+   "file": "sqlglot/dialects/dialect.py",
+   "line": 73,
+   "op": "delete",
+   "code": "\"\\\\r\": \"\\r\","
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 226b13c..bc4000a 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -70,7 +70,7 @@ UNESCAPED_SEQUENCES = {\n     \"\\\\b\": \"\\b\",\n     \"\\\\f\": \"\\f\",\n     \"\\\\n\": \"\\n\",\n-    \"\\\\r\": \"\\r\",\n+\n     \"\\\\t\": \"\\t\",\n     \"\\\\v\": \"\\v\",\n     \"\\\\\\\\\": \"\\\\\",\n@@ -347,6 +347,13 @@ class _Dialect(type):\n             if v == \"\\\\\" or (not v.isprintable() and k[1:] != v)\n         }\n \n+        identifier_escapes = klass.tokenizer_class.IDENTIFIER_ESCAPES\n+        klass.IDENTIFIER_ESCAPED_SEQUENCES = {\n+            v: k\n+            for k, v in klass.UNESCAPED_SEQUENCES.items()\n+            if k[0] in identifier_escapes and v in identifier_escapes\n+        }\n+\n         # Prefer hex, then octal, then Unicode for numeric control-character escapes.\n         numeric_escapes = klass.tokenizer_class.NUMERIC_ESCAPES\n         if \"x\" in numeric_escapes:\n@@ -491,6 +498,9 @@ class Dialect(metaclass=_Dialect):\n     BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES: bool = False\n     \"\"\"Whether byte string literals support escape sequences. Set by the metaclass based on the tokenizer's BYTE_STRING_ESCAPES.\"\"\"\n \n+    IDENTIFIER_ESCAPED_SEQUENCES: dict[str, str] = {}\n+    \"\"\"Mapping of an identifier escape char (`\\\\`) to its escaped version (`\\\\\\\\`). Set by the metaclass based on the tokenizer's IDENTIFIER_ESCAPES.\"\"\"\n+\n     INVERSE_VECTOR_TYPE_ALIASES: dict[str, str] = {}\n     \"\"\"Mapping of vector type aliases back to their canonical names. Overridden by dialects like SingleStore.\"\"\"\n \ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 324418c..fa41d06 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -900,6 +900,7 @@ class Generator:\n         \"_escaped_quote_end\",\n         \"_escaped_byte_quote_end\",\n         \"_escaped_identifier_end\",\n+        \"_identifier_escaped_sequences\",\n         \"_next_name\",\n         \"_identifier_start\",\n         \"_identifier_end\",\n@@ -952,6 +953,7 @@ class Generator:\n             else \"\"\n         )\n         self._escaped_identifier_end = self.dialect.IDENTIFIER_END * 2\n+        self._identifier_escaped_sequences = self.dialect.IDENTIFIER_ESCAPED_SEQUENCES\n \n         self._next_name = name_sequence(\"_t\")\n \n@@ -2047,6 +2049,9 @@ class Generator:\n         lower = text.lower()\n         quoted = expression.quoted\n         text = lower if self.normalize and not quoted else text\n+        if self._identifier_escaped_sequences:\n+            for char, escaped in self._identifier_escaped_sequences.items():\n+                text = text.replace(char, escaped)\n         text = text.replace(self._identifier_end, self._escaped_identifier_end)\n         if (\n             quoted\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.dialects.athena:Athena.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.hive:Hive.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.materialize:Materialize.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.mysql:MySQL.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.postgres:Postgres.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.redshift:Redshift.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.risingwave:RisingWave.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.singlestore:SingleStore.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.snowflake:Snowflake.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.spark2:Spark2.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.spark2:Spark2.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.spark:Spark.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.spark:Spark.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.starrocks:StarRocks.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.executor.python:Python.ESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\r'": "'\\\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.executor.python:Python.UNESCAPED_SEQUENCES",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "'\\\\r'": "'\\r'"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generator:Generator.__slots__",
+    "kind": "tuple",
+    "added": [
+     "'_identifier_escaped_sequences'"
+    ],
+    "removed": []
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "517",
+    "source": "bigquery",
+    "dialect": "bigquery",
+    "input": "SELECT '\\n\\r\\a\\v\\f\\t'",
+    "before": "SELECT '\\n\\r\\a\\v\\f\\t'",
+    "after": "SELECT '\\nr\\a\\v\\f\\t'"
+   },
+   {
+    "probe": "15298",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"",
+    "before": "SELECT \"a\\\"",
+    "after": "SELECT \"a\\\\\""
+   },
+   {
+    "probe": "15299",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"\"b\"",
+    "before": "SELECT \"a\\\"\"b\"",
+    "after": "SELECT \"a\\\\\"\"b\""
+   },
+   {
+    "probe": "15300",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\b\"",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   },
+   {
+    "probe": "15301",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT `a\\\\b`",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 1,
+   "imports": 37
+  },
+  "caught_by_tests": false,
+  "new_failures": []
+ },
+ {
+  "task": "d5d436bc32",
+  "variant": "bug",
+  "label": "unintended",
+  "prompt": "fix(generator): escape identifier escape chars when generating quoted identifiers (#8533)",
+  "bug": {
+   "kind": "class",
+   "file": "sqlglot/generator.py",
+   "line": 232,
+   "op": "delete",
+   "code": "exp.OnProperty: lambda self, e: f\"ON {self.sql(e, 'this')}\","
+  },
+  "code_diff": "diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py\nindex 226b13c..cac5b02 100644\n--- a/sqlglot/dialects/dialect.py\n+++ b/sqlglot/dialects/dialect.py\n@@ -347,6 +347,13 @@ class _Dialect(type):\n             if v == \"\\\\\" or (not v.isprintable() and k[1:] != v)\n         }\n \n+        identifier_escapes = klass.tokenizer_class.IDENTIFIER_ESCAPES\n+        klass.IDENTIFIER_ESCAPED_SEQUENCES = {\n+            v: k\n+            for k, v in klass.UNESCAPED_SEQUENCES.items()\n+            if k[0] in identifier_escapes and v in identifier_escapes\n+        }\n+\n         # Prefer hex, then octal, then Unicode for numeric control-character escapes.\n         numeric_escapes = klass.tokenizer_class.NUMERIC_ESCAPES\n         if \"x\" in numeric_escapes:\n@@ -491,6 +498,9 @@ class Dialect(metaclass=_Dialect):\n     BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES: bool = False\n     \"\"\"Whether byte string literals support escape sequences. Set by the metaclass based on the tokenizer's BYTE_STRING_ESCAPES.\"\"\"\n \n+    IDENTIFIER_ESCAPED_SEQUENCES: dict[str, str] = {}\n+    \"\"\"Mapping of an identifier escape char (`\\\\`) to its escaped version (`\\\\\\\\`). Set by the metaclass based on the tokenizer's IDENTIFIER_ESCAPES.\"\"\"\n+\n     INVERSE_VECTOR_TYPE_ALIASES: dict[str, str] = {}\n     \"\"\"Mapping of vector type aliases back to their canonical names. Overridden by dialects like SingleStore.\"\"\"\n \ndiff --git a/sqlglot/generator.py b/sqlglot/generator.py\nindex 324418c..8a5c515 100644\n--- a/sqlglot/generator.py\n+++ b/sqlglot/generator.py\n@@ -229,7 +229,7 @@ class Generator:\n         exp.OnCommitProperty: lambda _, e: (\n             f\"ON COMMIT {'DELETE' if e.args.get('delete') else 'PRESERVE'} ROWS\"\n         ),\n-        exp.OnProperty: lambda self, e: f\"ON {self.sql(e, 'this')}\",\n+\n         exp.OnUpdateColumnConstraint: lambda self, e: f\"ON UPDATE {self.sql(e, 'this')}\",\n         exp.Operator: lambda self, e: self.binary(e, \"\"),  # The operator is produced in `binary`\n         exp.OutputModelProperty: lambda self, e: f\"OUTPUT{self.sql(e, 'this')}\",\n@@ -900,6 +900,7 @@ class Generator:\n         \"_escaped_quote_end\",\n         \"_escaped_byte_quote_end\",\n         \"_escaped_identifier_end\",\n+        \"_identifier_escaped_sequences\",\n         \"_next_name\",\n         \"_identifier_start\",\n         \"_identifier_end\",\n@@ -952,6 +953,7 @@ class Generator:\n             else \"\"\n         )\n         self._escaped_identifier_end = self.dialect.IDENTIFIER_END * 2\n+        self._identifier_escaped_sequences = self.dialect.IDENTIFIER_ESCAPED_SEQUENCES\n \n         self._next_name = name_sequence(\"_t\")\n \n@@ -2047,6 +2049,9 @@ class Generator:\n         lower = text.lower()\n         quoted = expression.quoted\n         text = lower if self.normalize and not quoted else text\n+        if self._identifier_escaped_sequences:\n+            for char, escaped in self._identifier_escaped_sequences.items():\n+                text = text.replace(char, escaped)\n         text = text.replace(self._identifier_end, self._escaped_identifier_end)\n         if (\n             quoted\n",
+  "import_changes": [
+   {
+    "key": "sqlglot.generator:Generator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generator:Generator.__slots__",
+    "kind": "tuple",
+    "added": [
+     "'_identifier_escaped_sequences'"
+    ],
+    "removed": []
+   },
+   {
+    "key": "sqlglot.generators.athena:AthenaTrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.bigquery:BigQueryGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.clickhouse:ClickHouseGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.doris:DorisGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.dremio:DremioGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.drill:DrillGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.druid:DruidGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.duckdb:DuckDBGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.dune:DuneGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.exasol:ExasolGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.fabric:FabricGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.materialize:MaterializeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.mysql:MySQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.oracle:OracleGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.postgres:PostgresGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.presto:PrestoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.redshift:RedshiftGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.risingwave:RisingWaveGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.singlestore:SingleStoreGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.snowflake:SnowflakeGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.sqlite:SQLiteGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.starrocks:StarRocksGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.tableau:TableauGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.teradata:TeradataGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.trino:TrinoGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.generators.tsql:TSQLGenerator.TRANSFORMS",
+    "kind": "dict",
+    "added": {},
+    "removed": {
+     "<class 'sqlglot.expressions.properties.OnProperty'>": "<function Generator.<lambda>>"
+    },
+    "changed": {}
+   },
+   {
+    "key": "sqlglot.dialects.athena:Athena.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.bigquery:BigQuery.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.clickhouse:ClickHouse.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {
+     "'\\\\'": "'\\\\\\\\'"
+    }
+   },
+   {
+    "key": "sqlglot.dialects.databricks:Databricks.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dax:DAX.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dialect:Dialect.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.doris:Doris.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dremio:Dremio.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.drill:Drill.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.druid:Druid.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.duckdb:DuckDB.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   },
+   {
+    "key": "sqlglot.dialects.dune:Dune.IDENTIFIER_ESCAPED_SEQUENCES",
+    "kind": "value",
+    "before": "AttributeError",
+    "after": {}
+   }
+  ],
+  "output_changes": [
+   {
+    "probe": "4797",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "DROP INDEX concurrently ON t",
+    "after": "DROP INDEX concurrently None=t"
+   },
+   {
+    "probe": "4798",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "DROP INDEX concurrently ON t",
+    "after": "DROP INDEX concurrently None=t"
+   },
+   {
+    "probe": "4799",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "DROP INDEX `concurrently` ON t",
+    "after": "DROP INDEX `concurrently` None=t"
+   },
+   {
+    "probe": "4800",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "DROP INDEX concurrently ON t",
+    "before": "DROP INDEX concurrently ON t",
+    "after": "DROP INDEX concurrently None=t"
+   },
+   {
+    "probe": "4801",
+    "source": "mysql",
+    "dialect": "mysql",
+    "input": "DROP INDEX i ON db.t",
+    "before": "DROP INDEX i ON db.t",
+    "after": "DROP INDEX i None=db.t"
+   },
+   {
+    "probe": "4802",
+    "source": "mysql",
+    "dialect": "doris",
+    "input": "DROP INDEX i ON db.t",
+    "before": "DROP INDEX i ON db.t",
+    "after": "DROP INDEX i None=db.t"
+   },
+   {
+    "probe": "4803",
+    "source": "mysql",
+    "dialect": "singlestore",
+    "input": "DROP INDEX i ON db.t",
+    "before": "DROP INDEX i ON db.t",
+    "after": "DROP INDEX i None=db.t"
+   },
+   {
+    "probe": "4804",
+    "source": "mysql",
+    "dialect": "starrocks",
+    "input": "DROP INDEX i ON db.t",
+    "before": "DROP INDEX i ON db.t",
+    "after": "DROP INDEX i None=db.t"
+   },
+   {
+    "probe": "14646",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "CREATE TABLE x (CONSTRAINT \"pk_mytable\" UNIQUE NONCLUSTERED (a DESC)) ON b (c)",
+    "before": "CREATE TABLE x (CONSTRAINT [pk_mytable] UNIQUE NONCLUSTERED (a DESC)) ON b (c)",
+    "after": "CREATE TABLE x (CONSTRAINT [pk_mytable] UNIQUE NONCLUSTERED (a DESC)) None=b (c)"
+   },
+   {
+    "probe": "14647",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "CREATE TABLE x (CONSTRAINT \"pk_mytable\" UNIQUE NONCLUSTERED (a DESC)) ON b (c)",
+    "before": "CREATE TABLE x (CONSTRAINT [pk_mytable] UNIQUE NONCLUSTERED (a DESC)) ON b (c)",
+    "after": "CREATE TABLE x (CONSTRAINT [pk_mytable] UNIQUE NONCLUSTERED (a DESC)) None=b (c)"
+   },
+   {
+    "probe": "14648",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "CREATE TABLE x ([zip_cd] VARCHAR(5) NULL NOT FOR REPLICATION, [zip_cd_mkey] VARCHAR(5) NOT NULL, CONSTRAINT [pk_mytable] PRIMARY KEY CLUSTERED ([zip_cd_mkey] ASC) WITH (PAD_INDEX=ON, STATISTICS_NORECOMPUTE=OFF) ON [INDEX]) ON [SECONDARY]",
+    "before": "CREATE TABLE x ([zip_cd] VARCHAR(5) NULL NOT FOR REPLICATION, [zip_cd_mkey] VARCHAR(5) NOT NULL, CONSTRAINT [pk_mytable] PRIMARY KEY CLUSTERED ([zip_cd_mkey] ASC) WITH (PAD_INDEX=ON, STATISTICS_NORECOMPUTE=OFF) ON [INDEX]) ON [SECONDARY]",
+    "after": "CREATE TABLE x ([zip_cd] VARCHAR(5) NULL NOT FOR REPLICATION, [zip_cd_mkey] VARCHAR(5) NOT NULL, CONSTRAINT [pk_mytable] PRIMARY KEY CLUSTERED ([zip_cd_mkey] ASC) WITH (PAD_INDEX=ON, STATISTICS_NORECOMPUTE=OFF) None=[INDEX]) None=[SECONDARY]"
+   },
+   {
+    "probe": "14649",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "CREATE TABLE x ([zip_cd] VARCHAR(5) NULL NOT FOR REPLICATION, [zip_cd_mkey] VARCHAR(5) NOT NULL, CONSTRAINT [pk_mytable] PRIMARY KEY CLUSTERED ([zip_cd_mkey] ASC) WITH (PAD_INDEX=ON, STATISTICS_NORECOMPUTE=OFF) ON [INDEX]) ON [SECONDARY]",
+    "before": "CREATE TABLE x ([zip_cd] VARCHAR(5) NULL NOT FOR REPLICATION, [zip_cd_mkey] VARCHAR(5) NOT NULL, CONSTRAINT [pk_mytable] PRIMARY KEY CLUSTERED ([zip_cd_mkey] ASC) WITH (PAD_INDEX=ON, STATISTICS_NORECOMPUTE=OFF) ON [INDEX]) ON [SECONDARY]",
+    "after": "CREATE TABLE x ([zip_cd] VARCHAR(5) NULL NOT FOR REPLICATION, [zip_cd_mkey] VARCHAR(5) NOT NULL, CONSTRAINT [pk_mytable] PRIMARY KEY CLUSTERED ([zip_cd_mkey] ASC) WITH (PAD_INDEX=ON, STATISTICS_NORECOMPUTE=OFF) None=[INDEX]) None=[SECONDARY]"
+   },
+   {
+    "probe": "14692",
+    "source": "tsql",
+    "dialect": "tsql",
+    "input": "DROP INDEX IF EXISTS i ON dbo.t",
+    "before": "DROP INDEX IF EXISTS i ON dbo.t",
+    "after": "DROP INDEX IF EXISTS i None=dbo.t"
+   },
+   {
+    "probe": "14693",
+    "source": "tsql",
+    "dialect": "fabric",
+    "input": "DROP INDEX IF EXISTS i ON dbo.t",
+    "before": "DROP INDEX IF EXISTS i ON dbo.t",
+    "after": "DROP INDEX IF EXISTS i None=dbo.t"
+   },
+   {
+    "probe": "15298",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"",
+    "before": "SELECT \"a\\\"",
+    "after": "SELECT \"a\\\\\""
+   },
+   {
+    "probe": "15299",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\\"\"b\"",
+    "before": "SELECT \"a\\\"\"b\"",
+    "after": "SELECT \"a\\\\\"\"b\""
+   },
+   {
+    "probe": "15300",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT \"a\\\\b\"",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   },
+   {
+    "probe": "15301",
+    "source": "clickhouse",
+    "dialect": "clickhouse",
+    "input": "SELECT `a\\\\b`",
+    "before": "SELECT \"a\\b\"",
+    "after": "SELECT \"a\\\\b\""
+   }
+  ],
+  "differs_from_fix": {
+   "outputs": 14,
+   "imports": 27
+  },
+  "caught_by_tests": true,
+  "new_failures": [
+   "tests/dialects/test_mysql.py::TestMySQL::test_alter_drop_column",
+   "tests/dialects/test_tsql.py::TestTSQL::test_tsql"
+  ]
+ }
+]
