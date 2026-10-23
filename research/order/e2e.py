@@ -57,6 +57,7 @@ def real_sqlglot():
         cov, ratio = plain_cov(cov0, PLAIN[d])
         funcs, _ = O.SEL.Change(os.path.join(p, "tree"), ["sqlglot"]).units()
         sel = json.load(open(os.path.join(p, "proviso.json")))["selected"]
+        sel = universe if sel is None else sel  # Proviso ran the full suite
         yield score({"repo": "sqlglot", "dataset": "real", "change": d, "breaks": bool(truth), "ratio": round(ratio, 3)},
                     sel, universe, truth, cov, funcs, WARM[d])
 
