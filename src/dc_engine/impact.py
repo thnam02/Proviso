@@ -21,7 +21,9 @@ the input came from (e.g. a MySQL input run as StarRocks) are reported once.
 from __future__ import annotations
 
 import ast
+import functools
 import glob
+import hashlib
 import json
 import os
 import re
@@ -107,7 +109,34 @@ def packages(covmap: dict) -> list[str]:
 IMPORT_STATE_MAX_NAMES = 200
 
 
+def _head_cached(root: str, kind: str, files: list[str], compute):
+    """compute(root, files), cached in STATE_DIR per base commit (both analyses below read only HEAD's sources, so
+    their result is fixed for an agent session; without the cache every selection re-parses the whole package)."""
+    head = _git(root, "rev-parse", "HEAD").strip()
+    key = hashlib.sha1(json.dumps([head, sorted(files)]).encode()).hexdigest()
+    path = os.path.join(root, STATE_DIR, f"{kind}.json")
+    try:
+        got = json.load(open(path))
+        if got.get("key") == key:
+            return got["value"]
+    except (OSError, ValueError, KeyError):
+        pass
+    value = compute(root, files)
+    try:
+        os.makedirs(os.path.join(root, STATE_DIR), exist_ok=True)
+        json.dump({"key": key, "value": value}, open(path, "w"))
+    except OSError:
+        pass
+    return value
+
+
 def _name_index(root: str, files: list[str]) -> dict[tuple[str, int], set[str]]:
+    rows = _head_cached(root, "names_index", files, lambda r, fs: [[f, ln, sorted(ns)] for (f, ln), ns in
+                                                                   _name_index_uncached(r, fs).items()])
+    return {(f, ln): set(ns) for f, ln, ns in rows}
+
+
+def _name_index_uncached(root: str, files: list[str]) -> dict[tuple[str, int], set[str]]:
     """(file, first line) of every function and lambda at HEAD -> identifiers it mentions (names, attribute names,
     string constants that look like identifiers). Calls are additionally recorded as 'call:NAME', and each function's
     own name as 'def:NAME', so callers of a function can be found."""
@@ -139,7 +168,49 @@ def _name_index(root: str, files: list[str]) -> dict[tuple[str, int], set[str]]:
     return idx
 
 
+_FILE_NAMES: dict[str, dict] = {}  # store path -> {test file path: [stamp, names]}
+_DIRTY: set[str] = set()
+
+
 def _file_names(path: str) -> set[str]:
+    """_file_names_uncached, cached in the repository's STATE_DIR per file (keyed by size and mtime: the agent may
+    edit tests)."""
+    root = os.path.dirname(os.path.abspath(path))
+    while root != os.path.dirname(root) and not os.path.exists(os.path.join(root, ".git")):
+        root = os.path.dirname(root)
+    store = os.path.join(root, STATE_DIR, "file_names.json")
+    cache = _FILE_NAMES.get(store)
+    if cache is None:
+        try:
+            cache = json.load(open(store))
+        except (OSError, ValueError):
+            cache = {}
+        _FILE_NAMES[store] = cache
+    try:
+        st = os.stat(path)
+        stamp = f"{st.st_size}:{st.st_mtime_ns}"
+    except OSError:
+        return set()
+    got = cache.get(path)
+    if got and got[0] == stamp:
+        return set(got[1])
+    names = _file_names_uncached(path)
+    cache[path] = [stamp, sorted(names)]
+    _DIRTY.add(store)
+    return names
+
+
+def _flush_file_names() -> None:
+    for store in list(_DIRTY):
+        try:
+            os.makedirs(os.path.dirname(store), exist_ok=True)
+            json.dump(_FILE_NAMES[store], open(store, "w"))
+        except OSError:
+            pass
+        _DIRTY.discard(store)
+
+
+def _file_names_uncached(path: str) -> set[str]:
     """Every identifier, attribute name and identifier-like string in a file (empty if it does not parse)."""
     try:
         tree = ast.parse(open(path, encoding="utf-8").read())
@@ -186,6 +257,11 @@ def _new_top_level_defs(root: str, files: set[str]) -> set[str]:
 
 
 def _computed_lookup_patterns(root: str, files: list[str]) -> set[tuple[str, str]]:
+    return {tuple(x) for x in _head_cached(root, "lookup_patterns", files,
+                                           lambda r, fs: sorted(_computed_lookup_patterns_uncached(r, fs)))}
+
+
+def _computed_lookup_patterns_uncached(root: str, files: list[str]) -> set[tuple[str, str]]:
     """(prefix, suffix) of every attribute lookup by computed name (getattr/hasattr/setattr whose name is built
     from constant parts, e.g. getattr(self, f"{key}_sql") -> ("", "_sql")). A new attribute whose name fits one can
     be reached without being named, so the classes that gain it are treated like edited classes."""
@@ -295,7 +371,8 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
             module_level.add(f)
     glob_funcs = {tuple(x) for x in (covmap.get("__global__") or {}).get("funcs", [])}
     hit_global = sorted(funcs & glob_funcs)
-    why: dict[str, Any] = {"functions": len(funcs), "files": sorted(module_level)}
+    why: dict[str, Any] = {"functions": len(funcs), "files": sorted(module_level),
+                           "changed_functions": sorted([f, ln] for f, ln in funcs)}
     read_names: set[str] = set()
     if hit_global or module_level:
         names, gained, info = _import_state_effect(root, covmap, python,
@@ -372,6 +449,7 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
     touched_tests = [l[3:].strip() for l in status.splitlines() if _is_test_path(l[3:].strip())]
     extra = sorted({t for t in touched_tests if t.endswith(".py")})
     why["agent_tests"] = extra
+    _flush_file_names()
     return sorted(set(sel)) + extra, why
 
 
@@ -381,6 +459,7 @@ BROAD_TARGETS = {"", "tests", "tests/", "./tests", "./tests/", "tests/dialects",
 _SEG_SPLIT = re.compile(r"(&&|\|\||;|\n)")
 
 
+@functools.lru_cache(maxsize=None)
 def _is_test_path(p: str) -> bool:
     """Test code, wherever it lives (tests/ at the top or inside the package, test_*.py files)."""
     p = p.replace(os.sep, "/")
@@ -433,6 +512,24 @@ def _broad_targets(seg: str) -> list[str] | None:
     return None
 
 
+def _maxfail(seg: str) -> int | None:
+    """N if the test command stops after N failures (-x / --exitfirst: 1, --maxfail N / --maxfail=N)."""
+    try:
+        toks = shlex.split(seg)
+    except ValueError:
+        return None
+    for i, t in enumerate(toks):
+        if t in ("-x", "--exitfirst"):
+            return 1
+        if t.startswith("--maxfail="):
+            return int(t.split("=", 1)[1]) if t.split("=", 1)[1].isdigit() else None
+        if t == "--maxfail" and i + 1 < len(toks) and toks[i + 1].isdigit():
+            return int(toks[i + 1])
+        if t.startswith("-") and not t.startswith("--") and len(t) > 2 and "x" in t[1:] and t[1:].isalpha():
+            return 1  # combined short flags, e.g. -xq
+    return None
+
+
 def _is_broad_test(seg: str) -> bool:
     return _broad_targets(seg) is not None
 
@@ -448,6 +545,9 @@ def rewrite(command: str, hook_python: str, test_python: str) -> str | None:
         targets = _broad_targets(head)
         if targets is not None:
             runner = f"{shlex.quote(hook_python)} -m dc_engine.impact run --python {shlex.quote(test_python)}"
+            mf = _maxfail(head)
+            if mf:
+                runner += f" --maxfail {mf}"
             if targets:
                 runner += " -- " + " ".join(shlex.quote(t) for t in targets)
             lead = re.match(r"^\s*", head).group(0)
@@ -539,7 +639,23 @@ def _collect(root: str, python: str, targets: list[str]) -> list[str] | None:
     return ids or None
 
 
-def run_selected(root: str, python: str, targets: list[str] | None = None) -> str:
+def rank(tests: list[str], covmap: dict, changed_functions, agent_files: set[str] = frozenset()) -> list[str]:
+    """Order in which to run the selected tests so that a failure tends to come first: tests the agent wrote or
+    edited and tests the coverage map does not know; then tests that ran a changed function (more of them first);
+    then the rest (import-time readers, class users); fastest first within each group."""
+    funcs = {tuple(x) for x in changed_functions or []}
+    pos = {n: i for i, n in enumerate(tests)}
+
+    def key(n):
+        v = covmap.get(n)
+        if v is None or n.split("::", 1)[0] in agent_files:
+            return (0, 0, 0.0, pos[n])
+        hits = len({tuple(x) for x in v.get("funcs", [])} & funcs)
+        return (1 if hits else 2, -hits, v.get("time", 0) or 0, pos[n])
+    return sorted(tests, key=key)
+
+
+def run_selected(root: str, python: str, targets: list[str] | None = None, maxfail: int | None = None) -> str:
     """Run what the agent asked for (targets: directories relative to the repository root; [] = the default suite),
     restricted to the tests the change can affect. Tests the coverage map does not know always run."""
     targets = targets or []
@@ -552,7 +668,8 @@ def run_selected(root: str, python: str, targets: list[str] | None = None) -> st
     if sel is not None and collected is None:
         sel, why = None, {**why, "reason": "could not list the tests"}
     if sel is None:
-        res, stdout = _pytest(root, python, targets, "impact-args.txt")
+        res, stdout = _pytest(root, python, ([f"--maxfail={maxfail}"] if maxfail else []) + targets,
+                              "impact-args.txt")
         n_scope = len(res)
     else:
         selset = set(sel)
@@ -564,15 +681,17 @@ def run_selected(root: str, python: str, targets: list[str] | None = None) -> st
             _log_run(root, 0, n_scope, time.time() - t0, [], why)
             return (f"[Proviso] Your changes do not reach any code the {n_scope} existing tests in {where} execute, so "
                     "none of them can change outcome; nothing to run.")
-        res, stdout = _pytest(root, python, run, "impact-args.txt")
+        run = rank(run, covmap, why.get("changed_functions"), agent_files)
+        res, stdout = _pytest(root, python, ([f"--maxfail={maxfail}"] if maxfail else []) + run, "impact-args.txt")
     secs = time.time() - t0
     failing = sorted(n for n, ok in res.items() if not ok)
     new = [n for n in failing if n not in base_fail and n.split("::")[0] not in base_fail]
     old = [n for n in failing if n not in new]
     if sel is not None:
         unk = (f", {n_unknown} of them because Proviso has no coverage record for them" if n_unknown else "")
+        stopped = f", stopping at the first {maxfail} failure(s) as you asked" if maxfail else ""
         lines = [f"[Proviso] Ran {len(res)} of the {n_scope} tests in {where} (the ones your changes can affect"
-                 f"{unk}) in {secs:.0f}s."]
+                 f"{unk}, likeliest failures first{stopped}) in {secs:.0f}s."]
     else:
         lines = [f"[Proviso] Ran all {len(res)} tests in {where} ({why.get('reason', 'change could not be placed')}) "
                  f"in {secs:.0f}s."]
@@ -823,6 +942,7 @@ def main(argv: list[str] | None = None) -> int:
     rp = sub.add_parser("run", help="run the tests the current change can affect")
     rp.add_argument("--python", default=sys.executable)
     rp.add_argument("--root", default=None)
+    rp.add_argument("--maxfail", type=int, default=None, help="stop after this many failures (the agent's -x)")
     rp.add_argument("targets", nargs="*", help="directories the agent asked to test (relative to the current directory)")
     argv = list(sys.argv[1:] if argv is None else argv)
     if "--" in argv:  # targets after --
@@ -832,7 +952,7 @@ def main(argv: list[str] | None = None) -> int:
     root = a.root or _git(os.getcwd(), "rev-parse", "--show-toplevel").strip() or os.getcwd()
     rel = [os.path.relpath(os.path.join(os.getcwd(), t), root) for t in a.targets]
     rel = [t for t in rel if t != "."]
-    text = run_selected(root, a.python, rel)
+    text = run_selected(root, a.python, rel, a.maxfail)
     print(text)
     return 1 if "NEW failures" in text else 0
 
