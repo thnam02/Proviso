@@ -29,7 +29,7 @@ import tempfile
 
 HERE = os.path.abspath(__file__)
 SNAPSHOT_TIMEOUT = 300
-FORMAT = 7  # bump when fingerprints change; cached base snapshots of another format are rebuilt
+FORMAT = 8  # bump when fingerprints change; cached base snapshots of another format are rebuilt
 # bookkeeping that changes whenever lines move, or that Python fills in itself
 IGNORED_CLASS_KEYS = {"__dict__", "__weakref__", "__doc__", "__module__", "__qualname__", "__annotations__",
                       "__firstlineno__", "__static_attributes__", "__annotate__", "__annotate_func__",
@@ -145,6 +145,7 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             return
         seen = seen | {id(v)}
         if isinstance(v, (list, tuple)):
+            mode["seq"] = True
             if mode["ordered"]:
                 h.update(b"[")
                 for x in v:
@@ -203,11 +204,15 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             r = "<unrepr>"
         h.update(f"{t.__module__}.{t.__qualname__}:{addr.sub('', r)};".encode())
 
-    mode = {"ordered": True}
+    mode = {"ordered": True, "seq": False}
 
     def one(v):
+        # the two fingerprints differ only in how lists and tuples are hashed: without any, the second pass is skipped
         res = []
+        mode["seq"] = False
         for ordered in (True, False):
+            if not ordered and not mode["seq"]:
+                break
             mode["ordered"] = ordered
             h = hashlib.sha1()
             try:
@@ -215,7 +220,7 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             except Exception as e:  # noqa: BLE001
                 h.update(f"<error {type(e).__name__}>".encode())
             res.append(h.hexdigest()[:16])
-        return res[0] if res[0] == res[1] else f"{res[0]}~{res[1]}"
+        return res[0] if len(res) == 1 or res[0] == res[1] else f"{res[0]}~{res[1]}"
 
     out: dict[str, str] = {}
     overrides: list[str] = []
@@ -312,6 +317,7 @@ def base_snapshot(root: str, files: list[str], python: str, cache_path: str) -> 
         shutil.rmtree(tmp, ignore_errors=True)
     if snap is not None:
         try:
+            os.makedirs(os.path.dirname(cache_path) or ".", exist_ok=True)
             json.dump({"head": head, "format": FORMAT, "snapshot": snap}, open(cache_path, "w"))
         except OSError:
             pass
