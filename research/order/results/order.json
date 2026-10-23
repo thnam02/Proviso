@@ -10,7 +10,8 @@
   "full_default": 9.808,
   "sel_default": 4.172,
   "sel_cheap": 2.575,
-  "sel_ranked": 3.102
+  "sel_ranked": 3.102,
+  "full_cheap": 12.294
  },
  {
   "repo": "sqlglot",
@@ -23,7 +24,8 @@
   "full_default": 0.934,
   "sel_default": 0.934,
   "sel_cheap": 9.955,
-  "sel_ranked": 1.184
+  "sel_ranked": 1.184,
+  "full_cheap": 10.012
  },
  {
   "repo": "sqlglot",
@@ -36,7 +38,8 @@
   "full_default": 25.654,
   "sel_default": 5.201,
   "sel_cheap": 0.006,
-  "sel_ranked": 0.006
+  "sel_ranked": 0.006,
+  "full_cheap": 1.253
  },
  {
   "repo": "sqlglot",
@@ -49,7 +52,8 @@
   "full_default": 3.629,
   "sel_default": 3.39,
   "sel_cheap": 2.211,
-  "sel_ranked": 4.025
+  "sel_ranked": 4.025,
+  "full_cheap": 2.716
  },
  {
   "repo": "sqlglot",
@@ -62,7 +66,8 @@
   "full_default": 26.34,
   "sel_default": 0.305,
   "sel_cheap": 0.024,
-  "sel_ranked": 0.024
+  "sel_ranked": 0.024,
+  "full_cheap": 4.426
  },
  {
   "repo": "sqlglot",
@@ -75,7 +80,8 @@
   "full_default": 9.951,
   "sel_default": 9.935,
   "sel_cheap": 0.389,
-  "sel_ranked": 3.451
+  "sel_ranked": 3.451,
+  "full_cheap": 0.406
  },
  {
   "repo": "sqlglot",
@@ -88,7 +94,8 @@
   "full_default": 28.689,
   "sel_default": 7.344,
   "sel_cheap": 3.671,
-  "sel_ranked": 2.596
+  "sel_ranked": 2.596,
+  "full_cheap": 22.672
  },
  {
   "repo": "sqlglot",
@@ -101,7 +108,8 @@
   "full_default": 1.419,
   "sel_default": 0.837,
   "sel_cheap": 8.621,
-  "sel_ranked": 10.093
+  "sel_ranked": 10.093,
+  "full_cheap": 15.783
  },
  {
   "repo": "sqlglot",
@@ -114,7 +122,8 @@
   "full_default": 4.589,
   "sel_default": 4.58,
   "sel_cheap": 1.408,
-  "sel_ranked": 1.013
+  "sel_ranked": 1.013,
+  "full_cheap": 1.575
  },
  {
   "repo": "sqlglot",
@@ -127,7 +136,8 @@
   "full_default": 4.824,
   "sel_default": 2.07,
   "sel_cheap": 0.22,
-  "sel_ranked": 0.118
+  "sel_ranked": 0.118,
+  "full_cheap": 2.198
  },
  {
   "repo": "sqlglot",
@@ -140,7 +150,8 @@
   "full_default": 10.612,
   "sel_default": 1.348,
   "sel_cheap": 0.257,
-  "sel_ranked": 0.245
+  "sel_ranked": 0.245,
+  "full_cheap": 7.559
  },
  {
   "repo": "sqlglot",
@@ -153,7 +164,8 @@
   "full_default": 14.073,
   "sel_default": 7.892,
   "sel_cheap": 1.437,
-  "sel_ranked": 0.031
+  "sel_ranked": 0.031,
+  "full_cheap": 7.379
  },
  {
   "repo": "sqlglot",
@@ -166,7 +178,8 @@
   "full_default": 159.657,
   "sel_default": 20.219,
   "sel_cheap": 4.254,
-  "sel_ranked": 4.254
+  "sel_ranked": 4.254,
+  "full_cheap": 10.874
  },
  {
   "repo": "sqlglot",
@@ -179,7 +192,8 @@
   "full_default": 8.557,
   "sel_default": 7.171,
   "sel_cheap": 2.162,
-  "sel_ranked": 0.529
+  "sel_ranked": 0.529,
+  "full_cheap": 4.563
  },
  {
   "repo": "sqlglot",
@@ -192,7 +206,8 @@
   "full_default": 7.585,
   "sel_default": 3.413,
   "sel_cheap": 4.434,
-  "sel_ranked": 4.434
+  "sel_ranked": 4.434,
+  "full_cheap": 17.729
  },
  {
   "repo": "sqlglot",
@@ -205,7 +220,8 @@
   "full_default": 9.9,
   "sel_default": 9.759,
   "sel_cheap": 6.842,
-  "sel_ranked": 1.218
+  "sel_ranked": 1.218,
+  "full_cheap": 7.195
  },
  {
   "repo": "sqlglot",
@@ -221,7 +237,8 @@
   "full_default": 11.901,
   "sel_default": 0.531,
   "sel_cheap": 0.016,
-  "sel_ranked": 0.016
+  "sel_ranked": 0.016,
+  "full_cheap": 4.172
  },
  {
   "repo": "sqlglot",
@@ -237,7 +254,8 @@
   "full_default": 0.053,
   "sel_default": 0.053,
   "sel_cheap": 0.003,
-  "sel_ranked": 0.002
+  "sel_ranked": 0.002,
+  "full_cheap": 0.003
  },
  {
   "repo": "sqlglot",
@@ -253,7 +271,8 @@
   "full_default": 8.658,
   "sel_default": 0.174,
   "sel_cheap": 0.032,
-  "sel_ranked": 0.032
+  "sel_ranked": 0.032,
+  "full_cheap": 7.153
  },
  {
   "repo": "sqlglot",
@@ -269,7 +288,8 @@
   "full_default": 32.374,
   "sel_default": 1.264,
   "sel_cheap": 0.026,
-  "sel_ranked": 0.026
+  "sel_ranked": 0.026,
+  "full_cheap": 6.321
  },
  {
   "repo": "sqlglot",
@@ -285,7 +305,8 @@
   "full_default": 2.971,
   "sel_default": 0.543,
   "sel_cheap": 0.012,
-  "sel_ranked": 0.012
+  "sel_ranked": 0.012,
+  "full_cheap": 1.049
  },
  {
   "repo": "sqlglot",
@@ -301,7 +322,8 @@
   "full_default": 22.724,
   "sel_default": 2.797,
   "sel_cheap": 2.797,
-  "sel_ranked": 2.656
+  "sel_ranked": 2.656,
+  "full_cheap": 34.983
  },
  {
   "repo": "sqlglot",
@@ -317,7 +339,8 @@
   "full_default": 1.777,
   "sel_default": 0.239,
   "sel_cheap": 0.001,
-  "sel_ranked": 0.001
+  "sel_ranked": 0.001,
+  "full_cheap": 0.082
  },
  {
   "repo": "sqlglot",
@@ -333,7 +356,8 @@
   "full_default": 24.799,
   "sel_default": 15.636,
   "sel_cheap": 6.681,
-  "sel_ranked": 6.681
+  "sel_ranked": 6.681,
+  "full_cheap": 19.621
  },
  {
   "repo": "sqlglot",
@@ -349,7 +373,8 @@
   "full_default": 0.998,
   "sel_default": 0.813,
   "sel_cheap": 4.992,
-  "sel_ranked": 4.992
+  "sel_ranked": 4.992,
+  "full_cheap": 26.189
  },
  {
   "repo": "sqlglot",
@@ -365,7 +390,8 @@
   "full_default": 1.221,
   "sel_default": 1.219,
   "sel_cheap": 0.009,
-  "sel_ranked": 0.009
+  "sel_ranked": 0.009,
+  "full_cheap": 0.015
  },
  {
   "repo": "sqlglot",
@@ -381,7 +407,8 @@
   "full_default": 22.724,
   "sel_default": 11.066,
   "sel_cheap": 13.404,
-  "sel_ranked": 13.404
+  "sel_ranked": 13.404,
+  "full_cheap": 34.983
  },
  {
   "repo": "sqlglot",
@@ -397,7 +424,8 @@
   "full_default": 14.162,
   "sel_default": 8.021,
   "sel_cheap": 0.002,
-  "sel_ranked": 0.002
+  "sel_ranked": 0.002,
+  "full_cheap": 0.053
  },
  {
   "repo": "sqlglot",
@@ -413,7 +441,8 @@
   "full_default": 24.799,
   "sel_default": 2.564,
   "sel_cheap": 1.285,
-  "sel_ranked": 1.285
+  "sel_ranked": 1.285,
+  "full_cheap": 19.621
  },
  {
   "repo": "sqlglot",
@@ -429,7 +458,8 @@
   "full_default": 2.552,
   "sel_default": 0.518,
   "sel_cheap": 0.592,
-  "sel_ranked": 0.592
+  "sel_ranked": 0.592,
+  "full_cheap": 14.919
  },
  {
   "repo": "sqlglot",
@@ -445,7 +475,8 @@
   "full_default": 0.998,
   "sel_default": 0.993,
   "sel_cheap": 3.742,
-  "sel_ranked": 3.742
+  "sel_ranked": 3.742,
+  "full_cheap": 4.094
  },
  {
   "repo": "sqlglot",
@@ -461,7 +492,8 @@
   "full_default": 10.201,
   "sel_default": 4.546,
   "sel_cheap": 4.248,
-  "sel_ranked": 4.248
+  "sel_ranked": 4.248,
+  "full_cheap": 21.737
  },
  {
   "repo": "sqlglot",
@@ -477,7 +509,8 @@
   "full_default": 1.777,
   "sel_default": 1.77,
   "sel_cheap": 0.154,
-  "sel_ranked": 0.154
+  "sel_ranked": 0.154,
+  "full_cheap": 0.267
  },
  {
   "repo": "sqlglot",
@@ -493,7 +526,8 @@
   "full_default": 27.187,
   "sel_default": 0.705,
   "sel_cheap": 0.479,
-  "sel_ranked": 0.479
+  "sel_ranked": 0.479,
+  "full_cheap": 16.797
  },
  {
   "repo": "sqlglot",
@@ -509,7 +543,8 @@
   "full_default": 8.042,
   "sel_default": 8.042,
   "sel_cheap": 0.426,
-  "sel_ranked": 0.426
+  "sel_ranked": 0.426,
+  "full_cheap": 0.445
  },
  {
   "repo": "sqlglot",
@@ -525,7 +560,8 @@
   "full_default": 1.777,
   "sel_default": 1.467,
   "sel_cheap": 0.004,
-  "sel_ranked": 0.004
+  "sel_ranked": 0.004,
+  "full_cheap": 0.095
  },
  {
   "repo": "sqlglot",
@@ -541,7 +577,8 @@
   "full_default": 1.864,
   "sel_default": 1.087,
   "sel_cheap": 1.105,
-  "sel_ranked": 1.689
+  "sel_ranked": 1.689,
+  "full_cheap": 6.872
  },
  {
   "repo": "sqlglot",
@@ -557,7 +594,8 @@
   "full_default": 10.897,
   "sel_default": 0.559,
   "sel_cheap": 1.218,
-  "sel_ranked": 1.054
+  "sel_ranked": 1.054,
+  "full_cheap": 20.997
  },
  {
   "repo": "sqlglot",
@@ -573,7 +611,8 @@
   "full_default": 13.807,
   "sel_default": 13.336,
   "sel_cheap": 0.719,
-  "sel_ranked": 0.719
+  "sel_ranked": 0.719,
+  "full_cheap": 1.005
  },
  {
   "repo": "sqlglot",
@@ -589,7 +628,8 @@
   "full_default": 23.136,
   "sel_default": 22.267,
   "sel_cheap": 36.303,
-  "sel_ranked": 36.14
+  "sel_ranked": 36.14,
+  "full_cheap": 37.873
  },
  {
   "repo": "sqlglot",
@@ -605,7 +645,8 @@
   "full_default": 0.056,
   "sel_default": 0.056,
   "sel_cheap": 0.0,
-  "sel_ranked": 0.001
+  "sel_ranked": 0.001,
+  "full_cheap": 0.0
  },
  {
   "repo": "sqlglot",
@@ -621,7 +662,8 @@
   "full_default": 13.183,
   "sel_default": 4.671,
   "sel_cheap": 0.835,
-  "sel_ranked": 0.835
+  "sel_ranked": 0.835,
+  "full_cheap": 9.382
  },
  {
   "repo": "sqlglot",
@@ -637,7 +679,8 @@
   "full_default": 8.148,
   "sel_default": 2.958,
   "sel_cheap": 0.953,
-  "sel_ranked": 0.953
+  "sel_ranked": 0.953,
+  "full_cheap": 9.803
  },
  {
   "repo": "sqlglot",
@@ -653,7 +696,8 @@
   "full_default": 9.595,
   "sel_default": 1.085,
   "sel_cheap": 0.506,
-  "sel_ranked": 0.506
+  "sel_ranked": 0.506,
+  "full_cheap": 10.135
  },
  {
   "repo": "sqlglot",
@@ -669,7 +713,8 @@
   "full_default": 26.489,
   "sel_default": 26.149,
   "sel_cheap": 8.792,
-  "sel_ranked": 8.792
+  "sel_ranked": 8.792,
+  "full_cheap": 9.281
  },
  {
   "repo": "sqlglot",
@@ -685,7 +730,8 @@
   "full_default": 10.46,
   "sel_default": 0.844,
   "sel_cheap": 0.056,
-  "sel_ranked": 0.056
+  "sel_ranked": 0.056,
+  "full_cheap": 8.302
  },
  {
   "repo": "sqlglot",
@@ -701,7 +747,8 @@
   "full_default": 24.999,
   "sel_default": 0.371,
   "sel_cheap": 0.371,
-  "sel_ranked": 0.371
+  "sel_ranked": 0.371,
+  "full_cheap": 18.733
  },
  {
   "repo": "sqlglot",
@@ -717,7 +764,8 @@
   "full_default": 8.148,
   "sel_default": 4.806,
   "sel_cheap": 3.322,
-  "sel_ranked": 3.322
+  "sel_ranked": 3.322,
+  "full_cheap": 15.896
  },
  {
   "repo": "sqlglot",
@@ -733,7 +781,8 @@
   "full_default": 12.146,
   "sel_default": 0.437,
   "sel_cheap": 0.031,
-  "sel_ranked": 0.031
+  "sel_ranked": 0.031,
+  "full_cheap": 7.192
  },
  {
   "repo": "sqlglot",
@@ -749,7 +798,8 @@
   "full_default": 9.687,
   "sel_default": 1.478,
   "sel_cheap": 0.848,
-  "sel_ranked": 0.848
+  "sel_ranked": 0.848,
+  "full_cheap": 12.64
  },
  {
   "repo": "sqlglot",
@@ -765,7 +815,8 @@
   "full_default": 8.158,
   "sel_default": 4.983,
   "sel_cheap": 0.242,
-  "sel_ranked": 0.242
+  "sel_ranked": 0.242,
+  "full_cheap": 2.453
  },
  {
   "repo": "sqlglot",
@@ -781,7 +832,8 @@
   "full_default": 26.496,
   "sel_default": 11.052,
   "sel_cheap": 0.097,
-  "sel_ranked": 0.097
+  "sel_ranked": 0.097,
+  "full_cheap": 1.607
  },
  {
   "repo": "sqlglot",
@@ -797,7 +849,8 @@
   "full_default": 5.893,
   "sel_default": 2.647,
   "sel_cheap": 0.418,
-  "sel_ranked": 0.418
+  "sel_ranked": 0.418,
+  "full_cheap": 3.508
  },
  {
   "repo": "sqlglot",
@@ -813,7 +866,8 @@
   "full_default": 8.148,
   "sel_default": 8.148,
   "sel_cheap": 0.43,
-  "sel_ranked": 0.43
+  "sel_ranked": 0.43,
+  "full_cheap": 0.449
  },
  {
   "repo": "sqlglot",
@@ -829,7 +883,8 @@
   "full_default": 26.489,
   "sel_default": 4.406,
   "sel_cheap": 0.092,
-  "sel_ranked": 0.092
+  "sel_ranked": 0.092,
+  "full_cheap": 9.281
  },
  {
   "repo": "sqlglot",
@@ -845,7 +900,8 @@
   "full_default": 26.439,
   "sel_default": 0.843,
   "sel_cheap": 0.005,
-  "sel_ranked": 0.005
+  "sel_ranked": 0.005,
+  "full_cheap": 1.055
  },
  {
   "repo": "sqlglot",
@@ -861,7 +917,8 @@
   "full_default": 27.276,
   "sel_default": 0.665,
   "sel_cheap": 0.281,
-  "sel_ranked": 0.281
+  "sel_ranked": 0.281,
+  "full_cheap": 16.589
  },
  {
   "repo": "sqlglot",
@@ -877,6 +934,296 @@
   "full_default": 5.409,
   "sel_default": 1.017,
   "sel_cheap": 0.021,
-  "sel_ranked": 0.114
+  "sel_ranked": 0.114,
+  "full_cheap": 5.329
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/functions/special/beta_functions.py",
+  "line": 108,
+  "kind": "function",
+  "truth": 1,
+  "selected": 1,
+  "full_time": 361.578,
+  "sel_time": 0.223,
+  "full_default": 302.244,
+  "sel_default": 0.223,
+  "sel_cheap": 0.223,
+  "sel_ranked": 0.223,
+  "full_cheap": 21.955
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/functions/elementary/trigonometric.py",
+  "line": 3515,
+  "kind": "function",
+  "truth": 1,
+  "selected": 1,
+  "full_time": 361.578,
+  "sel_time": 0.761,
+  "full_default": 217.563,
+  "sel_default": 0.761,
+  "sel_cheap": 0.761,
+  "sel_ranked": 0.761,
+  "full_cheap": 58.352
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 2338,
+  "kind": "function",
+  "truth": 1,
+  "selected": 1,
+  "full_time": 361.578,
+  "sel_time": 0.05,
+  "full_default": 12.271,
+  "sel_default": 0.05,
+  "sel_cheap": 0.05,
+  "sel_ranked": 0.05,
+  "full_cheap": 3.986
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/functions/elementary/piecewise.py",
+  "line": 562,
+  "kind": "function",
+  "truth": 17,
+  "selected": 22,
+  "full_time": 361.578,
+  "sel_time": 14.282,
+  "full_default": 147.998,
+  "sel_default": 0.71,
+  "sel_cheap": 0.015,
+  "sel_ranked": 0.015,
+  "full_cheap": 0.8
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/core/basic.py",
+  "line": 236,
+  "kind": "class",
+  "truth": 16,
+  "selected": 577,
+  "full_time": 361.578,
+  "sel_time": 361.444,
+  "full_default": 23.663,
+  "sel_default": 23.53,
+  "sel_cheap": 6.385,
+  "sel_ranked": 6.385,
+  "full_cheap": 6.43
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/core/numbers.py",
+  "line": 3003,
+  "kind": "class",
+  "truth": 62,
+  "selected": 468,
+  "full_time": 361.578,
+  "sel_time": 344.332,
+  "full_default": 11.693,
+  "sel_default": 11.139,
+  "sel_cheap": 0.844,
+  "sel_ranked": 0.844,
+  "full_cheap": 1.308
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 2113,
+  "kind": "class",
+  "truth": 1,
+  "selected": 1,
+  "full_time": 361.578,
+  "sel_time": 0.011,
+  "full_default": 12.176,
+  "sel_default": 0.011,
+  "sel_cheap": 0.011,
+  "sel_ranked": 0.011,
+  "full_cheap": 0.478
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/core/numbers.py",
+  "line": 778,
+  "kind": "class",
+  "truth": 240,
+  "selected": 581,
+  "full_time": 361.578,
+  "sel_time": 361.578,
+  "full_default": 0.624,
+  "sel_default": 0.624,
+  "sel_cheap": 0.025,
+  "sel_ranked": 0.025,
+  "full_cheap": 0.025
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 1941,
+  "kind": "class",
+  "truth": 1,
+  "selected": 2,
+  "full_time": 361.578,
+  "sel_time": 0.026,
+  "full_default": 12.103,
+  "sel_default": 0.013,
+  "sel_cheap": 0.026,
+  "sel_ranked": 0.026,
+  "full_cheap": 0.689
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 2327,
+  "kind": "class",
+  "truth": 1,
+  "selected": 1,
+  "full_time": 361.578,
+  "sel_time": 0.05,
+  "full_default": 12.271,
+  "sel_default": 0.05,
+  "sel_cheap": 0.05,
+  "sel_ranked": 0.05,
+  "full_cheap": 3.986
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/core/basic.py",
+  "line": 254,
+  "kind": "class",
+  "truth": 133,
+  "selected": 571,
+  "full_time": 361.578,
+  "sel_time": 361.346,
+  "full_default": 11.693,
+  "sel_default": 11.605,
+  "sel_cheap": 0.124,
+  "sel_ranked": 0.124,
+  "full_cheap": 0.131
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/core/basic.py",
+  "line": 250,
+  "kind": "class",
+  "truth": 166,
+  "selected": 577,
+  "full_time": 361.578,
+  "sel_time": 361.444,
+  "full_default": 0.624,
+  "sel_default": 0.624,
+  "sel_cheap": 0.01,
+  "sel_ranked": 0.01,
+  "full_cheap": 0.01
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 2167,
+  "kind": "class",
+  "truth": 1,
+  "selected": 1,
+  "full_time": 361.578,
+  "sel_time": 0.011,
+  "full_default": 12.187,
+  "sel_default": 0.011,
+  "sel_cheap": 0.011,
+  "sel_ranked": 0.011,
+  "full_cheap": 0.5
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1488,
+  "kind": "module",
+  "truth": 1,
+  "selected": 578,
+  "full_time": 361.578,
+  "sel_time": 361.577,
+  "full_default": 200.859,
+  "sel_default": 200.858,
+  "sel_cheap": 10.86,
+  "sel_ranked": 10.86,
+  "full_cheap": 10.861
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1510,
+  "kind": "module",
+  "truth": 145,
+  "selected": 578,
+  "full_time": 361.578,
+  "sel_time": 361.577,
+  "full_default": 1.248,
+  "sel_default": 1.248,
+  "sel_cheap": 0.05,
+  "sel_ranked": 0.05,
+  "full_cheap": 0.052
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1494,
+  "kind": "module",
+  "truth": 4,
+  "selected": 578,
+  "full_time": 361.578,
+  "sel_time": 361.577,
+  "full_default": 30.851,
+  "sel_default": 30.85,
+  "sel_cheap": 3.787,
+  "sel_ranked": 3.787,
+  "full_cheap": 3.788
+ },
+ {
+  "repo": "sympy",
+  "dataset": "planted",
+  "base": "sympy-functions",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1498,
+  "kind": "module",
+  "truth": 1,
+  "selected": 578,
+  "full_time": 361.578,
+  "sel_time": 361.577,
+  "full_default": 344.2,
+  "sel_default": 344.199,
+  "sel_cheap": 19.396,
+  "sel_ranked": 19.396,
+  "full_cheap": 19.398
  }
 ]

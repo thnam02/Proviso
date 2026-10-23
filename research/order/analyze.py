@@ -4,8 +4,8 @@ full suite's time. Usage: python analyze.py [results/order.json]"""
 import json, os, statistics, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 rows = json.load(open(sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "results", "order.json")))
-ORD = ("full_default", "sel_default", "sel_cheap", "sel_ranked")
-NAMES = {"full_default": "Full suite, default order", "sel_default": "Proviso selection, default order",
+ORD = ("full_default", "full_cheap", "sel_default", "sel_cheap", "sel_ranked")
+NAMES = {"full_default": "Full suite, default order", "full_cheap": "Full suite, fastest first", "sel_default": "Proviso selection, default order",
          "sel_cheap": "Proviso selection, fastest first", "sel_ranked": "Proviso selection, ranked"}
 groups = {}
 for r in rows:
@@ -28,5 +28,8 @@ sp = [r["sel_default"] / r["sel_ranked"] for r in rows if r["sel_ranked"]]
 sf = [r["full_default"] / r["sel_ranked"] for r in rows if r["sel_ranked"]]
 print(f"\nranked vs selection default order: median x{statistics.median(sp):.1f}; ranked faster on "
       f"{sum(s > 1 for s in sp)}, equal {sum(s == 1 for s in sp)}, slower {sum(s < 1 for s in sp)} of {len(sp)}")
+sc = [r["full_cheap"] / r["sel_ranked"] for r in rows if r["sel_ranked"]]
+print(f"ranked vs full suite fastest first: median x{statistics.median(sc):.1f}; ranked faster on {sum(s > 1 for s in sc)}, "
+      f"equal {sum(s == 1 for s in sc)}, slower {sum(s < 1 for s in sc)}")
 print(f"ranked vs full suite default order: median x{statistics.median(sf):.1f}, geometric mean "
       f"x{statistics.geometric_mean(sf):.1f}")
