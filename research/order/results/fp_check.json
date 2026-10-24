@@ -1048,5 +1048,82 @@
   "new_s": 1.18,
   "same": true,
   "n_changed": 1
+ },
+ {
+  "id": "sympy:sympy/functions/special/beta_functions.py:108",
+  "old_s": 9.56,
+  "new_s": 1.7,
+  "same": true,
+  "n_changed": 74
+ },
+ {
+  "id": "sympy:sympy/core/random.py:169",
+  "old_s": 9.11,
+  "new_s": 1.47,
+  "same": true,
+  "n_changed": 74
+ },
+ {
+  "id": "sympy:sympy/functions/elementary/trigonometric.py:3515",
+  "old_s": 9.5,
+  "new_s": 1.49,
+  "same": true,
+  "n_changed": 74
+ },
+ {
+  "id": "sympy:sympy/core/sympify.py:387",
+  "old_s": 9.08,
+  "new_s": 1.55,
+  "same": true,
+  "n_changed": 74
+ },
+ {
+  "id": "sympy:sympy/core/expr.py:2783",
+  "old_s": 9.98,
+  "new_s": 1.78,
+  "same": true,
+  "n_changed": 74
+ },
+ {
+  "id": "sympy:sympy/functions/combinatorial/numbers.py:2338",
+  "old_s": 9.43,
+  "new_s": 1.48,
+  "same": true,
+  "n_changed": 74
+ },
+ {
+  "id": "sympy:sympy/functions/elementary/piecewise.py:1195",
+  "old_s": 9.33,
+  "new_s": 1.79,
+  "same": true,
+  "n_changed": 74
+ },
+ {
+  "id": "sympy:sympy/core/containers.py:330",
+  "old_s": 9.41,
+  "new_s": 1.77,
+  "same": true,
+  "n_changed": 74
+ },
+ {
+  "id": "sympy:sympy/functions/elementary/piecewise.py:562",
+  "old_s": 9.4,
+  "new_s": 1.7,
+  "same": true,
+  "n_changed": 74
+ },
+ {
+  "id": "sympy:sympy/core/basic.py:236",
+  "old_s": 9.92,
+  "new_s": 1.82,
+  "same": true,
+  "n_changed": 75
+ },
+ {
+  "id": "sympy:sympy/core/numbers.py:3003",
+  "old_s": 9.82,
+  "new_s": 1.76,
+  "same": true,
+  "n_changed": 75
  }
 ]
