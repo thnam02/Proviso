@@ -54,5 +54,19 @@
   "new_s": 1.43,
   "same": true,
   "n_changed": 1
+ },
+ {
+  "id": "real:1f8d15bbd6",
+  "old_s": 2.23,
+  "new_s": 1.46,
+  "same": true,
+  "n_changed": 11
+ },
+ {
+  "id": "real:268ad021b8",
+  "old_s": 2.1,
+  "new_s": 1.41,
+  "same": true,
+  "n_changed": 3
  }
 ]
