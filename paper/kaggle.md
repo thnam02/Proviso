@@ -94,7 +94,7 @@ Proviso is the only selector without a miss. The others' misses trace back to im
 
 - **Data changes.** Real commit `efbc5e220c` only adds entries to `Postgres.TIME_MAPPING`, a class-level table. No test executes a line of that file while running, so testmon selects one test and misses both failures. Proviso finds the changed table, in Postgres and through inheritance in Redshift, Materialize and RisingWave, and selects the 56 tests that read it.
 - **Code run while test modules import.** A flipped condition in `Parser._parse_with` breaks 37 test modules that parse SQL at import; testmon misses all 37, Proviso selects the full suite.
-- **String-keyed dispatch.** NameRTS misses failures in 23 of 42 breaking sqlglot planted bugs: tests reach parser methods through keyword tables, and name no method.
+- **String-keyed dispatch.** NameRTS is nearly always safe on real commits (1 miss in 16 here; 2 in 500 in its own evaluation) and on sympy (0 of 17), but misses failures in 23 of 42 breaking sqlglot planted bugs: tests reach parser methods through tables keyed by SQL keywords and name no method, a pattern its evaluation does not cover.
 - **Generated rule tables.** Most of testmon's sympy misses are edits to `assumptions_generated.py`, read only at import.
 
 The ablations isolate the idea. Function coverage alone misses failures in 51 of 75 changes. Falling back to every test of the edited file still misses 10 and selects 60% of test time on real sqlglot commits. The import-time comparison closes all remaining misses and selects 27%.
@@ -144,7 +144,7 @@ On sqlglot, the extra cost of recording plus the first selection (about 105 s) i
 ## 6. Related work
 
 - **Dynamic RTS.** Ekstazi (Gligoric et al., 2015) selects tests by the files they touched; pytest-testmon brings block-level coverage to Python. Both record what tests execute, so values computed at import are invisible to them.
-- **Static RTS.** STARTS (Legunsen et al., 2017) and import-graph tools follow class or module dependencies; NameRTS (Wang, Pradel and Liu, 2026) follows names, which suits Python's dynamic dispatch but not dispatch through string-keyed tables.
+- **Static RTS.** STARTS (Legunsen et al., 2017) and import-graph tools follow class or module dependencies; NameRTS (Wang, Pradel and Liu, 2026) follows names and records `getattr` and dynamic imports at run time; it was safe on 498 of 500 real commits in its evaluation, which compared it with file-level tools but not with testmon. Dispatch through string-keyed tables is outside its name model.
 - **Agents and tests.** SWE-bench (Jimenez et al., 2024) judges agent patches by tests; while working, agents rely on the tests they choose to run, which is where selection fits.
 
 ## 7. Conclusion
@@ -156,5 +156,5 @@ A Python package's import-time state is a large, invisible dependency of its tes
 - Gligoric, M., Eloussi, L., Marinov, D. (2015). Practical regression test selection with dynamic file dependencies. ISSTA.
 - Jimenez, C. E., et al. (2024). SWE-bench: Can language models resolve real-world GitHub issues? ICLR.
 - Legunsen, O., Shi, A., Marinov, D. (2017). STARTS: STAtic regression test selection. ASE (tool demo).
-- Wang, ?, Pradel, M., Liu, ? (2026). Names Are All You Need: Effective and Safe Regression Test Selection for Python. arXiv:2605.25356.
+- Wang, Y., Pradel, M., Liu, Z. (2026). Names Are All You Need: Effective and Safe Regression Test Selection for Python. arXiv:2605.25356.
 - pytest-testmon. https://testmon.org
