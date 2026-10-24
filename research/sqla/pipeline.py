@@ -41,7 +41,9 @@ PKG = "lib/sqlalchemy"
 TARGETS = ["test/base", "test/sql"]
 MUTATE = ["sql", "engine"]
 PER_KIND = {"function": 2, "class": 2, "module": 2} if SMOKE else {"function": 40, "class": 30, "module": 25}
-SEED = 2027
+# the full run draws a fresh sample (seed 2028) and leaves out the pilot's bugs, which revealed the alias rule
+SEED = 2027 if SMOKE else 2028
+PILOT = os.path.join(HERE, "results_smoke", "bugs.json")
 SCAN_COMMITS = 6 if SMOKE else 400        # recent commits touching the mutated packages, scanned for test breaks
 REAL_NONBREAKING = 2 if SMOKE else 40     # non-breaking real commits also evaluated (selection size)
 WORK = os.environ.get("PROVISO_WORK", os.path.expanduser("~/proviso-work/sqla"))
@@ -248,6 +250,7 @@ def bugs():
         return jload(out)
     tree = make_tree("base", COMMIT)
     cands = M.candidates(tree, PKG, MUTATE)
+    pilot = set() if SMOKE else {b["id"] for b in (jload(PILOT) or [])}
     skip = {}
     rnd = random.Random(SEED)
     chosen = []
@@ -258,7 +261,7 @@ def bugs():
                 continue
             if rel not in skip:
                 skip[rel] = _string_lines(os.path.join(tree, rel))
-            if ln not in skip[rel]:
+            if ln not in skip[rel] and f"{kind}:{rel}:{ln}" not in pilot:
                 pool.append((rel, ln, op))
         rnd.shuffle(pool)
         chosen += [{"id": f"{kind}:{rel}:{ln}", "kind": kind, "file": rel, "line": ln, "op": op} for rel, ln, op in pool[:n]]
