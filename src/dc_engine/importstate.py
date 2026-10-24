@@ -99,6 +99,7 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
     # alive in `keep` so that a memoised id is never reused by another object.
     memo: dict = {}
     keep: list = []
+    USE_MEMO = os.environ.get("DC_NO_MEMO") != "1"  # for checking the memoisation against plain fingerprinting
     impure = [0]
 
     def dig(v, depth, seen):
@@ -110,7 +111,7 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             impure[0] += 1
             return "<deep>"
         key = (id(v), mode["ordered"])
-        got = memo.get(key)
+        got = memo.get(key) if USE_MEMO else None
         if got is not None:
             if got[1]:
                 mode["seq"] = True
