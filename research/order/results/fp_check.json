@@ -1267,5 +1267,19 @@
   "new_s": 1.67,
   "same": true,
   "n_changed": 1
+ },
+ {
+  "id": "sympy:sympy/core/assumptions_generated.py:1472",
+  "old_s": 9.62,
+  "new_s": 1.62,
+  "same": true,
+  "n_changed": 2
+ },
+ {
+  "id": "sympy:sympy/core/assumptions_generated.py:1498",
+  "old_s": 9.32,
+  "new_s": 1.76,
+  "same": true,
+  "n_changed": 2
  }
 ]
