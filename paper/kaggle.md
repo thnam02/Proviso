@@ -25,11 +25,11 @@ Proviso closes this gap with one idea: instead of asking which tests executed a 
 **Contributions.**
 1. **A tool.** Proviso combines per-test function coverage with an import-time state comparison and drops into an agent's shell by rewriting broad `pytest` commands. Selection takes about 3 s per run on sqlglot after a one-off setup.
 2. **A benchmark.** 75 test-breaking changes with ground-truth failing tests, 67 further real changes for selection size, per-test times, and a setup of NameRTS (verified against its published selections) and pytest-testmon.
-3. **Findings.** Function coverage alone misses failures in 51 of 75 changes; adding the import-time comparison misses none while selecting less than file-level fallbacks. End to end, it cuts a typical sqlglot test run by 84% (median). We also report two negative results: on sympy it saves no time, and ordering tests to surface failures early does not pay for the cost of selecting them.
+3. **Findings.** Function coverage alone misses failures in 51 of 75 changes; adding the import-time comparison misses none while selecting less than file-level fallbacks. End to end, it cuts a typical sqlglot test run by 84% (median). On sympy, where most changes reach most tests, it saves no time.
 
 ## 2. Method
 
-Proviso works in two phases: once per base commit (the commit the agent starts from) it records a coverage map and an import-time snapshot; on every test run it selects and orders tests for the agent's current changes.
+Proviso works in two phases: once per base commit (the commit the agent starts from) it records a coverage map and an import-time snapshot; on every test run it selects tests for the agent's current changes.
 
 ### 2.1 Once per session: coverage map and base snapshot
 
@@ -49,13 +49,9 @@ From `git diff` against the base, each changed line is assigned to the innermost
 
 Tests the agent added or edited always run.
 
-### 2.3 Every run: order
+### 2.3 In the agent
 
-The selected tests run in this order: tests the agent wrote or edited, then those that ran a changed function (more of them first), then the rest; fastest first within each group. If the agent's command stops at the first failure (`-x` or `--maxfail`), Proviso passes that on. (Section 4.3 shows this ordering brings no measurable gain.)
-
-### 2.4 In the agent
-
-Proviso installs as a pre-tool hook. A broad test command from the agent (`pytest`, `pytest tests/`) is rewritten into a Proviso run; narrow commands are left alone. Per-commit caches keep each selection to the cost of one snapshot of the working tree.
+Proviso installs as a pre-tool hook. A broad test command from the agent (`pytest`, `pytest tests/`) is rewritten into a Proviso run, keeping `-x` if given; narrow commands are left alone. Per-commit caches keep each selection to the cost of one snapshot of the working tree.
 
 ## 3. Benchmark
 
@@ -77,7 +73,7 @@ In total, 75 changes break tests, with 1,424 failing tests. For every change we 
 
 sympy's configuration passes `-m`, which silently turns testmon's selection off; we drop the same slow tests at collection instead. NameRTS selects test files; a selected file counts as all its tests.
 
-**Metrics.** A change has a *miss* if any failing test (or a test module that fails to load) is not selected. *Time share*: selected test time over the suite's, from per-test times recorded with coverage on. *Run time*: what the agent waits for one test command, in plain (untraced) seconds from separate runs without coverage: the full suite, against Proviso's selection time (measured, warm caches) plus its selected tests. *Time to first failure*: the same, until the first failing test finishes.
+**Metrics.** A change has a *miss* if any failing test (or a test module that fails to load) is not selected. *Time share*: selected test time over the suite's, from per-test times recorded with coverage on. *Run time*: what the agent waits for one test command, in plain (untraced) seconds from separate runs without coverage: the full suite, against Proviso's selection time (measured, warm caches) plus its selected tests.
 
 ## 4. Results
 
@@ -128,8 +124,6 @@ What one test command costs the agent, in plain seconds, with Proviso's selectio
 
 On sqlglot most changes reach a small part of the suite. Proviso is slower only when it selects 95% or more of the suite and pays its selection time on top. On sympy the median breaking change selects 95% of test time and selection itself takes 10.8 s (sympy's import-time state is large), so there is no saving. The mean saving there (62 s against 103 s) comes from the few changes with small selections.
 
-**Ordering does not pay.** We expected ranking to shorten the agent's wait for its first failure when it stops at the first failure (`-x`). In plain seconds it does not: a full run hits its first failure after 3.8 s (median), or 2.0 s when run fastest-first, while Proviso needs 2.5 s, most of it selection time (2.7 s median). Measured with coverage on, which inflates test times, ordering looked like a 25-fold gain; this is an artefact of the inflated times. We keep ranking in the tool, since it costs nothing, but claim no gain from it.
-
 ### 4.4 Overhead
 
 - **Recording the coverage map:** once per base commit; 147 s on sqlglot against a 58 s plain run (2.5×).
@@ -151,7 +145,6 @@ On sqlglot, the extra cost of recording plus the first selection (about 105 s) i
 
 - **Dynamic RTS.** Ekstazi (Gligoric et al., 2015) selects tests by the files they touched; pytest-testmon brings block-level coverage to Python. Both record what tests execute, so values computed at import are invisible to them.
 - **Static RTS.** STARTS (Legunsen et al., 2017) and import-graph tools follow class or module dependencies; NameRTS (Wang, Pradel and Liu, 2026) follows names, which suits Python's dynamic dispatch but not dispatch through string-keyed tables.
-- **Test prioritisation.** Ordering tests to find faults early is classical (Rothermel et al., 2001; Elbaum et al., 2002). Measured with the cost of selection included, it did not shorten an agent's wait in our setting.
 - **Agents and tests.** SWE-bench (Jimenez et al., 2024) judges agent patches by tests; while working, agents rely on the tests they choose to run, which is where selection fits.
 
 ## 7. Conclusion
@@ -160,10 +153,8 @@ A Python package's import-time state is a large, invisible dependency of its tes
 
 ## References
 
-- Elbaum, S., Malishevsky, A. G., Rothermel, G. (2002). Test case prioritization: a family of empirical studies. IEEE TSE.
 - Gligoric, M., Eloussi, L., Marinov, D. (2015). Practical regression test selection with dynamic file dependencies. ISSTA.
 - Jimenez, C. E., et al. (2024). SWE-bench: Can language models resolve real-world GitHub issues? ICLR.
 - Legunsen, O., Shi, A., Marinov, D. (2017). STARTS: STAtic regression test selection. ASE (tool demo).
-- Rothermel, G., Untch, R. H., Chu, C., Harrold, M. J. (2001). Prioritizing test cases for regression testing. IEEE TSE.
 - Wang, ?, Pradel, M., Liu, ? (2026). Names Are All You Need: Effective and Safe Regression Test Selection for Python. arXiv:2605.25356.
 - pytest-testmon. https://testmon.org

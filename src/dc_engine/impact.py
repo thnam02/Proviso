@@ -639,22 +639,6 @@ def _collect(root: str, python: str, targets: list[str]) -> list[str] | None:
     return ids or None
 
 
-def rank(tests: list[str], covmap: dict, changed_functions, agent_files: set[str] = frozenset()) -> list[str]:
-    """Order in which to run the selected tests so that a failure tends to come first: tests the agent wrote or
-    edited and tests the coverage map does not know; then tests that ran a changed function (more of them first);
-    then the rest (import-time readers, class users); fastest first within each group."""
-    funcs = {tuple(x) for x in changed_functions or []}
-    pos = {n: i for i, n in enumerate(tests)}
-
-    def key(n):
-        v = covmap.get(n)
-        if v is None or n.split("::", 1)[0] in agent_files:
-            return (0, 0, 0.0, pos[n])
-        hits = len({tuple(x) for x in v.get("funcs", [])} & funcs)
-        return (1 if hits else 2, -hits, v.get("time", 0) or 0, pos[n])
-    return sorted(tests, key=key)
-
-
 def run_selected(root: str, python: str, targets: list[str] | None = None, maxfail: int | None = None) -> str:
     """Run what the agent asked for (targets: directories relative to the repository root; [] = the default suite),
     restricted to the tests the change can affect. Tests the coverage map does not know always run."""
@@ -681,7 +665,6 @@ def run_selected(root: str, python: str, targets: list[str] | None = None, maxfa
             _log_run(root, 0, n_scope, time.time() - t0, [], why)
             return (f"[Proviso] Your changes do not reach any code the {n_scope} existing tests in {where} execute, so "
                     "none of them can change outcome; nothing to run.")
-        run = rank(run, covmap, why.get("changed_functions"), agent_files)
         res, stdout = _pytest(root, python, ([f"--maxfail={maxfail}"] if maxfail else []) + run, "impact-args.txt")
     secs = time.time() - t0
     failing = sorted(n for n, ok in res.items() if not ok)
@@ -691,7 +674,7 @@ def run_selected(root: str, python: str, targets: list[str] | None = None, maxfa
         unk = (f", {n_unknown} of them because Proviso has no coverage record for them" if n_unknown else "")
         stopped = f", stopping at the first {maxfail} failure(s) as you asked" if maxfail else ""
         lines = [f"[Proviso] Ran {len(res)} of the {n_scope} tests in {where} (the ones your changes can affect"
-                 f"{unk}, likeliest failures first{stopped}) in {secs:.0f}s."]
+                 f"{unk}{stopped}) in {secs:.0f}s."]
     else:
         lines = [f"[Proviso] Ran all {len(res)} tests in {where} ({why.get('reason', 'change could not be placed')}) "
                  f"in {secs:.0f}s."]
