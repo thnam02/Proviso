@@ -20,7 +20,6 @@ The study runs inside WSL2 (Linux inside Windows). Setup once, then one command.
    cd ~
    git clone https://github.com/thnam02/Proviso.git
    cd Proviso
-   git checkout phase4-pilot
    ```
 
 ## 2. Run
