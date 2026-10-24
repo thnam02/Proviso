@@ -852,5 +852,33 @@
   "new_s": 1.13,
   "same": true,
   "n_changed": 2
+ },
+ {
+  "id": "862fd55467:sqlglot/generators/exasol.py:356",
+  "old_s": 1.8,
+  "new_s": 1.1,
+  "same": true,
+  "n_changed": 1
+ },
+ {
+  "id": "862fd55467:sqlglot/generators/presto.py:353",
+  "old_s": 1.81,
+  "new_s": 1.09,
+  "same": true,
+  "n_changed": 4
+ },
+ {
+  "id": "862fd55467:sqlglot/generators/tsql.py:260",
+  "old_s": 1.79,
+  "new_s": 1.06,
+  "same": true,
+  "n_changed": 2
+ },
+ {
+  "id": "862fd55467:sqlglot/dialects/drill.py:40",
+  "old_s": 1.85,
+  "new_s": 1.35,
+  "same": true,
+  "n_changed": 5
  }
 ]
