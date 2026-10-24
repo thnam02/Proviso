@@ -36,10 +36,21 @@ IGNORED_CLASS_KEYS = {"__dict__", "__weakref__", "__doc__", "__module__", "__qua
                       "__annotations_cache__", "_abc_impl"}
 
 
+SRC_DIRS = ("src", "lib")  # src layouts: the importable package lives in one of these, which is not a package itself
+
+
+def layout_prefix(files) -> str:
+    """'src/' or 'lib/' if the package files are under such a directory, else ''."""
+    tops = {f.split("/", 1)[0] for f in files if "/" in f}
+    return f"{next(iter(tops))}/" if len(tops) == 1 and next(iter(tops)) in SRC_DIRS else ""
+
+
 def _module_name(rel: str) -> str | None:
     if not rel.endswith(".py"):
         return None
     parts = rel[:-3].split("/")
+    if len(parts) > 1 and parts[0] in SRC_DIRS:
+        parts = parts[1:]
     if parts[-1] == "__init__":
         parts = parts[:-1]
     if not parts or parts[-1] == "__main__":
@@ -255,7 +266,9 @@ def snapshot(tree: str, files: list[str], python: str, heap_pad: int = 0) -> dic
     out_path = files_path + ".out"
     try:
         json.dump(files, open(files_path, "w"))
-        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONPATH": tree, "HOME": os.environ.get("HOME", "/tmp"),
+        path = os.pathsep.join([tree] + [os.path.join(tree, d) for d in SRC_DIRS if os.path.isdir(os.path.join(tree, d))
+                                         and not os.path.exists(os.path.join(tree, d, "__init__.py"))])
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONPATH": path, "HOME": os.environ.get("HOME", "/tmp"),
                "PYTHONDONTWRITEBYTECODE": "1", "PYTHONHASHSEED": str(heap_pad % 97),
                "DC_HEAP_PAD": str(heap_pad)}
         r = subprocess.run([python, HERE, tree, files_path, out_path], cwd=tree, env=env, capture_output=True,

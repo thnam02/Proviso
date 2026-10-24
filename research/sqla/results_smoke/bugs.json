@@ -1,0 +1,44 @@
+[
+ {
+  "id": "function:lib/sqlalchemy/sql/ddl.py:1905",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/ddl.py",
+  "line": 1905,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/type_api.py:919",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/type_api.py",
+  "line": 919,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/type_api.py:134",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/type_api.py",
+  "line": 134,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/dml.py:433",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/dml.py",
+  "line": 433,
+  "op": "flip"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:342",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 342,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:361",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 361,
+  "op": "delete"
+ }
+]
