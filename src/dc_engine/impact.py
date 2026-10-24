@@ -132,7 +132,7 @@ def _head_cached(root: str, kind: str, files: list[str], compute):
 
 
 def _name_index(root: str, files: list[str]) -> dict[tuple[str, int], set[str]]:
-    rows = _head_cached(root, "names_index", files, lambda r, fs: [[f, ln, sorted(ns)] for (f, ln), ns in
+    rows = _head_cached(root, "names_index2", files, lambda r, fs: [[f, ln, sorted(ns)] for (f, ln), ns in
                                                                    _name_index_uncached(r, fs).items()])
     return {(f, ln): set(ns) for f, ln, ns in rows}
 
@@ -166,6 +166,36 @@ def _name_index_uncached(root: str, files: list[str]) -> dict[tuple[str, int], s
                         names.add(sub.attr)
                     elif isinstance(sub, ast.Constant) and isinstance(sub.value, str) and sub.value.isidentifier():
                         names.add(sub.value)
+        # module- and class-level assignments: a name bound at import from an expression that mentions a value
+        # (e.g. is_table_value_type = operator.attrgetter("_is_table_value")) reads that value; code using the name
+        # reads it too. Recorded as an entry with 'assign:TARGET' and the identifiers the expression mentions.
+        def assignments(body):
+            for node in body:
+                if isinstance(node, ast.ClassDef):
+                    assignments(node.body)
+                    continue
+                if isinstance(node, (ast.If, ast.Try, ast.With)):  # e.g. `if TYPE_CHECKING: ... else: X = ...`
+                    assignments(getattr(node, "body", []) + getattr(node, "orelse", []) + getattr(node, "finalbody", [])
+                                + [s for h in getattr(node, "handlers", []) for s in h.body])
+                    continue
+                if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) or node.value is None:
+                    continue
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                tnames = {t.id for t in targets if isinstance(t, ast.Name)} | \
+                    {e.id for t in targets if isinstance(t, (ast.Tuple, ast.List)) for e in t.elts if isinstance(e, ast.Name)}
+                if not tnames:
+                    continue
+                mentioned = set()
+                for sub in ast.walk(node.value):
+                    if isinstance(sub, ast.Name):
+                        mentioned.add(sub.id)
+                    elif isinstance(sub, ast.Attribute):
+                        mentioned.add(sub.attr)
+                    elif isinstance(sub, ast.Constant) and isinstance(sub.value, str) and sub.value.isidentifier():
+                        mentioned.add(sub.value)
+                if mentioned:
+                    idx.setdefault((f, node.lineno), set()).update({"assign:" + t for t in tnames} | mentioned)
+        assignments(tree.body)
     return idx
 
 
@@ -299,12 +329,19 @@ def _computed_lookup_patterns_uncached(root: str, files: list[str]) -> set[tuple
     return pats
 
 
-def _key_class(key: str) -> str | None:
-    """'pkg.mod:Cls.Inner.attr' -> 'pkg/mod.py:Cls.Inner' (the covmap's class naming)."""
+def _key_class(key: str, prefix: str = "") -> str | None:
+    """'pkg.mod:Cls.Inner.attr' -> 'pkg/mod.py:Cls.Inner' (the covmap's class naming); prefix: the source directory
+    of a src/lib layout ('lib/'), since the covmap names files relative to the repository root."""
     mod, qual = key.split(":", 1)
     if "." not in qual:
         return None
-    return f"{mod.replace('.', '/')}.py:{qual.rsplit('.', 1)[0]}"
+    return f"{prefix}{mod.replace('.', '/')}.py:{qual.rsplit('.', 1)[0]}"
+
+
+def _layout_prefix(files) -> str:
+    """'lib/' or 'src/' when the package files live under such a directory (a src layout), else ''."""
+    from .importstate import layout_prefix
+    return layout_prefix(files)
 
 
 def _import_state_effect(root: str, covmap: dict, python: str, changed_files: set[str]
@@ -327,8 +364,9 @@ def _import_state_effect(root: str, covmap: dict, python: str, changed_files: se
                  if any(k.rsplit(".", 1)[-1].startswith(p) and k.rsplit(".", 1)[-1].endswith(q) for p, q in pats)]
     # a new base class or metaclass changes behaviour without changing any attribute of the class itself
     rebased = [k for k in d["changed"] if k.endswith((".__mro__", ".__class__"))]
-    gained = {c for c in (_key_class(k) for k in reachable) if c}
-    gained |= {c for c in (_key_class(k.rsplit(".", 1)[0] + ".x") for k in rebased) if c}
+    prefix = _layout_prefix(files)
+    gained = {c for c in (_key_class(k, prefix) for k in reachable) if c}
+    gained |= {c for c in (_key_class(k.rsplit(".", 1)[0] + ".x", prefix) for k in rebased) if c}
     gained |= {c.replace("/__init__.py:", ".py:") for c in gained}
     return names, gained, {"import_state_changed": d["changed"][:20], "import_state_n": len(d["changed"])}
 
@@ -413,13 +451,25 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
             # code that names the value, plus the callers of that code: a reader's result is often computed once
             # and cached (e.g. a dispatch table built from TRANSFORMS on first use), after which only its caller
             # runs, so the coverage map credits the reader to whichever test happened to run first
-            direct = by_name.get(attr, set())
+            direct = set(by_name.get(attr, set()))
+            # names bound at import from the value (aliases), and their aliases in turn: their users read it too
+            seen_alias, frontier = set(), {attr}
+            for _ in range(3):
+                new = {n[7:] for name in frontier for fl in by_name.get(name, ()) for n in idx.get(fl, ())
+                       if n.startswith("assign:")} - seen_alias - {attr}
+                if not new:
+                    break
+                seen_alias |= new
+                for t in new:
+                    direct |= by_name.get(t, set())
+                frontier = new
             calls = {"call:" + def_name[fl] for fl in direct if fl in def_name}
             callers = {fl for c in calls for fl in by_name.get(c, set())}
             return direct | callers
 
+        prefix = _layout_prefix({f for v in covmap.values() for f, _ in v["funcs"]})
         for key in read_names:
-            cls = _key_class(key)
+            cls = _key_class(key, prefix)
             attr = key.rsplit(":", 1)[1].rsplit(".", 1)[-1]
             fl = readers_of(attr)
             if cls is None:

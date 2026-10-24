@@ -18,27 +18,32 @@ import os
 import shutil
 import sys
 
-NR = "/home/claude/tools/NameRTS"
+# Paths: defaults are this study's machine (dependencies built from source); NAMERTS_HOME / NAMERTS_BIN /
+# NAMERTS_DEPS override them, e.g. on a machine where the pinned dependencies are pip-installed (NAMERTS_DEPS empty)
+NR = os.environ.get("NAMERTS_HOME", "/home/claude/tools/NameRTS")
 TOOLS = "/home/claude/tools"
-DEPS = [f"{TOOLS}/nrts-bin", f"{TOOLS}/py-tree-sitter", f"{TOOLS}/tree-sitter-python/bindings/python",
-        f"{TOOLS}/python-xxhash"]
+BIN = os.environ.get("NAMERTS_BIN", f"{TOOLS}/nrts-bin")
+DEPS = [p for p in os.environ.get("NAMERTS_DEPS", f"{BIN}:{TOOLS}/py-tree-sitter:{TOOLS}/tree-sitter-python/bindings/python:"
+                                                  f"{TOOLS}/python-xxhash").split(":") if p] + [BIN]
 # what the test processes need: the tree, NameRTS's instrumentor, its isolating pytest-xdist and execnet
-TEST_PATH = [f"{NR}/src/instrumentor", f"{NR}/src/pytest-xdist-isolation/src", f"{TOOLS}/execnet/src"]
+TEST_PATH = [f"{NR}/src/instrumentor", f"{NR}/src/pytest-xdist-isolation/src"] + \
+    ([f"{TOOLS}/execnet/src"] if "NAMERTS_DEPS" not in os.environ else [])
+LOGS = os.environ.get("NAMERTS_LOGS", "/home/claude/cmp/nr-logs")
 CACHED = ["dependencies.json", "py_checksums_cache.json", "nbdp_cache.json", "critical_names.json"]
 
 
 def setup(tree, repo):
-    os.environ["PATH"] = f"{TOOLS}/nrts-bin:" + os.environ.get("PATH", "/usr/bin:/bin")
+    os.environ["PATH"] = f"{BIN}:" + os.environ.get("PATH", "/usr/bin:/bin")
     extra = [p for p in os.environ.get("NAMERTS_EXTRA_PATH", "").split(":") if p]  # a project's own test deps
     os.environ["PYTHONPATH"] = ":".join([tree] + TEST_PATH + extra)
     os.environ.pop("PYTEST_PLUGINS", None)  # pytest-xdist's entry point resolves to NameRTS's copy via PYTHONPATH
-    os.environ["HOME"] = "/tmp"
+    os.environ.setdefault("HOME", "/tmp")
     for p in [NR] + DEPS:
         sys.path.insert(0, p)
     import src.config as config
     config.REGISTRY_DECORATOR_KEYWORDS.clear()
     config.REGISTRY_DECORATOR_KEYWORDS.update({"register"} if repo == "sympy" else set())
-    config.LOGGING = "/home/claude/cmp/nr-logs"
+    config.LOGGING = LOGS
     os.makedirs(config.LOGGING, exist_ok=True)
     from src.instance_logger import InstanceLogger
     InstanceLogger(logger_id=f"NameBDP_{os.path.basename(os.path.dirname(tree))}",
@@ -66,6 +71,23 @@ def setup(tree, repo):
         def collect_scoped(project_path, *a, **k):
             return {t for t in orig(project_path, *a, **k) if any(t.startswith(d.rstrip("/") + "/") for d in scope)}
         U.collect_all_heuristic = F.collect_all_heuristic = collect_scoped
+    # Test directories: NameRTS recognises test files only under a directory named "tests" or "testing" (with
+    # per-project exceptions in its code, e.g. prefect, pandas). NAMERTS_TEST_DIRS adds a project's own name for its
+    # test directory (SQLAlchemy: "test"), in the same way.
+    test_dirs = [d for d in os.environ.get("NAMERTS_TEST_DIRS", "").split(",") if d]
+    if test_dirs:
+        from pathlib import Path
+        orig_is_test = U.is_test_file_pytest
+
+        def is_test(p, project_path):
+            if orig_is_test(p, project_path):
+                return True
+            p = Path(p)
+            return (p.name.startswith(("test_", "unittest_")) and any(a.name in test_dirs for a in p.parents))
+        import src.bytecode as BC
+        import src.namebdp as NB
+        for mod in (U, F, BC, NB):  # each imported the function by name
+            mod.is_test_file_pytest = is_test
     from src.namebdp import NameBDP
     return NameBDP
 

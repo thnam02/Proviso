@@ -99,7 +99,8 @@ def _module_index(tree, roots):
             for fn in fns:
                 if fn.endswith(".py"):
                     rel = os.path.relpath(os.path.join(dp, fn), tree)
-                    name = rel[:-3].replace("/", ".")
+                    mod = rel[4:] if rel.startswith(("lib/", "src/")) else rel  # src layouts import without lib/
+                    name = mod[:-3].replace("/", ".")
                     if name.endswith(".__init__"):
                         name = name[: -len(".__init__")]
                     mods[name] = rel
