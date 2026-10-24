@@ -48,6 +48,18 @@ SCAN_COMMITS = 6 if SMOKE else 400        # recent commits touching the mutated 
 REAL_NONBREAKING = 2 if SMOKE else 40     # non-breaking real commits also evaluated (selection size)
 WORK = os.environ.get("PROVISO_WORK", os.path.expanduser("~/proviso-work/sqla"))
 WORKERS = int(os.environ.get("PROVISO_WORKERS", max(1, (os.cpu_count() or 2) - 1)))
+
+
+def _mem_gb():
+    try:
+        return int(next(l for l in open("/proc/meminfo") if l.startswith("MemTotal")).split()[1]) / 2 ** 20
+    except (OSError, StopIteration, ValueError):
+        return 8.0
+
+
+# NameRTS's instrumented, isolated test runs need a few GB each (on SQLAlchemy a 7 GB machine ran out of memory with
+# two of them): stages that run NameRTS use at most one worker per 5 GB of memory
+NR_WORKERS = int(os.environ.get("PROVISO_NR_WORKERS", max(1, min(WORKERS, int(_mem_gb() // 5)))))
 RES = os.path.join(HERE, "results" + ("_smoke" if SMOKE else ""))
 PY = sys.executable
 PYTEST = ["-p", "no:randomly", "--maxfail=1000000", "--tb=no", "-q", "--continue-on-collection-errors"]
@@ -193,13 +205,14 @@ def testmon_select(tree, db):
 
 NR_ENV = {"NAMERTS_HOME": os.environ.get("NAMERTS_HOME", os.path.join(WORK, "NameRTS")),
           "NAMERTS_BIN": os.path.join(HERE, "nrts-bin"), "NAMERTS_DEPS": os.environ.get("NAMERTS_DEPS", ""),
-          "NAMERTS_LOGS": os.path.join(WORK, "nr-logs"), "NAMERTS_SCOPE": ",".join(TARGETS), "NAMERTS_WORKERS": "2",
+          "NAMERTS_LOGS": os.path.join(WORK, "nr-logs"), "NAMERTS_SCOPE": ",".join(TARGETS), "NAMERTS_WORKERS": os.environ.get("NAMERTS_WORKERS", "2"),
           "NAMERTS_TEST_DIRS": "test"}
 
 
 def namerts(action, tree, cache):
     e = {**os.environ, **NR_ENV, "PROVISO_PY": PY, "PATH": os.path.dirname(PY) + os.pathsep + os.environ.get("PATH", ""),
-         "NAMERTS_EXTRA_PATH": os.path.join(tree, "lib")}
+         "NAMERTS_EXTRA_PATH": os.pathsep.join([os.path.join(tree, "lib")] +
+                                               [x for x in os.environ.get("PROVISO_EXTRA_PATH", "").split(os.pathsep) if x])}
     r = subprocess.run([PY, os.path.join(ROOT, "research", "compare", "namerts_driver.py"), action, tree, cache,
                         "sqlalchemy"], capture_output=True, text=True, env=e, timeout=14400)
     if action == "select":
@@ -209,6 +222,12 @@ def namerts(action, tree, cache):
         raise RuntimeError("NameRTS selection failed: " + (r.stdout + r.stderr)[-600:])
     if not os.path.isfile(os.path.join(cache, "nbdp_cache.json")):
         raise RuntimeError("NameRTS init failed: " + (r.stdout + r.stderr)[-600:])
+    # NameRTS runs the tests itself during init (instrumented); if that run fails it carries on silently with no
+    # runtime data, which would make it look worse than it is: refuse such an init
+    deps = jload(os.path.join(cache, "dependencies.json"), {})
+    if not deps.get("dynamic_deps"):
+        shutil.rmtree(cache, ignore_errors=True)
+        raise RuntimeError("NameRTS's own test run recorded nothing (dynamic_deps empty); init output: " + r.stdout[-400:])
 
 
 def nr_available():
@@ -270,9 +289,9 @@ def bugs():
     return chosen
 
 
-def parallel(stage, items):
+def parallel(stage, items, workers=None):
     """Run `python pipeline.py worker STAGE i n` for i in 0..n-1; each handles items[i::n] in its own tree."""
-    n = max(1, min(WORKERS, len(items)))
+    n = max(1, min(workers or WORKERS, len(items)))
     procs = [subprocess.Popen([PY, os.path.abspath(__file__), "worker", stage, str(i), str(n)],
                               stdout=open(os.path.join(WORK, f"{stage}.w{i}.log"), "a"), stderr=subprocess.STDOUT)
              for i in range(n)]
@@ -507,8 +526,8 @@ def report():
 
 STAGES = {"prepare": prepare, "baseline": baseline, "covmap": covmap, "testmon": testmon, "nrinit": nrinit,
           "bugs": bugs, "truth": lambda: (baseline(), parallel("truth", bugs())),
-          "select": lambda: (baseline(), covmap(), testmon(), nrinit(), parallel("select", bugs())),
-          "mine": lambda: parallel("mine", commits()), "realeval": lambda: parallel("realeval", real_set()),
+          "select": lambda: (baseline(), covmap(), testmon(), nrinit(), parallel("select", bugs(), NR_WORKERS)),
+          "mine": lambda: parallel("mine", commits()), "realeval": lambda: parallel("realeval", real_set(), NR_WORKERS),
           "report": report}
 WORKER = {"truth": truth_worker, "select": select_worker, "mine": mine_worker, "realeval": realeval_worker}
 
