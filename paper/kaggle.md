@@ -4,7 +4,7 @@
 
 ## Abstract
 
-Coding agents check every patch by running tests. On everyday hardware, rerunning a full suite after each edit is slow, and the usual shortcut, running the test file named after the edited module, misses failures. We present Proviso, a test-selection tool that plugs into an agent's shell. It records which functions each test runs and, unlike coverage-based selectors, also compares the values a package computes while it is imported (dispatch tables, keyword maps, class attributes), which no test executes but many tests read. On 75 changes that break tests in sqlglot and sympy (16 real commits, 59 planted bugs; 1,424 failing tests), Proviso selects every failing test. NameRTS, a recent name-based selector, misses failures in 24 changes, and pytest-testmon in 11. Measured end to end, with Proviso's own selection time included, a typical test run on sqlglot drops from 46 s to 8 s (median; faster on 48 of 54 real commits, never more than 3.1 s slower). On sympy, whose changes reach most tests, Proviso is safe but saves no time. We release the tool, the benchmark with ground truth and per-test times, and our setup of NameRTS (verified against its published selections) and pytest-testmon.
+Coding agents check every patch by running tests. On everyday hardware, rerunning a full suite after each edit is slow, and the usual shortcut, running the test file named after the edited module, misses failures. We present Proviso, a test-selection tool that plugs into an agent's shell. It records which functions each test runs and, unlike coverage-based selectors, also compares the values a package computes while it is imported (dispatch tables, keyword maps, class attributes), which no test executes but many tests read. On 75 changes that break tests in sqlglot and sympy (16 real commits, 59 planted bugs; 1,424 failing tests), Proviso selects every failing test. NameRTS, a recent name-based selector, misses failures in 24 changes, and pytest-testmon in 11. Measured end to end, with Proviso's own selection time included, a typical test run on sqlglot drops from 46 s to 7.5 s (median; faster on 48 of 54 real commits, never more than 2.5 s slower). On sympy, whose changes reach most tests, Proviso is safe but saves little time. We release the tool, the benchmark with ground truth and per-test times, and our setup of NameRTS (verified against its published selections) and pytest-testmon.
 
 ## 1. Introduction
 
@@ -23,9 +23,9 @@ A test that parses `JSON_TABLE` never executes the line that builds this table; 
 Proviso closes this gap with one idea: instead of asking which tests executed a changed line, ask which values the change altered, by importing the package before and after and comparing everything it computed. Tests that read an altered value are selected; edits inside function bodies use ordinary per-test function coverage.
 
 **Contributions.**
-1. **A tool.** Proviso combines per-test function coverage with an import-time state comparison and drops into an agent's shell by rewriting broad `pytest` commands. Selection takes under 3 s per run on sqlglot after a one-off setup.
+1. **A tool.** Proviso combines per-test function coverage with an import-time state comparison and drops into an agent's shell by rewriting broad `pytest` commands. Selection takes about 2 s per run after a one-off setup.
 2. **A benchmark.** 75 test-breaking changes with ground-truth failing tests, 67 further real changes for selection size, per-test times, and a setup of NameRTS (verified against its published selections) and pytest-testmon.
-3. **Findings.** Function coverage alone misses failures in 51 of 75 changes; adding the import-time comparison misses none while selecting less than file-level fallbacks. End to end, it cuts a typical sqlglot test run by 85% (median). Where it selects almost everything, block-level and name-based tools do too. On sympy, where most changes reach most tests, it saves no time.
+3. **Findings.** Function coverage alone misses failures in 51 of 75 changes; adding the import-time comparison misses none while selecting less than file-level fallbacks. End to end, it cuts a typical sqlglot test run by 86% (median). Where it selects almost everything, block-level and name-based tools do too. On sympy, where most changes reach most tests, it saves little.
 
 ## 2. Method
 
@@ -118,19 +118,19 @@ What one test command costs the agent, in plain seconds, with Proviso's selectio
 
 | Changes | Full suite | Proviso | Proviso faster on | Median saving |
 |---|---|---|---|---|
-| 54 real sqlglot commits | 46.1 / 59.3 | **8.4 / 19.2** | 48 of 54 | 85% |
-| 42 breaking planted bugs, sqlglot | 42.1 / 42.1 | **4.5 / 11.9** | 34 of 42 | 90% |
-| 17 breaking planted bugs, sympy | 103.3 / 103.3 | 105.7 / 62.0 | 8 of 17 | none |
+| 54 real sqlglot commits | 46.1 / 59.3 | **7.5 / 18.8** | 48 of 54 | 86% |
+| 42 breaking planted bugs, sqlglot | 42.1 / 42.1 | **4.2 / 11.5** | 34 of 42 | 90% |
+| 17 breaking planted bugs, sympy | 103.3 / 103.3 | 99.8 / 56.2 | 9 of 17 | 3% |
 
-On sqlglot most changes reach a small part of the suite. Where Proviso is slower, it selects 95% or more of the suite and loses at most 3.1 s to selection. On the 11 real commits where it selects 95% or more, testmon, file-level coverage and NameRTS select 97–100% too: these changes edit the tokenizer or core parse routines that nearly every test runs, so the size of the selection reflects the change, not imprecision. On sympy the median breaking change selects 95% of test time and selection itself takes 10.8 s (sympy's import-time state is large), so there is no saving. The mean saving there (62.0 s against 103.3 s) comes from the few changes with small selections.
+On sqlglot most changes reach a small part of the suite. Where Proviso is slower, it selects 95% or more of the suite and loses at most 2.5 s to selection. On the 11 real commits where it selects 95% or more, testmon, file-level coverage and NameRTS select 97–100% too: these changes edit the tokenizer or core parse routines that nearly every test runs, so the size of the selection reflects the change, not imprecision. On sympy the median breaking change selects 95% of test time, so the median saving is small (3%); the mean saving (56.2 s against 103.3 s) comes from the changes with small selections.
 
 ### 4.4 Overhead
 
 - **Recording the coverage map:** once per base commit; 147 s on sqlglot against a 58 s plain run (2.5×).
-- **First selection of a session:** 15.7 s median on sqlglot (three base snapshots, source indexes).
-- **Every later selection:** 2.7 s median on sqlglot (at most 3.2 s) when import-time state is compared (38 of 54 real commits); under 0.5 s otherwise. 10.8 s on sympy.
+- **First selection of a session:** 10.4 s median on sqlglot (three base snapshots, source indexes).
+- **Every later selection:** 2.1 s median on sqlglot (at most 2.6 s) when import-time state is compared (38 of 54 real commits), under 0.5 s otherwise; 2.2 s on sympy.
 
-On sqlglot, the extra cost of recording plus the first selection (about 105 s) is recovered after three test runs at the median saving of 38 s per run. Caching per-commit source indexes and skipping a redundant fingerprint pass brought the per-run cost from 20 s to about 3 s without changing any selection.
+On sqlglot, the extra cost of recording plus the first selection (about 100 s) is recovered after three test runs at the median saving of 38 s per run. Two engineering steps took the per-run cost from 20 s to 2 s: caching per-commit source indexes, and fingerprinting each object once per snapshot (sympy reaches the same tables from thousands of attributes; its snapshot fell from 10.6 s to 1.9 s). On all 179 benchmark changes, the memoised snapshot finds the same changed values as the original on 178, and the same selection on all.
 
 ## 5. Limitations and threats to validity
 
@@ -149,7 +149,7 @@ On sqlglot, the extra cost of recording plus the first selection (about 105 s) i
 
 ## 7. Conclusion
 
-A Python package's import-time state is a large, invisible dependency of its tests. Comparing it before and after a change gives test selection that missed no failure on 75 test-breaking changes, where every existing selector missed some, while cutting a typical sqlglot test run from 46 s to 8 s with selection included. Where a change reaches most of the suite, as in sympy, Proviso stays safe but cannot save time. Proviso and the benchmark are open source: ⟦repo link⟧.
+A Python package's import-time state is a large, invisible dependency of its tests. Comparing it before and after a change gives test selection that missed no failure on 75 test-breaking changes, where every existing selector missed some, while cutting a typical sqlglot test run from 46 s to 7.5 s with selection included. Where a change reaches most of the suite, as in sympy, Proviso stays safe but saves little time. Proviso and the benchmark are open source: ⟦repo link⟧.
 
 ## References
 
