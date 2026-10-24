@@ -29,7 +29,7 @@ import tempfile
 
 HERE = os.path.abspath(__file__)
 SNAPSHOT_TIMEOUT = 300
-FORMAT = 8  # bump when fingerprints change; cached base snapshots of another format are rebuilt
+FORMAT = 9  # bump when fingerprints change; cached base snapshots of another format are rebuilt
 # bookkeeping that changes whenever lines move, or that Python fills in itself
 IGNORED_CLASS_KEYS = {"__dict__", "__weakref__", "__doc__", "__module__", "__qualname__", "__annotations__",
                       "__firstlineno__", "__static_attributes__", "__annotate__", "__annotate_func__",
@@ -92,91 +92,88 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             else:
                 h.update(addr.sub("", repr(c)).encode())
 
-    def fp(v, h, depth, seen):
-        if depth > 80:
-            h.update(b"<deep>")
-            return
+    sha = lambda x: hashlib.sha1(x.encode()).hexdigest()
+    # Each object is fingerprinted once per snapshot and reused wherever it is reached again (sympy reaches the same
+    # tables and singletons from thousands of attributes). A fingerprint is reused only if computing it met no cycle
+    # and no depth cut-off, the two things that make it depend on the path it was reached by. Objects are kept
+    # alive in `keep` so that a memoised id is never reused by another object.
+    memo: dict = {}
+    keep: list = []
+    impure = [0]
+
+    def dig(v, depth, seen):
         t = type(v)
         if v is None or t in (bool, int, float, complex, str, bytes):
-            h.update(t.__name__.encode() + b":" + repr(v).encode() + b";")
-            return
+            r = t.__name__ + ":" + repr(v)
+            return r if len(r) <= 40 else "h:" + sha(r)
+        if depth > 80:
+            impure[0] += 1
+            return "<deep>"
+        key = (id(v), mode["ordered"])
+        got = memo.get(key)
+        if got is not None:
+            if got[1]:
+                mode["seq"] = True
+            return got[0]
+        imp0, seq0 = impure[0], mode["seq"]
+        mode["seq"] = False
+        r = body(v, t, depth, seen)
+        r = r if len(r) <= 40 else "h:" + sha(r)
+        has_seq = mode["seq"]
+        mode["seq"] = seq0 or has_seq
+        if impure[0] == imp0:
+            memo[key] = (r, has_seq)
+            keep.append(v)
+        return r
+
+    def dict_body(name, items, depth, seen):
+        return name + "{" + ",".join(sorted(sha(dig(k, depth + 1, seen) + "=" + dig(x, depth + 1, seen))
+                                            for k, x in items)) + "}"
+
+    def body(v, t, depth, seen):
         if isinstance(v, types.FunctionType):
-            h.update(f"fn:{v.__module__}.{v.__qualname__};".encode())
+            r = f"fn:{v.__module__}.{v.__qualname__};"
             if "<" in v.__qualname__:
                 # lambdas and closures made at import time: their body lives inside a table or a factory call,
                 # not in a function the line-level rule can see, so their code and captured values count
+                h = hashlib.sha1()
                 code_hash(v.__code__, h)
+                r += h.hexdigest()
                 if v.__defaults__:
-                    fp(v.__defaults__, h, depth + 1, seen)
+                    r += dig(v.__defaults__, depth + 1, seen)
                 for cell in v.__closure__ or ():
                     try:
-                        fp(cell.cell_contents, h, depth + 1, seen)
+                        r += dig(cell.cell_contents, depth + 1, seen)
                     except ValueError:
-                        h.update(b"<empty cell>")
-            return
+                        r += "<empty cell>"
+            return r
         if isinstance(v, functools.partial):
-            h.update(b"partial")
-            fp((v.func, v.args, v.keywords), h, depth + 1, seen)
-            return
+            return "partial" + dig(v.func, depth + 1, seen) + dig(v.args, depth + 1, seen) + \
+                dict_body("kw", sorted((v.keywords or {}).items()), depth + 1, seen)
         if isinstance(v, (types.BuiltinFunctionType, types.MethodWrapperType, types.WrapperDescriptorType)):
-            h.update(f"bf:{getattr(v, '__qualname__', repr(v))};".encode())
-            return
+            return f"bf:{getattr(v, '__qualname__', repr(v))};"
         if isinstance(v, (classmethod, staticmethod)):
-            h.update(t.__name__.encode())
-            fp(v.__func__, h, depth + 1, seen)
-            return
+            return t.__name__ + dig(v.__func__, depth + 1, seen)
         if isinstance(v, property):
-            h.update(b"prop")
-            for f in (v.fget, v.fset, v.fdel):
-                fp(f, h, depth + 1, seen)
-            return
+            return "prop" + "".join(dig(f, depth + 1, seen) for f in (v.fget, v.fset, v.fdel))
         if isinstance(v, type):
-            h.update(f"cls:{v.__module__}.{v.__qualname__};".encode())
-            return
+            return f"cls:{v.__module__}.{v.__qualname__};"
         if isinstance(v, types.ModuleType):
-            h.update(f"mod:{v.__name__};".encode())
-            return
+            return f"mod:{v.__name__};"
         if isinstance(v, types.MethodType):
-            h.update(b"bound")
-            fp(v.__func__, h, depth + 1, seen)
-            return
+            return "bound" + dig(v.__func__, depth + 1, seen)
         if id(v) in seen:
-            h.update(b"<cycle>")
-            return
+            impure[0] += 1
+            return "<cycle>"
         seen = seen | {id(v)}
         if isinstance(v, (list, tuple)):
             mode["seq"] = True
-            if mode["ordered"]:
-                h.update(b"[")
-                for x in v:
-                    fp(x, h, depth + 1, seen)
-                h.update(b"]")
-            else:
-                parts = []
-                for x in v:
-                    hh = hashlib.sha1()
-                    fp(x, hh, depth + 1, seen)
-                    parts.append(hh.hexdigest())
-                h.update(("[~" + ",".join(sorted(parts)) + "]").encode())
-            return
+            parts = [dig(x, depth + 1, seen) for x in v]
+            return "[" + ",".join(parts) + "]" if mode["ordered"] else "[~" + ",".join(sorted(parts)) + "]"
         if isinstance(v, (set, frozenset)):
-            parts = []
-            for x in v:
-                hh = hashlib.sha1()
-                fp(x, hh, depth + 1, seen)
-                parts.append(hh.hexdigest())
-            h.update(("{" + ",".join(sorted(parts)) + "}").encode())
-            return
+            return "{" + ",".join(sorted(dig(x, depth + 1, seen) for x in v)) + "}"
         if isinstance(v, dict):
-            parts = []
-            for k, x in v.items():
-                hh = hashlib.sha1()
-                fp(k, hh, depth + 1, seen)
-                hh.update(b"=")
-                fp(x, hh, depth + 1, seen)
-                parts.append(hh.hexdigest())
-            h.update((t.__name__ + "{" + ",".join(sorted(parts)) + "}").encode())
-            return
+            return dict_body(t.__name__, v.items(), depth, seen)
         try:
             d = vars(v)
         except TypeError:
@@ -184,7 +181,6 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
         slots = [n for c in t.__mro__ for n in (getattr(c, "__slots__", ()) or ())
                  if isinstance(n, str) and n not in ("__dict__", "__weakref__")]
         if d is not None or slots:
-            h.update(f"obj:{t.__module__}.{t.__qualname__}".encode())
             state = dict(d or {})
             for n in slots:
                 if hasattr(v, n):
@@ -196,13 +192,12 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
                 own = None
             if own is not None:
                 state = {k: x for k, x in state.items() if not (type(x) is int and x == own)}
-            fp(state, h, depth + 1, seen)
-            return
+            return f"obj:{t.__module__}.{t.__qualname__}" + dict_body("dict", state.items(), depth, seen)
         try:
             r = repr(v)
         except Exception:  # noqa: BLE001
             r = "<unrepr>"
-        h.update(f"{t.__module__}.{t.__qualname__}:{addr.sub('', r)};".encode())
+        return f"{t.__module__}.{t.__qualname__}:{addr.sub('', r)};"
 
     mode = {"ordered": True, "seq": False}
 
@@ -214,12 +209,11 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             if not ordered and not mode["seq"]:
                 break
             mode["ordered"] = ordered
-            h = hashlib.sha1()
             try:
-                fp(v, h, 0, frozenset())
+                d = dig(v, 0, frozenset())
             except Exception as e:  # noqa: BLE001
-                h.update(f"<error {type(e).__name__}>".encode())
-            res.append(h.hexdigest()[:16])
+                d = f"<error {type(e).__name__}>"
+            res.append(sha(d)[:16])
         return res[0] if len(res) == 1 or res[0] == res[1] else f"{res[0]}~{res[1]}"
 
     out: dict[str, str] = {}
