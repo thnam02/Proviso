@@ -705,5 +705,152 @@
   "new_s": 1.24,
   "same": true,
   "n_changed": 1
+ },
+ {
+  "id": "7f1cf60c88:sqlglot/parsers/spark2.py:130",
+  "old_s": 1.83,
+  "new_s": 1.33,
+  "same": true,
+  "n_changed": 1
+ },
+ {
+  "id": "862fd55467:sqlglot/parser.py:3948",
+  "old_s": 1.66,
+  "new_s": 1.01,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/parser.py:6189",
+  "old_s": 1.69,
+  "new_s": 0.97,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/parser.py:5937",
+  "old_s": 1.58,
+  "new_s": 0.95,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/generators/redshift.py:360",
+  "old_s": 1.61,
+  "new_s": 0.98,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/tokenizer_core.py:771",
+  "old_s": 1.24,
+  "new_s": 0.78,
+  "same": true,
+  "n_changed": 1156
+ },
+ {
+  "id": "862fd55467:sqlglot/expressions/query.py:1659",
+  "old_s": 1.57,
+  "new_s": 1.01,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/generator.py:4519",
+  "old_s": 1.91,
+  "new_s": 1.15,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/executor/__init__.py:79",
+  "old_s": 1.64,
+  "new_s": 1.05,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/generator.py:1363",
+  "old_s": 1.75,
+  "new_s": 1.08,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/executor/python.py:157",
+  "old_s": 1.85,
+  "new_s": 1.2,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/parser.py:2544",
+  "old_s": 1.77,
+  "new_s": 1.03,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/optimizer/pushdown_predicates.py:217",
+  "old_s": 1.71,
+  "new_s": 0.98,
+  "same": true,
+  "n_changed": 0
+ },
+ {
+  "id": "862fd55467:sqlglot/parsers/exasol.py:64",
+  "old_s": 1.88,
+  "new_s": 1.04,
+  "same": true,
+  "n_changed": 1
+ },
+ {
+  "id": "862fd55467:sqlglot/dialects/dialect.py:965",
+  "old_s": 1.79,
+  "new_s": 1.2,
+  "same": true,
+  "n_changed": 38
+ },
+ {
+  "id": "862fd55467:sqlglot/generators/postgres.py:393",
+  "old_s": 1.68,
+  "new_s": 1.06,
+  "same": true,
+  "n_changed": 3
+ },
+ {
+  "id": "862fd55467:sqlglot/parsers/materialize.py:15",
+  "old_s": 1.73,
+  "new_s": 1.07,
+  "same": true,
+  "n_changed": 1
+ },
+ {
+  "id": "862fd55467:sqlglot/generators/clickhouse.py:239",
+  "old_s": 1.76,
+  "new_s": 1.09,
+  "same": true,
+  "n_changed": 1
+ },
+ {
+  "id": "862fd55467:sqlglot/parsers/sqlite.py:39",
+  "old_s": 1.8,
+  "new_s": 1.21,
+  "same": true,
+  "n_changed": 1
+ },
+ {
+  "id": "862fd55467:sqlglot/generators/bigquery.py:343",
+  "old_s": 1.8,
+  "new_s": 1.11,
+  "same": true,
+  "n_changed": 1
+ },
+ {
+  "id": "862fd55467:sqlglot/expressions/json.py:24",
+  "old_s": 1.8,
+  "new_s": 1.13,
+  "same": true,
+  "n_changed": 2
  }
 ]
