@@ -66,6 +66,8 @@ def planted(repo, work, bugs, cov0, base_fail, prefix, pkgs, tag):
     ok = O.ok_filter(base_fail)
     universe = {n for n in cov0 if n != "__global__" and ok(n) and n.startswith(prefix)}
     cov, ratio = plain_cov(cov0, PLAIN[tag])
+    import shutil
+    shutil.rmtree(os.path.join(work, O.SEL.I.STATE_DIR), ignore_errors=True)  # no cache from an earlier code version
     g = lambda *a: subprocess.run(["git", *a], cwd=work, capture_output=True)
     ov = {(c[0], c[1], c[2]): c for c in O.M.override_candidates(work)} if any(b["kind"] == "override" for b in bugs) \
         else {}
@@ -95,6 +97,15 @@ def planted(repo, work, bugs, cov0, base_fail, prefix, pkgs, tag):
 
 def main():
     out = sys.argv[1]
+    if len(sys.argv) > 2 and sys.argv[2] == "sympy-only":   # redo only the sympy rows of an existing result file
+        rows = [r for r in json.load(open(out)) if r["repo"] != "sympy"]
+        cov = json.load(open(os.path.join(O.S, "cov_mut_sympy_functions.json")))
+        base = {k for k, v in O.SEL.I._junit("/home/claude/cmp/sympy-mut-base.xml").items() if not v}
+        rows += list(planted("sympy", os.path.join(O.S, "mut-sympy"),
+                             json.load(open(os.path.join(O.ROOT, "research", "sympy", "mutants.json"))), cov, base,
+                             "sympy/functions/", ["sympy"], "sympy-functions"))
+        json.dump(rows, open(out, "w"), indent=1)
+        return
     rows = list(real_sqlglot())
     print("real sqlglot", len(rows), flush=True)
     allbugs = json.load(open(os.path.join(O.ROOT, "research", "ripple", "mutants2_scored.json")))
