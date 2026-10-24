@@ -1,0 +1,488 @@
+[
+ {
+  "change": "03744a2a83",
+  "cold": 16.46,
+  "warm": 3.49,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "03c96cbbfd",
+  "cold": 16.2,
+  "warm": 3.05,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "08f2405cfd",
+  "cold": 13.64,
+  "warm": 3.74,
+  "full": true,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "0b00178215",
+  "cold": 0.09,
+  "warm": 0.12,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": false
+ },
+ {
+  "change": "15a77f1d89",
+  "cold": 15.68,
+  "warm": 3.37,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "1a0fc4299a",
+  "cold": 0.26,
+  "warm": 0.27,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": false
+ },
+ {
+  "change": "1d2a99b9cc",
+  "cold": 17.23,
+  "warm": 3.62,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "1e6c6c58e1",
+  "cold": 16.93,
+  "warm": 2.92,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "1f8d15bbd6",
+  "cold": 14.26,
+  "warm": 3.07,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "268ad021b8",
+  "cold": 17.27,
+  "warm": 3.75,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "2aae7f7605",
+  "cold": 17.41,
+  "warm": 4.38,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "3086608e6f",
+  "cold": 0.1,
+  "warm": 0.11,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": false
+ },
+ {
+  "change": "361b23b87b",
+  "cold": 16.32,
+  "warm": 4.44,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "47b94d424a",
+  "cold": 16.74,
+  "warm": 3.44,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "49d6ed4366",
+  "cold": 15.52,
+  "warm": 3.03,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "4ada15a429",
+  "cold": 16.07,
+  "warm": 3.44,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "59a96d868a",
+  "cold": 18.54,
+  "warm": 3.97,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "5d997d94d8",
+  "cold": 17.49,
+  "warm": 3.66,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "5e6887adc8",
+  "cold": 15.92,
+  "warm": 3.1,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "646295528c",
+  "cold": 14.11,
+  "warm": 3.19,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "6581f8c38b",
+  "cold": 15.79,
+  "warm": 3.14,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "66316e335f",
+  "cold": 13.79,
+  "warm": 3.16,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "66ecca3397",
+  "cold": 17.12,
+  "warm": 4.13,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "676ba36549",
+  "cold": 17.11,
+  "warm": 3.5,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "6b9cb87bd0",
+  "cold": 16.09,
+  "warm": 3.57,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "7d9a6cd599",
+  "cold": 15.89,
+  "warm": 3.52,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "7f1cf60c88",
+  "cold": 16.43,
+  "warm": 4.07,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "818483464b",
+  "cold": 13.81,
+  "warm": 2.98,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "840b4823e6",
+  "cold": 15.78,
+  "warm": 3.3,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "862fd55467",
+  "cold": 15.03,
+  "warm": 2.81,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "8b374bd525",
+  "cold": 0.17,
+  "warm": 0.1,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": false
+ },
+ {
+  "change": "9114355463",
+  "cold": 15.9,
+  "warm": 3.41,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "930f1a32f7",
+  "cold": 13.57,
+  "warm": 3.19,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "93aa16deb9",
+  "cold": 15.79,
+  "warm": 3.59,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "97a2fa2ed6",
+  "cold": 13.11,
+  "warm": 2.91,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "9ec72cf883",
+  "cold": 14.81,
+  "warm": 2.74,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "a313c8bee1",
+  "cold": 15.19,
+  "warm": 3.42,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "af9915fa4c",
+  "cold": 15.8,
+  "warm": 3.69,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "b3b6c57cea",
+  "cold": 0.11,
+  "warm": 0.1,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": false
+ },
+ {
+  "change": "ba0bff3d91",
+  "cold": 9.56,
+  "warm": 2.42,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "c7778cf56d",
+  "cold": 15.84,
+  "warm": 3.38,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "c7957e8c86",
+  "cold": 0.27,
+  "warm": 0.21,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": false
+ },
+ {
+  "change": "cf39265a3e",
+  "cold": 15.63,
+  "warm": 3.0,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "d5d436bc32",
+  "cold": 15.31,
+  "warm": 3.45,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "d7fd83a7dc",
+  "cold": 13.09,
+  "warm": 3.25,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "d84f7f3ee1",
+  "cold": 15.02,
+  "warm": 2.83,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "e3ed74860f",
+  "cold": 15.67,
+  "warm": 3.86,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "eeece5a564",
+  "cold": 15.03,
+  "warm": 3.87,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "efbc5e220c",
+  "cold": 12.16,
+  "warm": 2.47,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "f337c70ee4",
+  "cold": 15.09,
+  "warm": 3.02,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "f3a6eb95e4",
+  "cold": 15.32,
+  "warm": 3.2,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "f5dd70bff7",
+  "cold": 15.27,
+  "warm": 3.66,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "fc4964bbe8",
+  "cold": 15.15,
+  "warm": 3.31,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": true
+ },
+ {
+  "change": "fc8178edd3",
+  "cold": 0.25,
+  "warm": 0.29,
+  "full": false,
+  "same_cold_warm": true,
+  "same_as_stored": true,
+  "import_state": false
+ }
+]

@@ -107,6 +107,7 @@ def packages(covmap: dict) -> list[str]:
 
 
 IMPORT_STATE_MAX_NAMES = 200
+EARLY_FULL_SHARE = 0.9  # run everything without a snapshot when edited functions reach this share of test time
 
 
 def _head_cached(root: str, kind: str, files: list[str], compute):
@@ -369,6 +370,15 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
             # statements in a class body or at module level run at import: their effect is read off the
             # import-time state below
             module_level.add(f)
+    # the edited functions alone already reach nearly all of the test time: the selection can only grow from here
+    # (import-time readers are added, never removed), so run the full suite and skip the import-time snapshot
+    if funcs and EARLY_FULL_SHARE < 1:
+        times = {n: (v.get("time") or 0) for n, v in covmap.items() if n != "__global__"}
+        total = sum(times.values())
+        reached = sum(t for n, t in times.items() if {tuple(x) for x in covmap[n]["funcs"]} & funcs)
+        if total > 0 and reached / total >= EARLY_FULL_SHARE:
+            return None, {"reason": f"your edited functions run in {100 * reached / total:.0f}% of the test time",
+                          "functions": len(funcs)}
     glob_funcs = {tuple(x) for x in (covmap.get("__global__") or {}).get("funcs", [])}
     hit_global = sorted(funcs & glob_funcs)
     why: dict[str, Any] = {"functions": len(funcs), "files": sorted(module_level),
