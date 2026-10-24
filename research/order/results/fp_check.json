@@ -1125,5 +1125,147 @@
   "new_s": 1.76,
   "same": true,
   "n_changed": 75
+ },
+ {
+  "id": "sympy:sympy/functions/combinatorial/numbers.py:2113",
+  "old_s": 9.4,
+  "new_s": 1.78,
+  "same": true,
+  "n_changed": 93
+ },
+ {
+  "id": "sympy:sympy/core/numbers.py:778",
+  "old_s": 6.54,
+  "new_s": 1.89,
+  "same": false,
+  "n_changed": 4593,
+  "only_old": [
+   "sympy.physics.units.definitions.dimension_definitions:area",
+   "sympy.physics.units.definitions.dimension_definitions:volume",
+   "sympy.physics.units.definitions.unit_definitions:deci",
+   "sympy.physics.units.definitions:mil",
+   "sympy.physics.units.prefixes:deca",
+   "sympy.physics.units.prefixes:zepto"
+  ],
+  "only_new": [
+   "sympy.assumptions.handlers.sets:I",
+   "sympy.core.exprtools:I",
+   "sympy.core.numbers:I",
+   "sympy.core.numbers:ImaginaryUnit.__new__",
+   "sympy.core.numbers:ImaginaryUnit._instance",
+   "sympy.core.singleton:SingletonRegistry.ImaginaryUnit",
+   "sympy.functions.combinatorial.factorials:I",
+   "sympy.functions.combinatorial.numbers:I",
+   "sympy.functions.elementary.complexes:I",
+   "sympy.functions.elementary.exponential:I",
+   "sympy.functions.elementary.hyperbolic:I",
+   "sympy.functions.elementary.trigonometric:acot._singularities",
+   "sympy.functions.elementary.trigonometric:atan._singularities",
+   "sympy.functions.special.bessel:I",
+   "sympy.functions.special.elliptic_integrals:I",
+   "sympy.functions.special.error_functions:I",
+   "sympy.functions.special.gamma_functions:I",
+   "sympy.functions.special.hyper:I",
+   "sympy.functions.special.spherical_harmonics:I",
+   "sympy.functions.special.zeta_functions:I"
+  ]
+ },
+ {
+  "id": "sympy:sympy/functions/elementary/complexes.py:1083",
+  "old_s": 9.6,
+  "new_s": 1.65,
+  "same": true,
+  "n_changed": 75
+ },
+ {
+  "id": "sympy:sympy/functions/combinatorial/numbers.py:1941",
+  "old_s": 9.07,
+  "new_s": 1.5,
+  "same": true,
+  "n_changed": 89
+ },
+ {
+  "id": "sympy:sympy/functions/combinatorial/numbers.py:2327",
+  "old_s": 9.6,
+  "new_s": 1.59,
+  "same": true,
+  "n_changed": 93
+ },
+ {
+  "id": "sympy:sympy/core/basic.py:254",
+  "old_s": 9.25,
+  "new_s": 1.68,
+  "same": true,
+  "n_changed": 75
+ },
+ {
+  "id": "sympy:sympy/core/basic.py:250",
+  "old_s": 9.42,
+  "new_s": 1.8,
+  "same": true,
+  "n_changed": 75
+ },
+ {
+  "id": "sympy:sympy/functions/combinatorial/numbers.py:2167",
+  "old_s": 9.31,
+  "new_s": 1.87,
+  "same": true,
+  "n_changed": 89
+ },
+ {
+  "id": "sympy:sympy/core/assumptions_generated.py:1488",
+  "old_s": 9.39,
+  "new_s": 1.86,
+  "same": true,
+  "n_changed": 28
+ },
+ {
+  "id": "sympy:sympy/core/relational.py:1587",
+  "old_s": 10.36,
+  "new_s": 1.74,
+  "same": true,
+  "n_changed": 1
+ },
+ {
+  "id": "sympy:sympy/core/assumptions_generated.py:1493",
+  "old_s": 9.36,
+  "new_s": 1.85,
+  "same": true,
+  "n_changed": 2
+ },
+ {
+  "id": "sympy:sympy/core/assumptions_generated.py:1485",
+  "old_s": 9.66,
+  "new_s": 1.56,
+  "same": true,
+  "n_changed": 2
+ },
+ {
+  "id": "sympy:sympy/core/relational.py:1579",
+  "old_s": 9.16,
+  "new_s": 1.74,
+  "same": true,
+  "n_changed": 1
+ },
+ {
+  "id": "sympy:sympy/core/assumptions_generated.py:1510",
+  "old_s": 9.89,
+  "new_s": 1.83,
+  "same": true,
+  "n_changed": 27
+ },
+ {
+  "id": "sympy:sympy/core/assumptions_generated.py:1494",
+  "old_s": 9.73,
+  "new_s": 1.66,
+  "same": true,
+  "n_changed": 2
+ },
+ {
+  "id": "sympy:sympy/core/relational.py:1583",
+  "old_s": 9.59,
+  "new_s": 1.67,
+  "same": true,
+  "n_changed": 1
  }
 ]
