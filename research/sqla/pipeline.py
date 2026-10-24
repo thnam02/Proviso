@@ -142,9 +142,9 @@ def prepare():
 
 
 def baseline(tree=None, out=None):
-    tree = tree or make_tree("base", COMMIT)
     out = out or os.path.join(RES, "base_outcomes.json")
     if not jload(out):
+        tree = tree or make_tree("base", COMMIT)   # only when it must run: workers read the finished asset
         t = time.time()
         r = run_tests(tree, os.path.join(WORK, "tmp_outcomes.json") if out.startswith(RES) else out + ".run")
         jdump(r, out)
@@ -153,9 +153,9 @@ def baseline(tree=None, out=None):
 
 
 def covmap(tree=None, out=None):
-    tree = tree or make_tree("base", COMMIT)
     out = out or os.path.join(WORK, "covmap.json")
     if not jload(out):
+        tree = tree or make_tree("base", COMMIT)
         t = time.time()
         run_tests(tree, out, plugin="covplugin_mon", extra_env={"COVMAP_PKG": PKG})
         log("covmap", len(jload(out, {})), "entries,", round(time.time() - t), "s")
@@ -163,9 +163,9 @@ def covmap(tree=None, out=None):
 
 
 def testmon(tree=None, db=None):
-    tree = tree or make_tree("base", COMMIT)
     db = db or os.path.join(WORK, "testmondata.base")
     if not os.path.exists(db):
+        tree = tree or make_tree("base", COMMIT)
         reset(tree)
         e = env(tree)
         t = time.time()
@@ -248,7 +248,7 @@ def bugs():
     out = os.path.join(RES, "bugs.json")
     if jload(out):
         return jload(out)
-    tree = make_tree("base", COMMIT)
+    tree = make_tree("base", COMMIT)              # bugs() runs in the main process before any worker starts
     cands = M.candidates(tree, PKG, MUTATE)
     pilot = set() if SMOKE else {b["id"] for b in (jload(PILOT) or [])}
     skip = {}
@@ -506,7 +506,8 @@ def report():
 
 
 STAGES = {"prepare": prepare, "baseline": baseline, "covmap": covmap, "testmon": testmon, "nrinit": nrinit,
-          "bugs": bugs, "truth": lambda: parallel("truth", bugs()), "select": lambda: parallel("select", bugs()),
+          "bugs": bugs, "truth": lambda: (baseline(), parallel("truth", bugs())),
+          "select": lambda: (baseline(), covmap(), testmon(), nrinit(), parallel("select", bugs())),
           "mine": lambda: parallel("mine", commits()), "realeval": lambda: parallel("realeval", real_set()),
           "report": report}
 WORKER = {"truth": truth_worker, "select": select_worker, "mine": mine_worker, "realeval": realeval_worker}
