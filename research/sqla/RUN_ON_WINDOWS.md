@@ -33,8 +33,9 @@ bash research/sqla/run_all.sh
 
 - It installs its own Python environment (pinned versions), fetches SQLAlchemy and NameRTS, and runs every stage
   on all cores but one.
-- Expected time on 8+ cores: several hours (the real-commit stage is the longest). Leave the window open; the PC must
-  not sleep (Windows Settings > Power > Sleep: Never, while it runs).
+- Expected time on 8 cores / 16 GB: roughly 6–8 hours (the real-commit stage is the longest: each commit gets its own
+  coverage map, testmon database and NameRTS set-up). Leave the window open; the PC must not sleep
+  (Windows Settings > Power > Sleep: Never, while it runs). More memory lets more NameRTS stages run in parallel.
 - **Safe to stop and restart**: run the same command again and it continues where it stopped.
 - Progress: `tail -f ~/proviso-work/sqla/run.log` in a second Ubuntu window.
 
