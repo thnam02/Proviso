@@ -222,15 +222,23 @@ def testmon(tree=None, db=None):
 
 
 def testmon_select(tree, db):
+    """pytest-testmon's own selection: the tests left after its deselection (plugin plug/collected.py writes them; no
+    parsing of console output, whose verbosity a project's addopts can change)."""
     shutil.copy(db, os.path.join(tree, ".testmondata"))
-    r = subprocess.run([PY, "-m", "pytest", "--co", "--testmon", "-qq", "-p", "no:randomly",
+    out = os.path.join(WORK, f"collected_{os.path.basename(tree)}.json")
+    if os.path.exists(out):
+        os.remove(out)
+    r = subprocess.run([PY, "-m", "pytest", "--co", "--testmon", "-q", "-p", "no:randomly", "-p", "collected",
                         "--continue-on-collection-errors", *CFG["pytest_args"], *CFG["targets"]], cwd=tree,
-                       env=env(tree, [PLUG]), capture_output=True, text=True, timeout=3600)
+                       env=env(tree, [PLUG], COLLECTED_OUT=out), capture_output=True, text=True, timeout=3600)
     os.remove(os.path.join(tree, ".testmondata"))
     shutil.rmtree(os.path.join(tree, ".pytest_cache"), ignore_errors=True)
     if "deactivated" in next((l for l in r.stdout.splitlines() if l.startswith("testmon:")), ""):
         raise RuntimeError("testmon selection deactivated")
-    return [l for l in r.stdout.splitlines() if "::" in l and not l.startswith(("ERROR", "FAILED"))]
+    sel = jload(out)
+    if sel is None:
+        raise RuntimeError("testmon selection: no collection output: " + (r.stdout + r.stderr)[-400:])
+    return sel
 
 
 def nr_env():
@@ -509,6 +517,53 @@ def realeval_worker(i, n):
             reset(tree)
 
 
+# ---------------------------------------------------------------------------------------------------- repair
+
+def retestmon():
+    """Recompute only pytest-testmon's rows (planted and real) with the current testmon_select, from the databases
+    already recorded; every other selector's numbers are kept. (The first sqlglot run parsed testmon's console output,
+    which came out empty at that project's verbosity.)"""
+    base = baseline()
+    plain = {k: t for k, (ok, t) in base.items()}
+    for stage in ("select", "realeval"):
+        files = sorted(glob.glob(os.path.join(RES, f"{stage}.w*.jsonl")))
+        truth = merged("truth") if stage == "select" else {r["id"]: r for r in merged("mine").values()}
+        bug_by_id = {b["id"]: b for b in bugs()} if stage == "select" else {}
+        for p in files:
+            rows = [json.loads(l) for l in open(p) if l.strip()]
+            for row in rows:
+                if stage == "select":
+                    tree, db = make_tree("w0", CFG["commit"]), os.path.join(WORK, "testmondata.base")
+                    universe, pl = universe_of(covmap(), failing(base)), plain
+                    apply_bug(tree, bug_by_id[row["id"]])
+                    fails = truth[row["id"]]["failing"]
+                else:
+                    r, d = truth[row["id"]], os.path.join(WORK, "real", row["id"])
+                    tree, db = make_tree("w0", r["commit"] + "^"), os.path.join(d, "testmondata")
+                    b0 = jload(os.path.join(d, "base_outcomes.json"))
+                    universe, pl = universe_of(jload(os.path.join(d, "covmap.json")), failing(b0)), \
+                        {k: t for k, (ok, t) in b0.items()}
+                    apply_commit_src(tree, r)
+                    fails = r["failing"]
+                try:
+                    s_ = set(testmon_select(tree, db)) & universe
+                    tot = sum(pl.get(n, 0) for n in universe) or 1e-9
+                    row["selectors"]["testmon"] = {"selected": len(s_), "missed": SEL.missed(fails, s_),
+                                                   "time_share": round(sum(pl.get(n, 0) for n in s_) / tot, 4)}
+                finally:
+                    reset(tree)
+            jdump_lines(rows, p)
+        log("testmon rows recomputed:", stage)
+
+
+def jdump_lines(rows, p):
+    tmp = p + ".tmp"
+    with open(tmp, "w") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    os.replace(tmp, p)
+
+
 # ---------------------------------------------------------------------------------------------------- report
 
 def report():
@@ -543,7 +598,7 @@ STAGES = {"prepare": prepare, "baseline": baseline, "covmap": covmap, "testmon":
           "bugs": bugs, "truth": lambda: (baseline(), parallel("truth", bugs())),
           "select": lambda: (baseline(), covmap(), testmon(), nrinit(), parallel("select", bugs(), NR_WORKERS)),
           "mine": lambda: parallel("mine", commits()), "realeval": lambda: parallel("realeval", real_set(), NR_WORKERS),
-          "report": report}
+          "report": report, "retestmon": retestmon}
 WORKER = {"truth": truth_worker, "select": select_worker, "mine": mine_worker, "realeval": realeval_worker}
 
 if __name__ == "__main__":
@@ -557,6 +612,6 @@ if __name__ == "__main__":
     if sys.argv[2] == "worker":
         WORKER[sys.argv[3]](int(sys.argv[4]), int(sys.argv[5]))
     else:
-        for s in (list(STAGES) if sys.argv[2] == "all" else sys.argv[2:]):
+        for s in ([k for k in STAGES if k != "retestmon"] if sys.argv[2] == "all" else sys.argv[2:]):
             log("==", s)
             STAGES[s]()
