@@ -1,0 +1,560 @@
+"""Proviso v2 evaluation: the same protocol on every repository (fresh samples; v2 frozen before this runs).
+
+Repositories: sqlglot, sympy, sqlalchemy (development/pilot repositories, fresh random samples) and pygments
+(held out: chosen and pinned before any run, never used while developing Proviso; no fixes after its results).
+
+Per repository (results in research/v2/results/<repo>/, scratch in $PROVISO_WORK/<repo>):
+  prepare   clone at the pinned commit
+  baseline  plain run of the targets: outcomes and per-test times (no tracing)
+  covmap    Proviso v2 coverage map (python -m dc_engine.record: one process per test file, fixture records)
+  testmon   pytest-testmon database
+  nrinit    NameRTS initialised (its own instrumented run must record data, else the stage fails)
+  bugs      planted single-line bugs (function / class / module), sampled per kind with a fresh seed
+  truth     each bug: the targets on the bugged tree (ground truth)
+  select    every selector per bug + Proviso's warm selection time
+  mine      recent commits touching the package: source changes applied to the parent; which break tests
+  realeval  every selector on the breaking commits (+ a sample of non-breaking), each with its own maps
+  report    tables (report.md)
+Usage: python pipeline.py REPO all | REPO STAGE [STAGE ...] | report-all
+Env: PROVISO_WORK, PROVISO_WORKERS, PROVISO_NR_WORKERS, V2_SMOKE=1 (a few bugs/commits, to test the set-up)."""
+from __future__ import annotations
+
+import glob
+import json
+import os
+import random
+import shutil
+import statistics as st
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(ROOT, "src"))
+sys.path.insert(0, os.path.join(ROOT, "research", "compare"))
+sys.path.insert(0, os.path.join(ROOT, "research", "ripple"))
+from dc_engine import impact as I  # noqa: E402
+from dc_engine import record as REC  # noqa: E402
+import mutants as M  # noqa: E402
+import rts as SEL  # noqa: E402
+
+SMOKE = os.environ.get("V2_SMOKE") == "1"
+SEED = 2029  # fresh: the earlier studies used 0-2028
+
+REPOS = {
+    "sqlglot": dict(url="https://github.com/tobymao/sqlglot.git", commit="7f1cf60c884868a295f76dfd42745b931dd9cfbb",
+                    pkg="sqlglot", targets=["tests"], mutate=None, test_dirs="tests", pythonpath=[],
+                    pytest_args=[], before_test="", nr_repo="sqlglot", pip=[]),
+    "sympy": dict(url="https://github.com/sympy/sympy.git", commit="22c8c1f738c7ce7c2c2101a9f1255d8e42fcc6cd",
+                  pkg="sympy", targets=["sympy/functions"], mutate=["functions", "core"], test_dirs="tests",
+                  pythonpath=[], pytest_args=["-o", "addopts=", "-p", "noslow"],
+                  before_test="sympy.core.cache:clear_cache", nr_repo="sympy", pip=["mpmath"]),
+    "sqlalchemy": dict(url="https://github.com/sqlalchemy/sqlalchemy.git",
+                       commit="10f4d1e2d706a7722ca78e79ce05b00333a7aa5b", pkg="lib/sqlalchemy",
+                       targets=["test/base", "test/sql"], mutate=["sql", "engine"], test_dirs="test",
+                       pythonpath=["lib"], pytest_args=[], before_test="", nr_repo="sqlalchemy",
+                       pip=["greenlet", "typing-extensions"]),
+    # held out: pinned before any run (2026-10-25); nothing about it was inspected while building v2
+    "pygments": dict(url="https://github.com/pygments/pygments.git", commit="156d85fdd18d34427fe893527e71da91dcfb0eb5",
+                     pkg="pygments", targets=["tests"], mutate=None, test_dirs="tests", pythonpath=[],
+                     pytest_args=[], before_test="", nr_repo="pygments", pip=[]),
+}
+PER_KIND = {"function": 2, "class": 2, "module": 2} if SMOKE else {"function": 40, "class": 30, "module": 25}
+SCAN_COMMITS = 6 if SMOKE else 250
+REAL_BREAKING_MAX = 2 if SMOKE else 40
+REAL_NONBREAKING = 2 if SMOKE else 20
+SELECTORS = ["retest_all", "name_match", "static_imports", "file_coverage", "testmon", "func_only", "func_file", "proviso"]
+PYTEST = ["-p", "no:randomly", "--maxfail=1000000", "--tb=no", "-q", "--continue-on-collection-errors"]
+PY = sys.executable
+BASE_WORK = os.environ.get("PROVISO_WORK", os.path.expanduser("~/proviso-work/v2"))
+WORKERS = int(os.environ.get("PROVISO_WORKERS", max(1, (os.cpu_count() or 2) - 1)))
+
+
+def _mem_gb():
+    try:
+        return int(next(l for l in open("/proc/meminfo") if l.startswith("MemTotal")).split()[1]) / 2 ** 20
+    except (OSError, StopIteration, ValueError):
+        return 8.0
+
+
+NR_WORKERS = int(os.environ.get("PROVISO_NR_WORKERS", max(1, min(WORKERS, int(_mem_gb() // 5)))))
+REPO = CFG = WORK = RES = None
+
+
+def use(repo):
+    global REPO, CFG, WORK, RES
+    REPO, CFG = repo, REPOS[repo]
+    WORK = os.path.join(BASE_WORK, repo)
+    RES = os.path.join(HERE, "results" + ("_smoke" if SMOKE else ""), repo)
+    os.makedirs(WORK, exist_ok=True)
+    os.makedirs(RES, exist_ok=True)
+
+
+def log(*a):
+    print(time.strftime("%H:%M:%S"), REPO, *a, flush=True)
+
+
+def git(cwd, *a, check=False):
+    r = subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True)
+    if check and r.returncode:
+        raise RuntimeError(f"git {' '.join(a)}: {r.stderr[-400:]}")
+    return r.stdout
+
+
+def env(tree, extra=(), **kw):
+    paths = [os.path.join(tree, p) for p in CFG["pythonpath"]] + [tree, os.path.join(ROOT, "src"), *extra]
+    paths += [x for x in os.environ.get("PROVISO_EXTRA_PATH", "").split(os.pathsep) if x]
+    e = {"PATH": os.path.dirname(PY) + os.pathsep + os.environ.get("PATH", "/usr/bin:/bin"),
+         "HOME": os.environ.get("HOME", "/tmp"), "PYTHONDONTWRITEBYTECODE": "1", "PROVISO_PY": PY,
+         "PYTHONPATH": os.pathsep.join(paths)}
+    e.update(kw)
+    return e
+
+
+def jload(p, default=None):
+    try:
+        return json.load(open(p))
+    except (OSError, ValueError):
+        return default
+
+
+def jdump(x, p):
+    tmp = p + ".tmp"
+    json.dump(x, open(tmp, "w"), indent=1)
+    os.replace(tmp, p)
+
+
+# ---------------------------------------------------------------------------------------------------- trees and runs
+
+def src_repo():
+    d = os.path.join(WORK, "src")
+    if not os.path.isdir(os.path.join(d, ".git")):
+        subprocess.run(["git", "clone", "-q", CFG["url"], d], check=True)
+    return d
+
+
+def make_tree(name, commit):
+    d = os.path.join(WORK, "trees", name)
+    if not os.path.isdir(os.path.join(d, ".git")):
+        os.makedirs(os.path.dirname(d), exist_ok=True)
+        subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", src_repo(), d], check=True)
+    git(d, "checkout", "-q", "-f", commit, check=True)
+    git(d, "clean", "-fdqx", "-e", ".dc-engine")
+    return d
+
+
+def reset(tree):
+    git(tree, "checkout", "-q", "--", ".")
+    git(tree, "clean", "-fdq", "-e", ".dc-engine")
+
+
+PLUG = os.path.join(HERE, "plug")
+
+
+def run_tests(tree, out, targets=None, timeout=7200):
+    e = env(tree, [PLUG])
+    e["OUTCOMES_OUT"] = out
+    if os.path.exists(out):
+        os.remove(out)
+    subprocess.run([PY, "-m", "pytest", "-p", "no:cacheprovider", "-p", "outcomes", *PYTEST, *CFG["pytest_args"],
+                    *(targets or CFG["targets"])], cwd=tree, env=e, capture_output=True, timeout=timeout)
+    return jload(out, {})
+
+
+def failing(outcomes):
+    return {n for n, (ok, _) in outcomes.items() if not ok}
+
+
+def ok_filter(base_fail):
+    bad = {k for k in base_fail if "::" not in k}
+    return lambda n: n not in base_fail and n.split("::", 1)[0] not in bad
+
+
+# ---------------------------------------------------------------------------------------------------- base assets
+
+def prepare():
+    tree = make_tree("base", CFG["commit"])
+    log("base tree", git(tree, "log", "-1", "--format=%h %cd").strip())
+
+
+def baseline(tree=None, out=None):
+    out = out or os.path.join(RES, "base_outcomes.json")
+    if not jload(out):
+        tree = tree or make_tree("base", CFG["commit"])
+        t = time.time()
+        r = run_tests(tree, out + ".run")
+        jdump(r, out)
+        log("baseline", len(r), "tests,", len(failing(r)), "failing,", round(time.time() - t), "s")
+    return jload(out)
+
+
+def covmap(tree=None, out=None, workers=None):
+    out = out or os.path.join(WORK, "covmap.json")
+    if not jload(out):
+        tree = tree or make_tree("base", CFG["commit"])
+        reset(tree)
+        t = time.time()
+        e = env(tree, [PLUG])
+        REC.record(tree, CFG["pkg"], out, PY, CFG["targets"], workers or WORKERS, CFG["before_test"],
+                   ["-p", "no:randomly", *CFG["pytest_args"]], e)
+        m = jload(out, {})
+        log("covmap v2:", sum(1 for k in m if not k.startswith("__")), "tests,", len(m.get("__fixtures__", {})),
+            "fixture records,", round(time.time() - t), "s")
+    return jload(out)
+
+
+def testmon(tree=None, db=None):
+    db = db or os.path.join(WORK, "testmondata.base")
+    if not os.path.exists(db):
+        tree = tree or make_tree("base", CFG["commit"])
+        reset(tree)
+        t = time.time()
+        subprocess.run([PY, "-m", "pytest", "--testmon", "-p", "no:randomly", "--tb=no", "-q",
+                        "--continue-on-collection-errors", *CFG["pytest_args"], *CFG["targets"]], cwd=tree,
+                       env=env(tree, [PLUG]), capture_output=True, timeout=7200)
+        shutil.move(os.path.join(tree, ".testmondata"), db)
+        shutil.rmtree(os.path.join(tree, ".pytest_cache"), ignore_errors=True)
+        log("testmon db", round(time.time() - t), "s")
+    return db
+
+
+def testmon_select(tree, db):
+    shutil.copy(db, os.path.join(tree, ".testmondata"))
+    r = subprocess.run([PY, "-m", "pytest", "--co", "--testmon", "-qq", "-p", "no:randomly",
+                        "--continue-on-collection-errors", *CFG["pytest_args"], *CFG["targets"]], cwd=tree,
+                       env=env(tree, [PLUG]), capture_output=True, text=True, timeout=3600)
+    os.remove(os.path.join(tree, ".testmondata"))
+    shutil.rmtree(os.path.join(tree, ".pytest_cache"), ignore_errors=True)
+    if "deactivated" in next((l for l in r.stdout.splitlines() if l.startswith("testmon:")), ""):
+        raise RuntimeError("testmon selection deactivated")
+    return [l for l in r.stdout.splitlines() if "::" in l and not l.startswith(("ERROR", "FAILED"))]
+
+
+def nr_env():
+    return {"NAMERTS_HOME": os.environ.get("NAMERTS_HOME", os.path.join(BASE_WORK, "NameRTS")),
+            "NAMERTS_BIN": os.path.join(HERE, "nrts-bin"), "NAMERTS_DEPS": os.environ.get("NAMERTS_DEPS", ""),
+            "NAMERTS_LOGS": os.path.join(WORK, "nr-logs"), "NAMERTS_SCOPE": ",".join(CFG["targets"]),
+            "NAMERTS_WORKERS": os.environ.get("NAMERTS_WORKERS", "2"), "NAMERTS_TEST_DIRS": CFG["test_dirs"]}
+
+
+def namerts(action, tree, cache):
+    e = {**os.environ, **nr_env(), "PROVISO_PY": PY,
+         "PATH": os.path.dirname(PY) + os.pathsep + os.environ.get("PATH", ""),
+         "NAMERTS_EXTRA_PATH": os.pathsep.join([os.path.join(tree, p) for p in CFG["pythonpath"]] + [PLUG] +
+                                               [x for x in os.environ.get("PROVISO_EXTRA_PATH", "").split(os.pathsep) if x])}
+    r = subprocess.run([PY, os.path.join(ROOT, "research", "compare", "namerts_driver.py"), action, tree, cache,
+                        CFG["nr_repo"]], capture_output=True, text=True, env=e, timeout=14400)
+    if action == "select":
+        for line in r.stdout.splitlines():
+            if line.startswith("NAMERTS_SELECTED "):
+                return json.loads(line[len("NAMERTS_SELECTED "):])
+        raise RuntimeError("NameRTS selection failed: " + (r.stdout + r.stderr)[-600:])
+    if not os.path.isfile(os.path.join(cache, "nbdp_cache.json")):
+        raise RuntimeError("NameRTS init failed: " + (r.stdout + r.stderr)[-600:])
+    if not (jload(os.path.join(cache, "dependencies.json"), {}) or {}).get("dynamic_deps"):
+        shutil.rmtree(cache, ignore_errors=True)
+        raise RuntimeError("NameRTS's own test run recorded nothing (dynamic_deps empty): " + r.stdout[-400:])
+
+
+def nr_available():
+    return os.path.isdir(nr_env()["NAMERTS_HOME"])
+
+
+def nrinit(tree=None, cache=None):
+    if not nr_available():
+        log("NameRTS not installed; skipped")
+        return None
+    tree = tree or make_tree("nr-base", CFG["commit"])
+    cache = cache or os.path.join(WORK, "nr-cache")
+    if not os.path.isfile(os.path.join(cache, "nbdp_cache.json")):
+        t = time.time()
+        namerts("init", tree, cache)
+        log("NameRTS init", round(time.time() - t), "s")
+    return cache
+
+
+# ---------------------------------------------------------------------------------------------------- planted bugs
+
+def _string_lines(path):
+    import ast
+    try:
+        mod = ast.parse(open(path, encoding="utf-8").read())
+    except (SyntaxError, UnicodeDecodeError):
+        return set()
+    out = set()
+    for n in ast.walk(mod):
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.end_lineno and n.end_lineno > n.lineno:
+            out |= set(range(n.lineno, n.end_lineno + 1))
+    return out
+
+
+def bugs():
+    out = os.path.join(RES, "bugs.json")
+    if jload(out):
+        return jload(out)
+    tree = make_tree("base", CFG["commit"])
+    cands = M.candidates(tree, CFG["pkg"], CFG["mutate"])
+    skip, rnd, chosen = {}, random.Random(f"{SEED}-{REPO}"), []
+    for kind, n in PER_KIND.items():
+        pool = []
+        for rel, ln, op in cands[kind]:
+            if "/testing/" in rel or I._is_test_path(rel):
+                continue
+            if rel not in skip:
+                skip[rel] = _string_lines(os.path.join(tree, rel))
+            if ln not in skip[rel]:
+                pool.append((rel, ln, op))
+        rnd.shuffle(pool)
+        chosen += [{"id": f"{kind}:{rel}:{ln}", "kind": kind, "file": rel, "line": ln, "op": op} for rel, ln, op in pool[:n]]
+    jdump(chosen, out)
+    log("bugs", {k: sum(b["kind"] == k for b in chosen) for k in PER_KIND})
+    return chosen
+
+
+def parallel(stage, items, workers=None):
+    n = max(1, min(workers or WORKERS, len(items)))
+    procs = [subprocess.Popen([PY, os.path.abspath(__file__), REPO, "worker", stage, str(i), str(n)],
+                              stdout=open(os.path.join(WORK, f"{stage}.w{i}.log"), "a"), stderr=subprocess.STDOUT)
+             for i in range(n)]
+    for p in procs:
+        p.wait()
+    log(stage, "done; worker logs in", WORK)
+
+
+def merged(stage, res=None):
+    rows = {}
+    for p in glob.glob(os.path.join(res or RES, f"{stage}.w*.jsonl")):
+        for line in open(p):
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            rows[r["id"]] = r
+    return rows
+
+
+def append(stage, i, row):
+    with open(os.path.join(RES, f"{stage}.w{i}.jsonl"), "a") as fh:
+        fh.write(json.dumps(row) + "\n")
+
+
+def apply_bug(tree, b):
+    reset(tree)
+    code = M.apply(tree, b["file"], b["line"], b["op"])
+    if not git(tree, "diff", "--stat").strip():
+        raise RuntimeError(f"bug not applied: {b['id']}")
+    return code
+
+
+def truth_worker(i, n):
+    done = set(merged("truth"))
+    tree = make_tree(f"w{i}", CFG["commit"])
+    ok = ok_filter(failing(baseline()))
+    for b in [b for b in bugs()[i::n] if b["id"] not in done]:
+        try:
+            code = apply_bug(tree, b)
+            t = time.time()
+            r = run_tests(tree, os.path.join(WORK, f"truth_w{i}.json"))
+            append("truth", i, {**b, "code": code, "failing": sorted(x for x in failing(r) if ok(x)),
+                                "n_tests": len(r), "secs": round(time.time() - t, 1)})
+        except Exception as e:  # noqa: BLE001
+            print(b["id"], "ERROR", repr(e)[:300], flush=True)
+        finally:
+            reset(tree)
+
+
+# ---------------------------------------------------------------------------------------------------- selection
+
+def universe_of(cov, base_fail):
+    ok = ok_filter(base_fail)
+    return {n for n in cov if not n.startswith("__") and ok(n)}
+
+
+def score_all(tree, cov, universe, truth, plain, db, nr_cache, nr_tree):
+    ch = SEL.Change(tree, [CFG["pkg"]])
+    T = lambda ns: sum(plain.get(n, 0) for n in ns)
+    tot = T(universe) or 1e-9
+    roots = (CFG["pkg"], *sorted({t.split("/", 1)[0] for t in CFG["targets"]}))
+    ctx = {"testmon_db": db, "roots": roots, "top": CFG["pkg"].rsplit("/", 1)[-1],
+           "testmon_selected": testmon_select(tree, db)}
+    I.selection(tree, cov, PY)                  # warm the per-commit caches, as after a session's first run
+    t = time.time()
+    psel, why = I.selection(tree, cov, PY)
+    sel_s = time.time() - t
+    ctx["proviso_selected"] = psel
+    rows = {}
+    for name in SELECTORS:
+        s = SEL.SELECTORS[name](ch, universe, cov=cov, **ctx) & universe
+        rows[name] = {"selected": len(s), "time_share": round(T(s) / tot, 4), "missed": SEL.missed(truth, s)}
+    rows["proviso"].update(selection_s=round(sel_s, 2), reason=why.get("reason"))
+    if nr_cache:
+        reset(nr_tree)
+        diff = subprocess.run(["git", "diff", "HEAD"], cwd=tree, capture_output=True).stdout
+        if diff:
+            subprocess.run(["git", "apply", "--whitespace=nowarn"], cwd=nr_tree, input=diff, check=True)
+        files = set(namerts("select", nr_tree, nr_cache))
+        s = {n for n in universe if n.split("::", 1)[0] in files}
+        rows["namerts"] = {"selected": len(s), "time_share": round(T(s) / tot, 4), "missed": SEL.missed(truth, s)}
+        reset(nr_tree)
+    return {"universe": len(universe), "full_s": round(tot, 2), "truth": len(truth), "selectors": rows}
+
+
+def select_worker(i, n):
+    done, truth = set(merged("select")), merged("truth")
+    tree = make_tree(f"w{i}", CFG["commit"])
+    nr_cache = os.path.join(WORK, "nr-cache") if os.path.isfile(os.path.join(WORK, "nr-cache", "nbdp_cache.json")) else None
+    nr_tree = make_tree(f"nr-w{i}", CFG["commit"]) if nr_cache else None
+    cov, base, db = covmap(), baseline(), testmon()
+    plain = {k: t for k, (ok, t) in base.items()}
+    universe = universe_of(cov, failing(base))
+    for b in [b for b in bugs()[i::n] if b["id"] not in done and b["id"] in truth]:
+        try:
+            apply_bug(tree, b)
+            r = score_all(tree, cov, universe, truth[b["id"]]["failing"], plain, db, nr_cache, nr_tree)
+            append("select", i, {"id": b["id"], "kind": b["kind"], **r})
+        except Exception as e:  # noqa: BLE001
+            print(b["id"], "ERROR", repr(e)[:300], flush=True)
+        finally:
+            reset(tree)
+
+
+# ---------------------------------------------------------------------------------------------------- real commits
+
+def commits():
+    out = os.path.join(RES, "commits.json")
+    if jload(out):
+        return jload(out)
+    s = src_repo()
+    paths = [f"{CFG['pkg']}/{d}" for d in CFG["mutate"]] if CFG["mutate"] else [CFG["pkg"]]
+    hashes = git(s, "log", "--first-parent", "--no-merges", f"-n{SCAN_COMMITS * 3}", "--format=%H", CFG["commit"], "--",
+                 *paths).split()
+    cs = []
+    for h in hashes:
+        files = git(s, "diff", "--name-only", f"{h}^", h).split()
+        src = [f for f in files if f.startswith(CFG["pkg"] + "/") and f.endswith(".py") and not I._is_test_path(f)
+               and "/testing/" not in f]
+        if src and len(src) <= 15:
+            cs.append({"id": h[:10], "commit": h, "src": src})
+        if len(cs) >= SCAN_COMMITS:
+            break
+    jdump(cs, out)
+    log("commits to scan", len(cs))
+    return cs
+
+
+def apply_commit_src(tree, c):
+    for f in c["src"]:
+        blob = subprocess.run(["git", "show", f"{c['commit']}:{f}"], cwd=tree, capture_output=True)
+        p = os.path.join(tree, f)
+        if blob.returncode:
+            if os.path.exists(p):
+                os.remove(p)
+        else:
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            open(p, "wb").write(blob.stdout)
+
+
+def mine_worker(i, n):
+    done = set(merged("mine"))
+    for c in [c for c in commits()[i::n] if c["id"] not in done]:
+        tree = make_tree(f"w{i}", c["commit"] + "^")
+        try:
+            base = run_tests(tree, os.path.join(WORK, f"mine_b{i}.json"))
+            apply_commit_src(tree, c)
+            ch = run_tests(tree, os.path.join(WORK, f"mine_c{i}.json"))
+            ok = ok_filter(failing(base))
+            append("mine", i, {"id": c["id"], "commit": c["commit"], "src": c["src"],
+                               "failing": sorted(x for x in failing(ch) if ok(x)), "n_tests": len(base)})
+        except Exception as e:  # noqa: BLE001
+            print(c["id"], "ERROR", repr(e)[:300], flush=True)
+        finally:
+            reset(tree)
+
+
+def real_set():
+    m = sorted(merged("mine").values(), key=lambda r: r["id"])
+    rnd = random.Random(f"{SEED}-{REPO}-real")
+    brk, rest = [r for r in m if r["failing"]], [r for r in m if not r["failing"]]
+    rnd.shuffle(brk)
+    rnd.shuffle(rest)
+    return brk[:REAL_BREAKING_MAX] + rest[:REAL_NONBREAKING]
+
+
+def realeval_worker(i, n):
+    done = set(merged("realeval"))
+    for r in [r for r in real_set()[i::n] if r["id"] not in done]:
+        parent, d = r["commit"] + "^", os.path.join(WORK, "real", r["id"])
+        os.makedirs(d, exist_ok=True)
+        tree = make_tree(f"w{i}", parent)
+        try:
+            base = baseline(tree, os.path.join(d, "base_outcomes.json"))
+            cov = covmap(tree, os.path.join(d, "covmap.json"), max(1, WORKERS // NR_WORKERS))
+            db = testmon(tree, os.path.join(d, "testmondata"))
+            nr_cache = nr_tree = None
+            if nr_available():
+                nr_tree = make_tree(f"nr-w{i}", parent)
+                nr_cache = nrinit(nr_tree, os.path.join(d, "nr-cache"))
+            plain = {k: t for k, (ok, t) in base.items()}
+            universe = universe_of(cov, failing(base))
+            reset(tree)
+            apply_commit_src(tree, r)
+            res = score_all(tree, cov, universe, r["failing"], plain, db, nr_cache, nr_tree)
+            append("realeval", i, {"id": r["id"], "breaks": bool(r["failing"]), **res})
+        except Exception as e:  # noqa: BLE001
+            print(r["id"], "ERROR", repr(e)[:400], flush=True)
+        finally:
+            reset(tree)
+
+
+# ---------------------------------------------------------------------------------------------------- report
+
+def report():
+    lines = [f"# {REPO} ({CFG['commit'][:10]}; targets {' '.join(CFG['targets'])})", ""]
+    for stage, title in (("select", "Planted bugs"), ("realeval", "Real commits")):
+        rows = list(merged(stage).values())
+        if not rows:
+            continue
+        brk = [r for r in rows if r["truth"]]
+        names = sorted({k for r in rows for k in r["selectors"]}, key=lambda k: (SELECTORS + ["namerts"]).index(k))
+        lines += [f"## {title}: {len(rows)} changes, {len(brk)} break tests ({sum(r['truth'] for r in brk)} failing tests)",
+                  "", "| selector | changes with a missed failure | failing tests missed | test time selected, mean (median) |",
+                  "|---|---|---|---|"]
+        for k in names:
+            have = [r for r in rows if k in r["selectors"]]
+            mb = [r for r in brk if k in r["selectors"]]
+            ts = [r["selectors"][k]["time_share"] for r in have]
+            lines.append(f"| {k} | {sum(1 for r in mb if r['selectors'][k]['missed'])} of {len(mb)} | "
+                         f"{sum(len(r['selectors'][k]['missed']) for r in mb)} | "
+                         f"{100 * st.mean(ts):.1f}% ({100 * st.median(ts):.1f}%) |")
+        pv = [r for r in rows if "proviso" in r["selectors"]]
+        tot = lambda r: r["selectors"]["proviso"]["selection_s"] + r["selectors"]["proviso"]["time_share"] * r["full_s"]
+        lines += ["", f"End to end (plain s): full suite median {st.median(r['full_s'] for r in pv):.1f}; Proviso "
+                  f"median {st.median(tot(r) for r in pv):.1f}, mean {st.mean(tot(r) for r in pv):.1f}; faster on "
+                  f"{sum(tot(r) < r['full_s'] for r in pv)} of {len(pv)}; selection median "
+                  f"{st.median(r['selectors']['proviso']['selection_s'] for r in pv):.2f} s", ""]
+    open(os.path.join(RES, "report.md"), "w").write("\n".join(lines))
+    print("\n".join(lines))
+
+
+STAGES = {"prepare": prepare, "baseline": baseline, "covmap": covmap, "testmon": testmon, "nrinit": nrinit,
+          "bugs": bugs, "truth": lambda: (baseline(), parallel("truth", bugs())),
+          "select": lambda: (baseline(), covmap(), testmon(), nrinit(), parallel("select", bugs(), NR_WORKERS)),
+          "mine": lambda: parallel("mine", commits()), "realeval": lambda: parallel("realeval", real_set(), NR_WORKERS),
+          "report": report}
+WORKER = {"truth": truth_worker, "select": select_worker, "mine": mine_worker, "realeval": realeval_worker}
+
+if __name__ == "__main__":
+    if sys.argv[1] == "report-all":
+        for r in REPOS:
+            use(r)
+            if os.path.isdir(RES):
+                report()
+        sys.exit(0)
+    use(sys.argv[1])
+    if sys.argv[2] == "worker":
+        WORKER[sys.argv[3]](int(sys.argv[4]), int(sys.argv[5]))
+    else:
+        for s in (list(STAGES) if sys.argv[2] == "all" else sys.argv[2:]):
+            log("==", s)
+            STAGES[s]()

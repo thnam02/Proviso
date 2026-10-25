@@ -1,0 +1,3 @@
+#!/bin/sh
+# NameRTS calls bare `pytest`: use the interpreter the pipeline runs with (PROVISO_PY)
+exec "${PROVISO_PY:-python3}" -m pytest "$@"
