@@ -1,0 +1,667 @@
+[
+ {
+  "id": "function:lib/sqlalchemy/sql/util.py:227",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/util.py",
+  "line": 227,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/traversals.py:814",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/traversals.py",
+  "line": 814,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/schema.py:2938",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/schema.py",
+  "line": 2938,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/schema.py:2655",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/schema.py",
+  "line": 2655,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/_cache_key_cy.py:147",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/_cache_key_cy.py",
+  "line": 147,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/elements.py:1810",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/elements.py",
+  "line": 1810,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/ddl.py:1945",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/ddl.py",
+  "line": 1945,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/engine/cursor.py:1699",
+  "kind": "function",
+  "file": "lib/sqlalchemy/engine/cursor.py",
+  "line": 1699,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/schema.py:1253",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/schema.py",
+  "line": 1253,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/selectable.py:3517",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/selectable.py",
+  "line": 3517,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/traversals.py:908",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/traversals.py",
+  "line": 908,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/engine/_result_cy.py:608",
+  "kind": "function",
+  "file": "lib/sqlalchemy/engine/_result_cy.py",
+  "line": 608,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/compiler.py:2749",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 2749,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/dml.py:751",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/dml.py",
+  "line": 751,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/engine/_result_cy.py:401",
+  "kind": "function",
+  "file": "lib/sqlalchemy/engine/_result_cy.py",
+  "line": 401,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/crud.py:1712",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/crud.py",
+  "line": 1712,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/selectable.py:5336",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/selectable.py",
+  "line": 5336,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/engine/_util_cy.py:124",
+  "kind": "function",
+  "file": "lib/sqlalchemy/engine/_util_cy.py",
+  "line": 124,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/annotation.py:473",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/annotation.py",
+  "line": 473,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/lambdas.py:1225",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/lambdas.py",
+  "line": 1225,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/compiler.py:2760",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 2760,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/compiler.py:2895",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 2895,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/coercions.py:571",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/coercions.py",
+  "line": 571,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/compiler.py:4847",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 4847,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/engine/default.py:481",
+  "kind": "function",
+  "file": "lib/sqlalchemy/engine/default.py",
+  "line": 481,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/util.py:1491",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/util.py",
+  "line": 1491,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/annotation.py:513",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/annotation.py",
+  "line": 513,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/engine/result.py:1084",
+  "kind": "function",
+  "file": "lib/sqlalchemy/engine/result.py",
+  "line": 1084,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/util.py:459",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/util.py",
+  "line": 459,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/compiler.py:5057",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 5057,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/dml.py:476",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/dml.py",
+  "line": 476,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/schema.py:4375",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/schema.py",
+  "line": 4375,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/schema.py:560",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/schema.py",
+  "line": 560,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/engine/events.py:680",
+  "kind": "function",
+  "file": "lib/sqlalchemy/engine/events.py",
+  "line": 680,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/elements.py:592",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/elements.py",
+  "line": 592,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/ddl.py:1885",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/ddl.py",
+  "line": 1885,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/engine/cursor.py:450",
+  "kind": "function",
+  "file": "lib/sqlalchemy/engine/cursor.py",
+  "line": 450,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/schema.py:4301",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/schema.py",
+  "line": 4301,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/crud.py:967",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/crud.py",
+  "line": 967,
+  "op": "flip"
+ },
+ {
+  "id": "function:lib/sqlalchemy/sql/cache_key.py:334",
+  "kind": "function",
+  "file": "lib/sqlalchemy/sql/cache_key.py",
+  "line": 334,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/engine/default.py:1461",
+  "kind": "class",
+  "file": "lib/sqlalchemy/engine/default.py",
+  "line": 1461,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/elements.py:380",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/elements.py",
+  "line": 380,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/engine/default.py:402",
+  "kind": "class",
+  "file": "lib/sqlalchemy/engine/default.py",
+  "line": 402,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/functions.py:2184",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/functions.py",
+  "line": 2184,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/schema.py:4017",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/schema.py",
+  "line": 4017,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/dml.py:287",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/dml.py",
+  "line": 287,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/type_api.py:131",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/type_api.py",
+  "line": 131,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/elements.py:4239",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/elements.py",
+  "line": 4239,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/dml.py:1259",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/dml.py",
+  "line": 1259,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/lambdas.py:76",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/lambdas.py",
+  "line": 76,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/engine/default.py:398",
+  "kind": "class",
+  "file": "lib/sqlalchemy/engine/default.py",
+  "line": 398,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/engine/default.py:348",
+  "kind": "class",
+  "file": "lib/sqlalchemy/engine/default.py",
+  "line": 348,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/ddl.py:858",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/ddl.py",
+  "line": 858,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/elements.py:1490",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/elements.py",
+  "line": 1490,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/elements.py:385",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/elements.py",
+  "line": 385,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/engine/default.py:1463",
+  "kind": "class",
+  "file": "lib/sqlalchemy/engine/default.py",
+  "line": 1463,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/schema.py:4727",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/schema.py",
+  "line": 4727,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/functions.py:1729",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/functions.py",
+  "line": 1729,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/elements.py:841",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/elements.py",
+  "line": 841,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/sqltypes.py:3466",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/sqltypes.py",
+  "line": 3466,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/dml.py:1255",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/dml.py",
+  "line": 1255,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/functions.py:2038",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/functions.py",
+  "line": 2038,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/elements.py:5074",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/elements.py",
+  "line": 5074,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/selectable.py:3638",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/selectable.py",
+  "line": 3638,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/selectable.py:5574",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/selectable.py",
+  "line": 5574,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/selectable.py:237",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/selectable.py",
+  "line": 237,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/engine/result.py:1984",
+  "kind": "class",
+  "file": "lib/sqlalchemy/engine/result.py",
+  "line": 1984,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/engine/default.py:1441",
+  "kind": "class",
+  "file": "lib/sqlalchemy/engine/default.py",
+  "line": 1441,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/engine/default.py:1446",
+  "kind": "class",
+  "file": "lib/sqlalchemy/engine/default.py",
+  "line": 1446,
+  "op": "flip"
+ },
+ {
+  "id": "class:lib/sqlalchemy/sql/schema.py:4021",
+  "kind": "class",
+  "file": "lib/sqlalchemy/sql/schema.py",
+  "line": 4021,
+  "op": "flip"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:337",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 337,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:301",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 301,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/sqltypes.py:4082",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/sqltypes.py",
+  "line": 4082,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:355",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 355,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:306",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 306,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:294",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 294,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:299",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 299,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/operators.py:2777",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/operators.py",
+  "line": 2777,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/traversals.py:40",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/traversals.py",
+  "line": 40,
+  "op": "flip"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/operators.py:2779",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/operators.py",
+  "line": 2779,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/operators.py:2754",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/operators.py",
+  "line": 2754,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/operators.py:2744",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/operators.py",
+  "line": 2744,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/_cache_key_cy.py:248",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/_cache_key_cy.py",
+  "line": 248,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/operators.py:2762",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/operators.py",
+  "line": 2762,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:288",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 288,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:370",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 370,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:362",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 362,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:372",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 372,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:351",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 351,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/sqltypes.py:4089",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/sqltypes.py",
+  "line": 4089,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/operators.py:2769",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/operators.py",
+  "line": 2769,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/operators.py:2746",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/operators.py",
+  "line": 2746,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/sqltypes.py:4091",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/sqltypes.py",
+  "line": 4091,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:296",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 296,
+  "op": "delete"
+ },
+ {
+  "id": "module:lib/sqlalchemy/sql/compiler.py:354",
+  "kind": "module",
+  "file": "lib/sqlalchemy/sql/compiler.py",
+  "line": 354,
+  "op": "delete"
+ }
+]
