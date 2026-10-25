@@ -1,0 +1,23 @@
+{"id": "cf951a246e", "commit": "cf951a246eab9d660ae00bd8226ec5ba0a9c3aea", "src": ["lib/sqlalchemy/sql/ddl.py"], "failing": [], "n_tests": 9704}
+{"id": "5462cec4c5", "commit": "5462cec4c5b97ae9c1cefc0a0e022d49273b32e0", "src": ["lib/sqlalchemy/__init__.py", "lib/sqlalchemy/engine/reflection.py", "lib/sqlalchemy/schema.py", "lib/sqlalchemy/sql/_typing.py", "lib/sqlalchemy/sql/naming.py", "lib/sqlalchemy/sql/schema.py"], "failing": ["test/sql/test_metadata.py::MetaDataTest::test_fk_given_col_non_table", "test/sql/test_metadata.py::MetaDataTest::test_fk_given_col_non_table_clauseelem"], "n_tests": 9468}
+{"id": "ea1a30f460", "commit": "ea1a30f4606eeaee7d696e0d1291a3501ff1fc8a", "src": ["lib/sqlalchemy/dialects/postgresql/base.py", "lib/sqlalchemy/sql/elements.py"], "failing": [], "n_tests": 7660}
+{"id": "8c26205124", "commit": "8c262051247d5d83f3d0269003705a363dbc3e60", "src": ["lib/sqlalchemy/dialects/mysql/base.py", "lib/sqlalchemy/sql/base.py"], "failing": [], "n_tests": 7536}
+{"id": "95ab6ed79c", "commit": "95ab6ed79c7956bcf6ad7e18ad6241f0c9c90f23", "src": ["lib/sqlalchemy/engine/_row_cy.py", "lib/sqlalchemy/engine/row.py", "lib/sqlalchemy/util/cython.py"], "failing": [], "n_tests": 7451}
+{"id": "209d1913cc", "commit": "209d1913cc702665252f3d2bc1b38ce3a0b9e3eb", "src": ["lib/sqlalchemy/sql/_selectable_constructors.py", "lib/sqlalchemy/sql/compiler.py", "lib/sqlalchemy/sql/elements.py", "lib/sqlalchemy/sql/selectable.py"], "failing": ["test/sql/test_compare.py::HasCacheKeySubclass::test_init_args_in_traversal[Values]"], "n_tests": 7061}
+{"id": "33be272290", "commit": "33be2722905f74562cb47cf6c23948065ae91e47", "src": ["lib/sqlalchemy/dialects/mysql/__init__.py", "lib/sqlalchemy/dialects/mysql/base.py", "lib/sqlalchemy/dialects/mysql/dml.py", "lib/sqlalchemy/sql/compiler.py"], "failing": [], "n_tests": 6908}
+{"id": "40ccf772d3", "commit": "40ccf772d377ec5f0b07691d3505292ddbbd2435", "src": ["lib/sqlalchemy/sql/ddl.py"], "failing": [], "n_tests": 6861}
+{"id": "9f4f84ffdc", "commit": "9f4f84ffdc1be487930b00d0b190bd492d302ca1", "src": ["lib/sqlalchemy/sql/elements.py"], "failing": [], "n_tests": 6597}
+{"id": "8a171bb339", "commit": "8a171bb3391e916d19ddf853dc2f9f5e5756c16e", "src": ["lib/sqlalchemy/engine/result.py", "lib/sqlalchemy/ext/asyncio/result.py", "lib/sqlalchemy/orm/query.py"], "failing": [], "n_tests": 6483}
+{"id": "52452ec39d", "commit": "52452ec39d18567126673eeef4cf0dd12039043b", "src": ["lib/sqlalchemy/sql/elements.py", "lib/sqlalchemy/sql/functions.py", "lib/sqlalchemy/sql/operators.py"], "failing": [], "n_tests": 0}
+{"id": "3a42375d85", "commit": "3a42375d858bdc2654f396be5cb0caf4fc95904f", "src": ["lib/sqlalchemy/sql/ddl.py"], "failing": [], "n_tests": 0}
+{"id": "f09036680c", "commit": "f09036680c723b16f250f95267800cddaf1a9a42", "src": ["lib/sqlalchemy/orm/relationships.py", "lib/sqlalchemy/sql/annotation.py"], "failing": [], "n_tests": 0}
+{"id": "75d716c779", "commit": "75d716c7799e28ba5c86c72db08025dd6fc8c6e0", "src": ["lib/sqlalchemy/engine/base.py"], "failing": [], "n_tests": 0}
+{"id": "7fd3b4747d", "commit": "7fd3b4747d2935effd9e0c2bbe72f080df4ffc50", "src": ["lib/sqlalchemy/engine/create.py"], "failing": [], "n_tests": 0}
+{"id": "bcb5c850f2", "commit": "bcb5c850f2a5279bf7a97af6fbf99cc63dffd62f", "src": ["lib/sqlalchemy/sql/selectable.py"], "failing": [], "n_tests": 0}
+{"id": "7f86be997e", "commit": "7f86be997eea27bc994b25c4fb65d72b3d4567f9", "src": ["lib/sqlalchemy/sql/type_api.py"], "failing": [], "n_tests": 0}
+{"id": "2b966de419", "commit": "2b966de4196c8271934769337780f7d504d431cf", "src": ["lib/sqlalchemy/sql/compiler.py", "lib/sqlalchemy/sql/crud.py"], "failing": [], "n_tests": 0}
+{"id": "dc5a1c482e", "commit": "dc5a1c482ee1a8faf15fd81db866e5f72c1c719f", "src": ["lib/sqlalchemy/sql/elements.py"], "failing": [], "n_tests": 0}
+{"id": "286e5fb649", "commit": "286e5fb649f77367883800ba4ec3d536e8031ca8", "src": ["lib/sqlalchemy/engine/interfaces.py", "lib/sqlalchemy/engine/reflection.py"], "failing": [], "n_tests": 0}
+{"id": "257de6ebe1", "commit": "257de6ebe15d3076e19f05f93c5b3c7fae25a4d3", "src": ["lib/sqlalchemy/engine/base.py", "lib/sqlalchemy/log.py", "lib/sqlalchemy/util/__init__.py"], "failing": [], "n_tests": 0}
+{"id": "15ef11e0ed", "commit": "15ef11e0ede82e44fb07f31b63d3db0712d8bf48", "src": ["lib/sqlalchemy/engine/base.py", "lib/sqlalchemy/engine/result.py", "lib/sqlalchemy/ext/asyncio/result.py"], "failing": [], "n_tests": 0}
+{"id": "c90396fbe7", "commit": "c90396fbe7424c481f8f4ee18b6cedd1fa09c711", "src": ["lib/sqlalchemy/dialects/mysql/enumerated.py", "lib/sqlalchemy/dialects/oracle/cx_oracle.py", "lib/sqlalchemy/engine/default.py", "lib/sqlalchemy/sql/coercions.py", "lib/sqlalchemy/sql/schema.py"], "failing": [], "n_tests": 0}

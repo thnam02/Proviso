@@ -1,0 +1,22 @@
+{"id": "3d51a6b476", "commit": "3d51a6b47610c97965f54c5de7475429bc0e3953", "src": ["lib/sqlalchemy/sql/selectable.py"], "failing": [], "n_tests": 9548}
+{"id": "295013ba17", "commit": "295013ba17895cb925bef042b9ad70c80f1d19b0", "src": ["lib/sqlalchemy/engine/base.py"], "failing": [], "n_tests": 7674}
+{"id": "4840e6a206", "commit": "4840e6a206741eb7fe54e47067f61a57dd36c68d", "src": ["lib/sqlalchemy/engine/cursor.py", "lib/sqlalchemy/engine/result.py"], "failing": [], "n_tests": 7609}
+{"id": "a057c474bf", "commit": "a057c474bf84ccd0508b89aa5428f45c9a644ee3", "src": ["lib/sqlalchemy/sql/selectable.py"], "failing": [], "n_tests": 7453}
+{"id": "52e80cd05d", "commit": "52e80cd05d4b94a4b88d85316127f7ea71220152", "src": ["lib/sqlalchemy/engine/result.py"], "failing": [], "n_tests": 7223}
+{"id": "aae34df0b5", "commit": "aae34df0b5aa7dfe02bdc19744b1b6bc8533ee91", "src": ["lib/sqlalchemy/sql/_selectable_constructors.py"], "failing": [], "n_tests": 6919}
+{"id": "aaddd7c840", "commit": "aaddd7c8403e9ca2f77113467b5e2ae279a542c4", "src": ["lib/sqlalchemy/sql/coercions.py"], "failing": [], "n_tests": 6854}
+{"id": "6d2f43e14f", "commit": "6d2f43e14f2fe25cdc811355b7bd6d11f8eee381", "src": ["lib/sqlalchemy/sql/selectable.py", "lib/sqlalchemy/sql/traversals.py"], "failing": [], "n_tests": 6622}
+{"id": "3551c7b66a", "commit": "3551c7b66ab0318deef419fbe61fe038b6e2825c", "src": ["lib/sqlalchemy/engine/util.py"], "failing": [], "n_tests": 6504}
+{"id": "005a87c1ba", "commit": "005a87c1ba58f5df256cbc30274cde910095c9c4", "src": ["lib/sqlalchemy/sql/schema.py"], "failing": [], "n_tests": 0}
+{"id": "20c1b1b1ed", "commit": "20c1b1b1ede5d66e38ca1c4ae4a708fc33245b1d", "src": ["lib/sqlalchemy/dialects/mssql/base.py", "lib/sqlalchemy/dialects/mssql/pyodbc.py", "lib/sqlalchemy/dialects/postgresql/asyncpg.py", "lib/sqlalchemy/engine/default.py", "lib/sqlalchemy/orm/persistence.py", "lib/sqlalchemy/sql/crud.py", "lib/sqlalchemy/sql/dml.py"], "failing": [], "n_tests": 0}
+{"id": "7083214539", "commit": "7083214539075dd3c1e834c089ed1ba05a9fed6a", "src": ["lib/sqlalchemy/sql/operators.py"], "failing": [], "n_tests": 0}
+{"id": "66cec8cd40", "commit": "66cec8cd401a605dfbd8bb64fa7c8997ca072294", "src": ["lib/sqlalchemy/engine/mock.py"], "failing": [], "n_tests": 0}
+{"id": "f35a3f1532", "commit": "f35a3f15321bd16cdc9cce69468cb50555b96a6b", "src": ["lib/sqlalchemy/sql/sqltypes.py"], "failing": [], "n_tests": 0}
+{"id": "056d7815f0", "commit": "056d7815f0a605b3a1176121922d0b78ce0d23f8", "src": ["lib/sqlalchemy/dialects/postgresql/types.py", "lib/sqlalchemy/sql/type_api.py"], "failing": [], "n_tests": 0}
+{"id": "e636917a72", "commit": "e636917a721f4bb01264a23736c9c81e462863cb", "src": ["lib/sqlalchemy/sql/crud.py"], "failing": [], "n_tests": 0}
+{"id": "b96321ae79", "commit": "b96321ae79a0366c33ca739e6e67aaf5f4420db4", "src": ["lib/sqlalchemy/engine/result.py", "lib/sqlalchemy/ext/asyncio/base.py", "lib/sqlalchemy/ext/asyncio/engine.py", "lib/sqlalchemy/ext/asyncio/result.py", "lib/sqlalchemy/ext/asyncio/session.py", "lib/sqlalchemy/orm/query.py", "lib/sqlalchemy/util/__init__.py", "lib/sqlalchemy/util/compat.py"], "failing": [], "n_tests": 0}
+{"id": "0eea54e84d", "commit": "0eea54e84df104ffe8bc246eb82e4a7a2cf05079", "src": ["lib/sqlalchemy/sql/events.py"], "failing": [], "n_tests": 0}
+{"id": "f8d15739d3", "commit": "f8d15739d36da138d34fb3fecac1fa043e65e48d", "src": ["lib/sqlalchemy/orm/properties.py", "lib/sqlalchemy/sql/sqltypes.py", "lib/sqlalchemy/sql/type_api.py"], "failing": [], "n_tests": 0}
+{"id": "5e88e6e89a", "commit": "5e88e6e89a2cf5b583670fa5d0b41881f895a711", "src": ["lib/sqlalchemy/dialects/postgresql/base.py", "lib/sqlalchemy/engine/base.py", "lib/sqlalchemy/engine/cursor.py", "lib/sqlalchemy/ext/asyncio/session.py", "lib/sqlalchemy/schema.py", "lib/sqlalchemy/sql/schema.py", "lib/sqlalchemy/sql/selectable.py", "lib/sqlalchemy/util/langhelpers.py"], "failing": [], "n_tests": 0}
+{"id": "0bfb620009", "commit": "0bfb620009f668e97ad3c2c25a564ca36428b9ae", "src": ["lib/sqlalchemy/sql/base.py", "lib/sqlalchemy/sql/visitors.py"], "failing": [], "n_tests": 0}
+{"id": "9acd3dc6b7", "commit": "9acd3dc6b753848777dacbf45c7e14af23dcafb4", "src": ["lib/sqlalchemy/sql/_elements_constructors.py"], "failing": [], "n_tests": 0}

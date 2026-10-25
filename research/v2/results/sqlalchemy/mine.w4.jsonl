@@ -1,0 +1,23 @@
+{"id": "a9956b1ab7", "commit": "a9956b1ab72561c4642ff9dfdf9ae52f3eb5d307", "src": ["lib/sqlalchemy/engine/_result_cy.py"], "failing": [], "n_tests": 9630}
+{"id": "2dd1451c56", "commit": "2dd1451c5639f59d49111cf8eb34e0240b7f550a", "src": ["lib/sqlalchemy/engine/default.py"], "failing": [], "n_tests": 9332}
+{"id": "053a90668a", "commit": "053a90668acd235cc03b5209470e24c9742121db", "src": ["lib/sqlalchemy/engine/interfaces.py"], "failing": [], "n_tests": 7624}
+{"id": "48410f8340", "commit": "48410f83407661e009326d7170ab79e5163eb8f1", "src": ["lib/sqlalchemy/engine/result.py", "lib/sqlalchemy/sql/_typing.py"], "failing": [], "n_tests": 7506}
+{"id": "3800869820", "commit": "38008698207dc3703f2565aa8b41f95596724272", "src": ["lib/sqlalchemy/sql/selectable.py"], "failing": [], "n_tests": 7279}
+{"id": "0e33848fe5", "commit": "0e33848fe5330a60037594370cd7868907348c18", "src": ["lib/sqlalchemy/sql/type_api.py"], "failing": [], "n_tests": 6943}
+{"id": "15b1e14db2", "commit": "15b1e14db21d2fa0bbc7b68e80883efb6334ad30", "src": ["lib/sqlalchemy/sql/schema.py"], "failing": [], "n_tests": 6885}
+{"id": "a9747467a8", "commit": "a9747467a8b6e8212f758aaceffdc96f087e15bb", "src": ["lib/sqlalchemy/sql/selectable.py"], "failing": [], "n_tests": 6849}
+{"id": "d3222a31b8", "commit": "d3222a31b8df97a454b37a32881dd484a06e5742", "src": ["lib/sqlalchemy/orm/context.py", "lib/sqlalchemy/orm/session.py", "lib/sqlalchemy/sql/base.py"], "failing": [], "n_tests": 6569}
+{"id": "8f4ac0c0f0", "commit": "8f4ac0c0f07509d2f8a4bce9cbb07ac08ad04044", "src": ["lib/sqlalchemy/sql/elements.py"], "failing": [], "n_tests": 6360}
+{"id": "55bf2bf971", "commit": "55bf2bf971cda82c2e3f58e9c211c74c3a6394a8", "src": ["lib/sqlalchemy/engine/interfaces.py"], "failing": [], "n_tests": 0}
+{"id": "f662dfc9d9", "commit": "f662dfc9d93f89ec16f87348ccf34af3b3d684da", "src": ["lib/sqlalchemy/sql/sqltypes.py"], "failing": [], "n_tests": 0}
+{"id": "a4e6e13d87", "commit": "a4e6e13d87c01c6f1c8e8f64b608d538eff7d56f", "src": ["lib/sqlalchemy/engine/url.py"], "failing": [], "n_tests": 0}
+{"id": "32fc4f3de2", "commit": "32fc4f3de20c9d983742b064e47f591342c42de2", "src": ["lib/sqlalchemy/sql/_typing.py", "lib/sqlalchemy/sql/expression.py"], "failing": [], "n_tests": 0}
+{"id": "361beb0bc8", "commit": "361beb0bc8392c92403ffc1999eb2a9847e945c7", "src": ["lib/sqlalchemy/orm/_orm_constructors.py", "lib/sqlalchemy/orm/decl_base.py", "lib/sqlalchemy/orm/descriptor_props.py", "lib/sqlalchemy/orm/interfaces.py", "lib/sqlalchemy/orm/properties.py", "lib/sqlalchemy/sql/_typing.py", "lib/sqlalchemy/sql/schema.py"], "failing": [], "n_tests": 0}
+{"id": "c06ef9745f", "commit": "c06ef9745f34524169cb66335f0b0a86137bdb39", "src": ["lib/sqlalchemy/sql/elements.py", "lib/sqlalchemy/sql/operators.py"], "failing": [], "n_tests": 0}
+{"id": "61443aa62b", "commit": "61443aa62bbef158274ae393db399fec7f054c2d", "src": ["lib/sqlalchemy/sql/coercions.py", "lib/sqlalchemy/sql/compiler.py", "lib/sqlalchemy/sql/elements.py", "lib/sqlalchemy/sql/selectable.py"], "failing": [], "n_tests": 0}
+{"id": "4df1f8393d", "commit": "4df1f8393d4f44e74f82d35cf7237b28632a7745", "src": ["lib/sqlalchemy/sql/schema.py"], "failing": [], "n_tests": 0}
+{"id": "5de71c6302", "commit": "5de71c6302d01d1f304e75aa9e8e5e1bb7538d23", "src": ["lib/sqlalchemy/event/attr.py", "lib/sqlalchemy/ext/associationproxy.py", "lib/sqlalchemy/orm/collections.py", "lib/sqlalchemy/orm/dynamic.py", "lib/sqlalchemy/sql/elements.py", "lib/sqlalchemy/sql/lambdas.py"], "failing": [], "n_tests": 0}
+{"id": "017fd9ae06", "commit": "017fd9ae0645eaf2a0fbdd067d10c721505b018c", "src": ["lib/sqlalchemy/dialects/postgresql/__init__.py", "lib/sqlalchemy/dialects/postgresql/base.py", "lib/sqlalchemy/dialects/postgresql/named_types.py", "lib/sqlalchemy/dialects/postgresql/types.py", "lib/sqlalchemy/sql/compiler.py"], "failing": [], "n_tests": 0}
+{"id": "889cbe5312", "commit": "889cbe53121c8fd50c845357dd52b24594346b68", "src": ["lib/sqlalchemy/sql/coercions.py"], "failing": [], "n_tests": 0}
+{"id": "c315c7401a", "commit": "c315c7401a2aa00a8a0fa0f7d4189a9976fd7962", "src": ["lib/sqlalchemy/sql/selectable.py"], "failing": [], "n_tests": 0}
+{"id": "c36965ab21", "commit": "c36965ab211183764357456fff1640418586ed97", "src": ["lib/sqlalchemy/sql/compiler.py"], "failing": [], "n_tests": 0}
