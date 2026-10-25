@@ -23,7 +23,7 @@ for t in git gcc; do command -v $t >/dev/null || { echo "$t not found: sudo apt 
 if [ ! -f "$VENV/.proviso-v2-deps" ]; then
   echo "== installing dependencies (pinned)"
   pip install -q --upgrade pip
-  pip install -q pytest==9.1.1 pytest-testmon==2.2.0 coverage==7.10.7 execnet==2.1.1 greenlet typing-extensions mpmath
+  pip install -q pytest==9.1.1 pytest-testmon==2.2.0 coverage==7.10.7 execnet==2.1.1 greenlet typing-extensions mpmath hypothesis
   pip install -q -r research/v2/requirements-namerts.txt
   touch "$VENV/.proviso-v2-deps"
 fi

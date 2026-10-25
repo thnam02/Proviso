@@ -203,6 +203,8 @@ def baseline(tree=None, out=None):
         tree = tree or make_tree("base", CFG["commit"])
         t = time.time()
         r = run_tests(tree, out + ".run")
+        if not r:   # e.g. a missing test dependency makes the conftest fail: stop instead of saving an empty baseline
+            raise RuntimeError(f"baseline found no tests in {tree} (missing test dependency?); nothing saved")
         jdump(r, out)
         log("baseline", len(r), "tests,", len(failing(r)), "failing,", round(time.time() - t), "s")
     return jload(out)
@@ -218,8 +220,13 @@ def covmap(tree=None, out=None, workers=None):
         REC.record(tree, CFG["pkg"], out, PY, CFG["targets"], workers or WORKERS, CFG["before_test"],
                    ["-p", "no:randomly", *CFG["pytest_args"]], e)
         m = jload(out, {})
-        log("covmap v2:", sum(1 for k in m if not k.startswith("__")), "tests,", len(m.get("__fixtures__", {})),
-            "fixture records,", round(time.time() - t), "s")
+        n_tests = sum(1 for k in m if not k.startswith("__"))
+        if not n_tests:   # never keep an empty map: a re-run would reuse it
+            if os.path.exists(out):
+                os.remove(out)
+            raise RuntimeError(f"coverage map recorded no tests in {tree} (missing test dependency?); nothing saved")
+        log("covmap v2:", n_tests, "tests,", len(m.get("__fixtures__", {})), "fixture records,",
+            round(time.time() - t), "s")
     return jload(out)
 
 
