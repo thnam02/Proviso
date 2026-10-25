@@ -430,7 +430,7 @@ def _import_state_effect(root: str, covmap: dict, python: str, changed_files: se
     gained = {c for c in (_key_class(k, prefix) for k in reachable) if c}
     gained |= {c for c in (_key_class(k.rsplit(".", 1)[0] + ".x", prefix) for k in rebased) if c}
     gained |= {c.replace("/__init__.py:", ".py:") for c in gained}
-    return names, gained, {"import_state_changed": d["changed"][:20], "import_state_n": len(d["changed"])}
+    return names, gained, {"import_state_changed": d["changed"][:200], "import_state_n": len(d["changed"])}
 
 
 def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[str] | None, dict]:
@@ -766,6 +766,79 @@ def _collect(root: str, python: str, targets: list[str]) -> list[str] | None:
     return ids or None
 
 
+def _subclasses(root: str, files: list[str]) -> dict[str, set[str]]:
+    """Class name -> names of classes that inherit from it (transitively), from the sources at HEAD (by name)."""
+    bases: dict[str, set[str]] = {}
+    for f in files:
+        try:
+            tree = ast.parse(_git(root, "show", f"HEAD:{f}"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                for b in node.bases:
+                    nm = b.id if isinstance(b, ast.Name) else b.attr if isinstance(b, ast.Attribute) else None
+                    if nm:
+                        bases.setdefault(nm, set()).add(node.name)
+    out: dict[str, set[str]] = {}
+
+    def subs(c, seen):
+        for d in bases.get(c, ()):
+            if d not in seen:
+                seen.add(d)
+                subs(d, seen)
+        return seen
+    for c in bases:
+        out[c] = subs(c, set())
+    return out
+
+
+def impact_report(root: str, covmap: dict, why: dict, selected: list[str] | None, max_items: int = 6) -> list[str]:
+    """What the change affects, for the agent: edited functions, import-time values that changed (and the classes
+    that inherit a changed class attribute), and which tests depend on it. Empty if there is nothing to say."""
+    lines: list[str] = []
+    funcs = [tuple(x) for x in why.get("changed_functions", [])]
+    if funcs:
+        names = []
+        for f, ln in funcs[:max_items]:
+            units, _ = _units(f, _git(root, "show", f"HEAD:{f}"))
+            nm = next((u[0] for u in units if u[1] == ln), f"{f}:{ln}")
+            names.append(f"{nm} ({f})")
+        more = f" and {len(funcs) - max_items} more" if len(funcs) > max_items else ""
+        lines.append(f"  - edited functions: {', '.join(names)}{more}")
+    keys = [k for k in why.get("import_state_changed", []) if not k.endswith((".__mro__", ".__class__"))]
+    if keys:
+        subs = _subclasses(root, sorted(f for f in map_files(covmap) if not _is_test_path(f)))
+        groups: dict[tuple[str, str], list[str]] = {}
+        for k in keys:
+            mod, qual = k.split(":", 1)
+            owner, _, attr = qual.rpartition(".")
+            groups.setdefault((mod, owner), []).append(attr or qual)
+        # the class others inherit from first (where the change was made), then the rest
+        order = sorted(groups, key=lambda g: (-len(subs.get(g[1].split(".")[0], ())) if g[1] else 0, g[1], g[0]))
+        for mod, owner in order[:max_items]:
+            attrs = groups[(mod, owner)]
+            shown = ", ".join(attrs[:4]) + (f" (+{len(attrs) - 4})" if len(attrs) > 4 else "")
+            if owner:
+                inh = sorted(subs.get(owner.split(".")[0], ()))
+                entry = f"  - {owner}.{{{shown}}} changed at import ({mod})"
+                if inh:
+                    entry += f"; inherited by {', '.join(inh[:6])}" + (f" (+{len(inh) - 6})" if len(inh) > 6 else "")
+            else:
+                entry = f"  - module values {shown} changed at import ({mod})"
+            lines.append(entry)
+        if len(order) > max_items:
+            lines.append(f"  - ... values of {len(order) - max_items} more classes/modules changed at import")
+    if selected:
+        per_file: dict[str, int] = {}
+        for t in selected:
+            per_file[t.split("::", 1)[0]] = per_file.get(t.split("::", 1)[0], 0) + 1
+        top = sorted(per_file.items(), key=lambda x: -x[1])[:max_items]
+        lines.append(f"  - tests that depend on it: {len(selected)} in {len(per_file)} files, e.g. "
+                     + ", ".join(f"{f} ({n})" for f, n in top))
+    return (["Your change affects:"] + lines) if lines else []
+
+
 def run_selected(root: str, python: str, targets: list[str] | None = None, maxfail: int | None = None) -> str:
     """Run what the agent asked for (targets: directories relative to the repository root; [] = the default suite),
     restricted to the tests the change can affect. Tests the coverage map does not know always run."""
@@ -805,6 +878,10 @@ def run_selected(root: str, python: str, targets: list[str] | None = None, maxfa
     else:
         lines = [f"[Proviso] Ran all {len(res)} tests in {where} ({why.get('reason', 'change could not be placed')}) "
                  f"in {secs:.0f}s."]
+    try:
+        lines += impact_report(root, covmap, why, [n for n in res] if sel is not None else None)
+    except Exception:  # noqa: BLE001  (the report is informational; never let it break a test run)
+        pass
     if new:
         lines.append(f"NEW failures ({len(new)}), not failing before your change:")
         lines += [f"  - {n}" for n in new[:15]]
