@@ -61,6 +61,10 @@ REPOS = {
     "pygments": dict(url="https://github.com/pygments/pygments.git", commit="156d85fdd18d34427fe893527e71da91dcfb0eb5",
                      pkg="pygments", targets=["tests"], mutate=None, test_dirs="tests", pythonpath=[],
                      pytest_args=[], before_test="", nr_repo="pygments", pip=[]),
+    # held out (an application, not a library): pinned 2026-10-26 before any run; only its packaging file was read
+    "datasette": dict(url="https://github.com/simonw/datasette.git", commit="a8e13cc489b41f2f9a5aa691f5eb1bedf99a0e0b",
+                      pkg="datasette", targets=["tests"], mutate=None, test_dirs="tests", pythonpath=[],
+                      pytest_args=[], before_test="", nr_repo="datasette", pip=[]),
 }
 PER_KIND = {"function": 2, "class": 2, "module": 2} if SMOKE else {"function": 40, "class": 30, "module": 25}
 SCAN_COMMITS = 6 if SMOKE else 250
@@ -142,25 +146,38 @@ def make_tree(name, commit):
         os.makedirs(os.path.dirname(d), exist_ok=True)
         subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", src_repo(), d], check=True)
     git(d, "checkout", "-q", "-f", commit, check=True)
-    git(d, "clean", "-fdqx", "-e", ".dc-engine")
+    git(d, "clean", "-fdqx", "-e", ".dc-engine", "-e", ".tdad")
     return d
 
 
 def reset(tree):
     git(tree, "checkout", "-q", "--", ".")
-    git(tree, "clean", "-fdq", "-e", ".dc-engine")
+    git(tree, "clean", "-fdq", "-e", ".dc-engine", "-e", ".tdad")
 
 
 PLUG = os.path.join(HERE, "plug")
 
 
-def run_tests(tree, out, targets=None, timeout=7200):
+MEM_LIMIT_GB = float(os.environ.get("PROVISO_MEM_LIMIT_GB", "10"))
+
+
+def _limit_memory():
+    # a planted bug can make a test allocate without bound (one pygments bug reached 23 GB): cap the address space
+    # of each test run, so such a run fails (and its tests count as failing) instead of exhausting the machine
+    import resource
+    lim = int(MEM_LIMIT_GB * 2 ** 30)
+    resource.setrlimit(resource.RLIMIT_AS, (lim, lim))
+
+
+def run_tests(tree, out, targets=None, timeout=int(os.environ.get("PROVISO_TEST_TIMEOUT", "1800"))):
     e = env(tree, [PLUG])
     e["OUTCOMES_OUT"] = out
     if os.path.exists(out):
         os.remove(out)
+    # a hang raises TimeoutExpired: the caller leaves that change out (its ground truth is unknown), as before
     subprocess.run([PY, "-m", "pytest", "-p", "no:cacheprovider", "-p", "outcomes", *PYTEST, *CFG["pytest_args"],
-                    *(targets or CFG["targets"])], cwd=tree, env=e, capture_output=True, timeout=timeout)
+                    *(targets or CFG["targets"])], cwd=tree, env=e, capture_output=True, timeout=timeout,
+                   preexec_fn=_limit_memory if MEM_LIMIT_GB > 0 else None)
     return jload(out, {})
 
 
@@ -564,6 +581,42 @@ def jdump_lines(rows, p):
     os.replace(tmp, p)
 
 
+# ---------------------------------------------------------------------------------------------------- TDAD baseline
+
+def tdad():
+    """Add TDAD's selections (as published: cap 50; and uncapped) to the planted and real rows. TDAD is static and
+    needs only the base code and the changed files, so no test is run here."""
+    import tdad_select as T
+    base = baseline()
+    plain = {k: t for k, (ok, t) in base.items()}
+    for stage in ("select", "realeval"):
+        info = merged("truth") if stage == "select" else merged("mine")
+        for p in sorted(glob.glob(os.path.join(RES, f"{stage}.w*.jsonl"))):
+            rows = [json.loads(l) for l in open(p) if l.strip()]
+            for row in rows:
+                if "tdad" in row["selectors"]:
+                    continue
+                if stage == "select":
+                    b = info[row["id"]]
+                    tree, files, fails = make_tree("tdad", CFG["commit"]), [b["file"]], b["failing"]
+                    universe, pl = universe_of(covmap(), failing(base)), plain
+                else:
+                    r, d = info[row["id"]], os.path.join(WORK, "real", row["id"])
+                    tree, files, fails = make_tree("tdad", r["commit"] + "^"), r["src"], r["failing"]
+                    b0 = jload(os.path.join(d, "base_outcomes.json")) or {}
+                    cov = jload(os.path.join(d, "covmap.json")) or {}
+                    universe, pl = universe_of(cov, failing(b0)), {k: t for k, (ok, t) in b0.items()}
+                shutil.rmtree(os.path.join(tree, ".tdad"), ignore_errors=True) if stage == "realeval" else None
+                T.index(tree)
+                tot = sum(pl.get(n, 0) for n in universe) or 1e-9
+                for name, cap in (("tdad", 50), ("tdad_nocap", None)):
+                    s_ = T.expand(T.select(tree, files, cap), universe)
+                    row["selectors"][name] = {"selected": len(s_), "missed": SEL.missed(fails, s_),
+                                              "time_share": round(sum(pl.get(n, 0) for n in s_) / tot, 4)}
+            jdump_lines(rows, p)
+        log("TDAD rows added:", stage)
+
+
 # ---------------------------------------------------------------------------------------------------- report
 
 def report():
@@ -573,7 +626,8 @@ def report():
         if not rows:
             continue
         brk = [r for r in rows if r["truth"]]
-        names = sorted({k for r in rows for k in r["selectors"]}, key=lambda k: (SELECTORS + ["namerts"]).index(k))
+        order = SELECTORS + ["namerts", "tdad", "tdad_nocap"]
+        names = sorted({k for r in rows for k in r["selectors"]}, key=lambda k: order.index(k) if k in order else 99)
         lines += [f"## {title}: {len(rows)} changes, {len(brk)} break tests ({sum(r['truth'] for r in brk)} failing tests)",
                   "", "| selector | changes with a missed failure | failing tests missed | test time selected, mean (median) |",
                   "|---|---|---|---|"]
@@ -598,7 +652,7 @@ STAGES = {"prepare": prepare, "baseline": baseline, "covmap": covmap, "testmon":
           "bugs": bugs, "truth": lambda: (baseline(), parallel("truth", bugs())),
           "select": lambda: (baseline(), covmap(), testmon(), nrinit(), parallel("select", bugs(), NR_WORKERS)),
           "mine": lambda: parallel("mine", commits()), "realeval": lambda: parallel("realeval", real_set(), NR_WORKERS),
-          "report": report, "retestmon": retestmon}
+          "report": report, "retestmon": retestmon, "tdad": tdad}
 WORKER = {"truth": truth_worker, "select": select_worker, "mine": mine_worker, "realeval": realeval_worker}
 
 if __name__ == "__main__":
@@ -612,6 +666,6 @@ if __name__ == "__main__":
     if sys.argv[2] == "worker":
         WORKER[sys.argv[3]](int(sys.argv[4]), int(sys.argv[5]))
     else:
-        for s in ([k for k in STAGES if k != "retestmon"] if sys.argv[2] == "all" else sys.argv[2:]):
+        for s in ([k for k in STAGES if k not in ("retestmon", "tdad")] if sys.argv[2] == "all" else sys.argv[2:]):
             log("==", s)
             STAGES[s]()

@@ -9,7 +9,7 @@ REPO_DIR=$(pwd)
 export PROVISO_WORK=${PROVISO_WORK:-$HOME/proviso-work/v2}
 VENV=${PROVISO_VENV:-$HOME/proviso-work/venv}
 mkdir -p "$PROVISO_WORK"
-REPOS=("$@"); [ ${#REPOS[@]} -gt 0 ] || REPOS=(sqlglot sympy sqlalchemy pygments)
+REPOS=("$@"); [ ${#REPOS[@]} -gt 0 ] || REPOS=(sqlglot sympy sqlalchemy pygments datasette)
 
 case "$REPO_DIR" in /mnt/*) echo "WARNING: repository on the Windows drive ($REPO_DIR); clone it inside WSL (~/Proviso)."; sleep 5;; esac
 PY=$(command -v python3 || true)
@@ -31,6 +31,7 @@ if [ ! -d "$PROVISO_WORK/NameRTS" ]; then
   git clone -q https://github.com/ZJU-CTAG/NameRTS.git "$PROVISO_WORK/NameRTS"
   git -C "$PROVISO_WORK/NameRTS" checkout -q f1acdae
 fi
+[ "${1:-}" = "--setup-only" ] && { echo "== set-up done"; exit 0; }
 CORES=$(nproc)
 export PROVISO_WORKERS=${PROVISO_WORKERS:-$(( CORES > 2 ? CORES - 1 : 1 ))}
 
