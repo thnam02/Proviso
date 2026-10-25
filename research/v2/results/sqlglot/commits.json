@@ -1,0 +1,1991 @@
+[
+ {
+  "id": "7f1cf60c88",
+  "commit": "7f1cf60c884868a295f76dfd42745b931dd9cfbb",
+  "src": [
+   "sqlglot/expressions/ddl.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/mysql.py",
+   "sqlglot/generators/starrocks.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "f2b81bfb2d",
+  "commit": "f2b81bfb2d2cf5b14b01be5211e022b23b6bec19",
+  "src": [
+   "sqlglot/typing/__init__.py",
+   "sqlglot/typing/bigquery.py",
+   "sqlglot/typing/duckdb.py",
+   "sqlglot/typing/hive.py",
+   "sqlglot/typing/postgres.py",
+   "sqlglot/typing/presto.py",
+   "sqlglot/typing/snowflake.py",
+   "sqlglot/typing/tsql.py"
+  ]
+ },
+ {
+  "id": "022bb41fc5",
+  "commit": "022bb41fc5f9b35ab303a5989edd1f9544ec11bb",
+  "src": [
+   "sqlglot/generators/duckdb.py"
+  ]
+ },
+ {
+  "id": "aa64321744",
+  "commit": "aa64321744bcb38828146b33ead1c0529dd64652",
+  "src": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/duckdb.py",
+   "sqlglot/dialects/mysql.py",
+   "sqlglot/dialects/sqlite.py",
+   "sqlglot/dialects/starrocks.py",
+   "sqlglot/optimizer/qualify_columns.py"
+  ]
+ },
+ {
+  "id": "b7e515399a",
+  "commit": "b7e515399a589e720b2bd081e5bb395f408feff8",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "6aeb6a0ab7",
+  "commit": "6aeb6a0ab705c5a4f07a4b6d3af8040c689c4f4b",
+  "src": [
+   "sqlglot/executor/env.py",
+   "sqlglot/generators/mysql.py"
+  ]
+ },
+ {
+  "id": "3096a591d6",
+  "commit": "3096a591d65b1b00ba9abdf482fc7b7973a6e6af",
+  "src": [
+   "sqlglot/generators/duckdb.py"
+  ]
+ },
+ {
+  "id": "f8606fe8f9",
+  "commit": "f8606fe8f97a10a3ba00f42104836add1299966f",
+  "src": [
+   "sqlglot/parsers/tsql.py"
+  ]
+ },
+ {
+  "id": "f5dd70bff7",
+  "commit": "f5dd70bff7ebce048d6bdd3f782328104c6c119d",
+  "src": [
+   "sqlglot/executor/env.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/bigquery.py",
+   "sqlglot/generators/dremio.py",
+   "sqlglot/generators/drill.py",
+   "sqlglot/generators/duckdb.py",
+   "sqlglot/generators/materialize.py",
+   "sqlglot/generators/mysql.py",
+   "sqlglot/generators/oracle.py",
+   "sqlglot/generators/postgres.py",
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/redshift.py",
+   "sqlglot/generators/risingwave.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/generators/starrocks.py"
+  ]
+ },
+ {
+  "id": "e1e0d2e52f",
+  "commit": "e1e0d2e52f45247bfa0ab815eb8a7388ea50a0e8",
+  "src": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/trino.py"
+  ]
+ },
+ {
+  "id": "818483464b",
+  "commit": "818483464bf50a1b41d6982dbc172e7934141c52",
+  "src": [
+   "sqlglot/expressions/array.py",
+   "sqlglot/generators/duckdb.py",
+   "sqlglot/parsers/spark2.py"
+  ]
+ },
+ {
+  "id": "af9915fa4c",
+  "commit": "af9915fa4cc1f20fcae8b09058be5b96b2cbc8b0",
+  "src": [
+   "sqlglot/expressions/string.py",
+   "sqlglot/generator.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "48beaa64b8",
+  "commit": "48beaa64b8d3348c31a8eab2e7daf90836d151b2",
+  "src": [
+   "sqlglot/optimizer/pushdown_predicates.py"
+  ]
+ },
+ {
+  "id": "30958d6152",
+  "commit": "30958d61522b84765973a8fa6c76ea03d7f97373",
+  "src": [
+   "sqlglot/optimizer/resolver.py"
+  ]
+ },
+ {
+  "id": "6de29fdce7",
+  "commit": "6de29fdce762e564002e0ae0d8d09c388ebc4cfb",
+  "src": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/hive.py",
+   "sqlglot/parser.py",
+   "sqlglot/transforms.py"
+  ]
+ },
+ {
+  "id": "5b7b413451",
+  "commit": "5b7b413451e2a7a35bfc8c076d3b3636f8a7b203",
+  "src": [
+   "sqlglot/optimizer/qualify_tables.py"
+  ]
+ },
+ {
+  "id": "d5d436bc32",
+  "commit": "d5d436bc32030c019ca07e1dcb4a247f5b4a0f53",
+  "src": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generator.py"
+  ]
+ },
+ {
+  "id": "e3ed74860f",
+  "commit": "e3ed74860fd5a44d31347b2e2cf62cf5030e9222",
+  "src": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/hive.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "fc8178edd3",
+  "commit": "fc8178edd3e4717db5acf1c735a03aeb67951c92",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "ee7567c86d",
+  "commit": "ee7567c86d9a418cc517f80194e6fc35e075be4a",
+  "src": [
+   "sqlglot/optimizer/scope.py"
+  ]
+ },
+ {
+  "id": "971d004474",
+  "commit": "971d004474ff010eaf247f186d71dc39ae1151f9",
+  "src": [
+   "sqlglot/expressions/properties.py",
+   "sqlglot/optimizer/scope.py"
+  ]
+ },
+ {
+  "id": "50d7ce4a98",
+  "commit": "50d7ce4a9808aed6beb4127c4f60d309219c664d",
+  "src": [
+   "sqlglot/generators/duckdb.py"
+  ]
+ },
+ {
+  "id": "51587ffdec",
+  "commit": "51587ffdecfc8b2c08ee1da24b543312ded90d39",
+  "src": [
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "c7957e8c86",
+  "commit": "c7957e8c867e42654d91b1d9c20d5e9b77ddf5b9",
+  "src": [
+   "sqlglot/generator.py"
+  ]
+ },
+ {
+  "id": "74d8bec7dd",
+  "commit": "74d8bec7ddbde6610e5b47a138bd96a85e2606aa",
+  "src": [
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "a980f01713",
+  "commit": "a980f017130a5d9c485c53c878982155362ca4de",
+  "src": [
+   "sqlglot/dialects/bigquery.py",
+   "sqlglot/dialects/clickhouse.py",
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/drill.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/bigquery.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "47b94d424a",
+  "commit": "47b94d424a05768a2e3b416cc4282b8449f8197f",
+  "src": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "7fb054f17f",
+  "commit": "7fb054f17f0b86bf572884a524067ca9eb883fb4",
+  "src": [
+   "sqlglot/generators/clickhouse.py"
+  ]
+ },
+ {
+  "id": "f337c70ee4",
+  "commit": "f337c70ee42614bb3224fe8c54b7af5be286eb85",
+  "src": [
+   "sqlglot/dialects/snowflake.py",
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/parsers/snowflake.py"
+  ]
+ },
+ {
+  "id": "a7fcf9e07f",
+  "commit": "a7fcf9e07f53ee47d330466675c9614deb5c5d60",
+  "src": [
+   "sqlglot/parsers/tsql.py"
+  ]
+ },
+ {
+  "id": "5e6887adc8",
+  "commit": "5e6887adc805ee13b359e25b1d17e062b0a60342",
+  "src": [
+   "sqlglot/parsers/tsql.py"
+  ]
+ },
+ {
+  "id": "fc4964bbe8",
+  "commit": "fc4964bbe8a8efdf28d2c4cbc7a5d66b160e7946",
+  "src": [
+   "sqlglot/generators/tsql.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/mysql.py",
+   "sqlglot/parsers/postgres.py"
+  ]
+ },
+ {
+  "id": "8a713b6e49",
+  "commit": "8a713b6e496986456c6c2153c3910b7634e33dc1",
+  "src": [
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "a6698b765b",
+  "commit": "a6698b765b006b4b3b181fcdc75319f7f990164f",
+  "src": [
+   "sqlglot/dialects/dialect.py"
+  ]
+ },
+ {
+  "id": "0ceaf1319e",
+  "commit": "0ceaf1319e6506fe7644021c0825c10af4f0ae6a",
+  "src": [
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "bffcdefc16",
+  "commit": "bffcdefc16b01527ee252ad2bf322b0bbff33bc8",
+  "src": [
+   "sqlglot/dialects/snowflake.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "b65592b458",
+  "commit": "b65592b45831df5e7f13d418e50f24c4cea118f0",
+  "src": [
+   "sqlglot/dialects/postgres.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/duckdb.py"
+  ]
+ },
+ {
+  "id": "b12b50fc06",
+  "commit": "b12b50fc068730fd04f864a3757cd8d356afccfa",
+  "src": [
+   "sqlglot/dialects/snowflake.py",
+   "sqlglot/optimizer/qualify_tables.py"
+  ]
+ },
+ {
+  "id": "5fc93a9eab",
+  "commit": "5fc93a9eab142393c0ef688c82d898329bcddb67",
+  "src": [
+   "sqlglot/dialects/snowflake.py",
+   "sqlglot/expressions/array.py",
+   "sqlglot/optimizer/qualify_tables.py"
+  ]
+ },
+ {
+  "id": "1d2a99b9cc",
+  "commit": "1d2a99b9cc0acf671fd2688ef02097a69404057d",
+  "src": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/mysql.py",
+   "sqlglot/parsers/postgres.py"
+  ]
+ },
+ {
+  "id": "268ad021b8",
+  "commit": "268ad021b8bfaf164be3b0774657952c3d70bed4",
+  "src": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/snowflake.py",
+   "sqlglot/dialects/tsql.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "5fe5606b90",
+  "commit": "5fe5606b905f38930017149c4a6e3d1b3a3a5616",
+  "src": [
+   "sqlglot/dialects/clickhouse.py",
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/duckdb.py",
+   "sqlglot/dialects/materialize.py",
+   "sqlglot/dialects/postgres.py",
+   "sqlglot/dialects/redshift.py",
+   "sqlglot/dialects/risingwave.py",
+   "sqlglot/generators/redshift.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ]
+ },
+ {
+  "id": "13463de608",
+  "commit": "13463de608e9d74d36fb57da045c537e0ce1a7f6",
+  "src": [
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "06fdfb4d20",
+  "commit": "06fdfb4d20b0c670b61f93d68a0f9f373871f8e2",
+  "src": [
+   "sqlglot/__init__.py"
+  ]
+ },
+ {
+  "id": "5cc5ef046e",
+  "commit": "5cc5ef046e8213dcb373c82f6c00fcf918fb4a5b",
+  "src": [
+   "sqlglot/dialects/drill.py",
+   "sqlglot/generators/drill.py"
+  ]
+ },
+ {
+  "id": "db3931c8ba",
+  "commit": "db3931c8bac748038751ce20f40fd6c54619a7e1",
+  "src": [
+   "sqlglot/dialects/clickhouse.py",
+   "sqlglot/dialects/doris.py",
+   "sqlglot/dialects/mysql.py",
+   "sqlglot/dialects/sqlite.py",
+   "sqlglot/dialects/starrocks.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ]
+ },
+ {
+  "id": "fdc0339b21",
+  "commit": "fdc0339b219da56b4433198e3cd53e7604d53188",
+  "src": [
+   "sqlglot/dialects/bigquery.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/generators/drill.py",
+   "sqlglot/generators/duckdb.py",
+   "sqlglot/generators/hive.py",
+   "sqlglot/generators/mysql.py",
+   "sqlglot/generators/postgres.py",
+   "sqlglot/generators/redshift.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ]
+ },
+ {
+  "id": "49d6ed4366",
+  "commit": "49d6ed436647447a775f4bba5f1af94702f31055",
+  "src": [
+   "sqlglot/dialects/hive.py",
+   "sqlglot/dialects/spark.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ]
+ },
+ {
+  "id": "15a77f1d89",
+  "commit": "15a77f1d89c3c6baac93230173e48b626497027d",
+  "src": [
+   "sqlglot/dialects/mysql.py",
+   "sqlglot/generators/singlestore.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ]
+ },
+ {
+  "id": "c7778cf56d",
+  "commit": "c7778cf56d90e409c75e59b82842544b118fa850",
+  "src": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/doris.py",
+   "sqlglot/parsers/starrocks.py"
+  ]
+ },
+ {
+  "id": "ac084c5bdb",
+  "commit": "ac084c5bdb2f188ff878687000273ae2247db24b",
+  "src": [
+   "sqlglot/expressions/builders.py"
+  ]
+ },
+ {
+  "id": "5d997d94d8",
+  "commit": "5d997d94d8041ed12db5abe7a1155b30df057b43",
+  "src": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/mysql.py",
+   "sqlglot/parsers/postgres.py"
+  ]
+ },
+ {
+  "id": "cb5d8da1ba",
+  "commit": "cb5d8da1bac8eafb2b64618ff205dddbe53664f7",
+  "src": [
+   "sqlglot/generators/duckdb.py"
+  ]
+ },
+ {
+  "id": "61fc386dc7",
+  "commit": "61fc386dc713e281523768d41ff2bb8b5450e751",
+  "src": [
+   "sqlglot/generators/clickhouse.py"
+  ]
+ },
+ {
+  "id": "b54d32f036",
+  "commit": "b54d32f036d4c1158bb889324f4ac6d2846d2701",
+  "src": [
+   "sqlglot/optimizer/qualify_columns.py"
+  ]
+ },
+ {
+  "id": "aa70202072",
+  "commit": "aa702020725f4d1591cfb2d308c72937a38e8fd4",
+  "src": [
+   "sqlglot/optimizer/qualify_columns.py"
+  ]
+ },
+ {
+  "id": "ac940f016a",
+  "commit": "ac940f016a1d398137b4d666db0f191e6c4b6d1f",
+  "src": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/tokenizer_core.py"
+  ]
+ },
+ {
+  "id": "53868cf81d",
+  "commit": "53868cf81d56a6c15fcf2637e47d0a53e3205022",
+  "src": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/optimizer/canonicalize_internal_names.py"
+  ]
+ },
+ {
+  "id": "840b4823e6",
+  "commit": "840b4823e649e380e1dda30cf21907baebb6c58c",
+  "src": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py"
+  ]
+ },
+ {
+  "id": "2960bdd747",
+  "commit": "2960bdd7470f1c21518710ed468466b9bab4bb7b",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "18520e2b5b",
+  "commit": "18520e2b5bfa3f1d7ed1a261d1bd463132054db1",
+  "src": [
+   "sqlglot/generators/clickhouse.py"
+  ]
+ },
+ {
+  "id": "11220460d0",
+  "commit": "11220460d0e78a3c83f14b006239f636e4ddde71",
+  "src": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/spark.py"
+  ]
+ },
+ {
+  "id": "d84f7f3ee1",
+  "commit": "d84f7f3ee1ff50778c93970b086d59692714dcdc",
+  "src": [
+   "sqlglot/generators/spark2.py",
+   "sqlglot/parsers/hive.py",
+   "sqlglot/parsers/spark.py",
+   "sqlglot/parsers/spark2.py",
+   "sqlglot/tokenizer_core.py"
+  ]
+ },
+ {
+  "id": "b4d9e37d84",
+  "commit": "b4d9e37d84a61eeb78e8d652f697e2e0d4d57869",
+  "src": [
+   "sqlglot/dialects/athena.py",
+   "sqlglot/generators/athena.py",
+   "sqlglot/parsers/athena.py"
+  ]
+ },
+ {
+  "id": "e3f71dc1a1",
+  "commit": "e3f71dc1a1186ada4b017a5f2498b8c2b0a8a25b",
+  "src": [
+   "sqlglot/dialects/snowflake.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/tokenizer_core.py",
+   "sqlglot/tokens.py"
+  ]
+ },
+ {
+  "id": "d9b2b9660b",
+  "commit": "d9b2b9660be8a6b77a0bb0475f6bf0509c6c6aa0",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "65a0e22447",
+  "commit": "65a0e22447fcca9ea4a89f6167954fbb872c8e6d",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py",
+   "sqlglot/optimizer/qualify_columns.py"
+  ]
+ },
+ {
+  "id": "4b01d2ba95",
+  "commit": "4b01d2ba95358e3746a4cd33541ff252e571f80e",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "c4090855c9",
+  "commit": "c4090855c9457971083e43e6e781e83bbd411c19",
+  "src": [
+   "sqlglot/generators/singlestore.py"
+  ]
+ },
+ {
+  "id": "b3b6c57cea",
+  "commit": "b3b6c57cea516bf8f76c6262b308d86dff82ca1b",
+  "src": [
+   "sqlglot/transforms.py"
+  ]
+ },
+ {
+  "id": "2be1e0e2ad",
+  "commit": "2be1e0e2addc0ef01cfa3fd3cf2ef751cdbf411d",
+  "src": [
+   "sqlglot/typing/duckdb.py"
+  ]
+ },
+ {
+  "id": "1d40af146d",
+  "commit": "1d40af146d77dcf890ae18c1a59e649bf0862db3",
+  "src": [
+   "sqlglot/optimizer/resolver.py"
+  ]
+ },
+ {
+  "id": "8bd7686641",
+  "commit": "8bd768664197fbd0ed86158c0eca955c14f43328",
+  "src": [
+   "sqlglot/typing/duckdb.py"
+  ]
+ },
+ {
+  "id": "afd6b69462",
+  "commit": "afd6b6946267b0b1100f48b299f3d44ff9a13767",
+  "src": [
+   "sqlglot/typing/duckdb.py"
+  ]
+ },
+ {
+  "id": "d01e9461a7",
+  "commit": "d01e9461a7a3fcbe50a965c7a2ddf55d41aca97d",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py",
+   "sqlglot/optimizer/qualify_columns.py"
+  ]
+ },
+ {
+  "id": "d2fbb215ff",
+  "commit": "d2fbb215ff6bd548547a151e8838c277aad076c1",
+  "src": [
+   "sqlglot/generators/duckdb.py",
+   "sqlglot/typing/duckdb.py"
+  ]
+ },
+ {
+  "id": "87b1402737",
+  "commit": "87b14027372c3820cbf6c89bc8adc2cbf8963404",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "4c11d07af4",
+  "commit": "4c11d07af4b533274cabbcae9271234e9a0b039c",
+  "src": [
+   "sqlglot/generators/sqlite.py"
+  ]
+ },
+ {
+  "id": "981e492413",
+  "commit": "981e492413740f7740d2b0288e3da5b4028c767e",
+  "src": [
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "a313c8bee1",
+  "commit": "a313c8bee143b4b92c9a068fef72a5fd512bba61",
+  "src": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/teradata.py"
+  ]
+ },
+ {
+  "id": "8d9f5d08cc",
+  "commit": "8d9f5d08cce4b72b4df1a8f6394c2aa043cc7de8",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "b85a8c8b0d",
+  "commit": "b85a8c8b0d107410f6689c2ddad0921dbff9ddad",
+  "src": [
+   "sqlglot/optimizer/merge_subqueries.py"
+  ]
+ },
+ {
+  "id": "20fa8aedc4",
+  "commit": "20fa8aedc48fccb780b973987908db63d0f76895",
+  "src": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/duckdb.py"
+  ]
+ },
+ {
+  "id": "32a9297a24",
+  "commit": "32a9297a24f06035293a2a3e935a7b65ece25755",
+  "src": [
+   "sqlglot/optimizer/merge_subqueries.py"
+  ]
+ },
+ {
+  "id": "a3884168f6",
+  "commit": "a3884168f639633fa8f64334bf63e4b343bedfe2",
+  "src": [
+   "sqlglot/expressions/json.py",
+   "sqlglot/generators/bigquery.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "aff6c37d1c",
+  "commit": "aff6c37d1c7ea4c0853f33c0b1ced8af5ec69a52",
+  "src": [
+   "sqlglot/optimizer/helpers.py"
+  ]
+ },
+ {
+  "id": "abacf31d7b",
+  "commit": "abacf31d7b12b3bd70cd4a70b25cfcd2ad6c1f0a",
+  "src": [
+   "sqlglot/optimizer/helpers.py",
+   "sqlglot/optimizer/pushdown_projections.py",
+   "sqlglot/optimizer/unnest_subqueries.py"
+  ]
+ },
+ {
+  "id": "284ea43fe7",
+  "commit": "284ea43fe773762a1aa1556171bbb4c03a197788",
+  "src": [
+   "sqlglot/dialects/starrocks.py",
+   "sqlglot/generators/starrocks.py"
+  ]
+ },
+ {
+  "id": "1d0e3f3486",
+  "commit": "1d0e3f34864037c54cf6bdf45af594db62ad7319",
+  "src": [
+   "sqlglot/generators/mysql.py"
+  ]
+ },
+ {
+  "id": "0256222835",
+  "commit": "02562228357e7d933ef66e27c56e257b88faad8f",
+  "src": [
+   "sqlglot/expressions/aggregate.py"
+  ]
+ },
+ {
+  "id": "1a782c55a8",
+  "commit": "1a782c55a8f2bad4ac9ca7e28b1a1b1164840894",
+  "src": [
+   "sqlglot/generators/mysql.py"
+  ]
+ },
+ {
+  "id": "8c3b9893f7",
+  "commit": "8c3b9893f72f0913fa0a8a4188d55c8cc6692ad5",
+  "src": [
+   "sqlglot/generators/mysql.py"
+  ]
+ },
+ {
+  "id": "eeece5a564",
+  "commit": "eeece5a564e2d5c37b73d172843e7cd437406c42",
+  "src": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/clickhouse.py",
+   "sqlglot/generators/sqlite.py",
+   "sqlglot/generators/teradata.py",
+   "sqlglot/generators/tsql.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/tsql.py",
+   "sqlglot/transforms.py"
+  ]
+ },
+ {
+  "id": "8b6ff9386d",
+  "commit": "8b6ff9386ddf4f6f8e3120a21f1991a384e60abd",
+  "src": [
+   "sqlglot/executor/env.py",
+   "sqlglot/generators/python.py",
+   "sqlglot/planner.py"
+  ]
+ },
+ {
+  "id": "99940ea16d",
+  "commit": "99940ea16df4827cc23a942a8fe7e24ab09ca907",
+  "src": [
+   "sqlglot/generators/duckdb.py"
+  ]
+ },
+ {
+  "id": "9beb769dbf",
+  "commit": "9beb769dbffdbabc73b4459137ce2be21678765f",
+  "src": [
+   "sqlglot/generators/duckdb.py"
+  ]
+ },
+ {
+  "id": "9bc418af0e",
+  "commit": "9bc418af0e03220a6eb5289a009bd79328e7cfd1",
+  "src": [
+   "sqlglot/parsers/snowflake.py"
+  ]
+ },
+ {
+  "id": "06c7b3dd7b",
+  "commit": "06c7b3dd7b656ff5ed80337ee668cf58318e002b",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "7a759449f7",
+  "commit": "7a759449f70d13059a1a06714c612ea7b52bb78d",
+  "src": [
+   "sqlglot/expressions/__init__.py"
+  ]
+ },
+ {
+  "id": "a470787be2",
+  "commit": "a470787be21812ba235963c41f23107e3502c00b",
+  "src": [
+   "sqlglot/expressions/__init__.py",
+   "sqlglot/expressions/array.py",
+   "sqlglot/expressions/json.py",
+   "sqlglot/optimizer/merge_subqueries.py",
+   "sqlglot/optimizer/pushdown_projections.py"
+  ]
+ },
+ {
+  "id": "901a678828",
+  "commit": "901a67882871b9eb27ad9dfdd23380c0fca4cf1f",
+  "src": [
+   "sqlglot/optimizer/annotate_types.py",
+   "sqlglot/optimizer/simplify.py",
+   "sqlglot/typing/duckdb.py"
+  ]
+ },
+ {
+  "id": "90d44b8556",
+  "commit": "90d44b8556a19ddf8d4d43395a39f589a42ab748",
+  "src": [
+   "sqlglot/expressions/string.py",
+   "sqlglot/generators/trino.py",
+   "sqlglot/parsers/hive.py"
+  ]
+ },
+ {
+  "id": "f5cb53d6d0",
+  "commit": "f5cb53d6d06e8dd7e7521b35d7294d7c9fa5d293",
+  "src": [
+   "sqlglot/optimizer/resolver.py"
+  ]
+ },
+ {
+  "id": "539b1125db",
+  "commit": "539b1125dbe698145057a58efaff2eb7ae2dfdbd",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py"
+  ]
+ },
+ {
+  "id": "4e973f0c0c",
+  "commit": "4e973f0c0cd426ab2260db291d45a7a207b48356",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py"
+  ]
+ },
+ {
+  "id": "19077cc891",
+  "commit": "19077cc891003183ab2cffe2bd999c83fa7d9168",
+  "src": [
+   "sqlglot/generators/sqlite.py",
+   "sqlglot/parsers/sqlite.py"
+  ]
+ },
+ {
+  "id": "76004d7f33",
+  "commit": "76004d7f33b2365e5e0d66917c18422070fda129",
+  "src": [
+   "sqlglot/generators/sqlite.py",
+   "sqlglot/parsers/sqlite.py"
+  ]
+ },
+ {
+  "id": "b6aebcde1f",
+  "commit": "b6aebcde1f6722142dbd812715cc5db6e5dc54f4",
+  "src": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/bigquery.py",
+   "sqlglot/parsers/spark.py",
+   "sqlglot/parsers/trino.py"
+  ]
+ },
+ {
+  "id": "65eb23b534",
+  "commit": "65eb23b53420212c20f394d399ca18efefec90e3",
+  "src": [
+   "sqlglot/generators/spark.py",
+   "sqlglot/parsers/spark.py"
+  ]
+ },
+ {
+  "id": "fa73693547",
+  "commit": "fa73693547ad5a88ccbbe90fad1196b3153198ed",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "d53cbc9885",
+  "commit": "d53cbc988512ee63ca547694c6a1656fd4dbb637",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "e94639635d",
+  "commit": "e94639635d388cf6b58dd79d643a62082d2305cb",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "338bb06993",
+  "commit": "338bb0699385f8a35f76c98954c58b920da679b5",
+  "src": [
+   "sqlglot/generators/sqlite.py"
+  ]
+ },
+ {
+  "id": "a069a09644",
+  "commit": "a069a0964418188e3822e8bf9238af6b89db0652",
+  "src": [
+   "sqlglot/parsers/tsql.py"
+  ]
+ },
+ {
+  "id": "4eb2c99a15",
+  "commit": "4eb2c99a150f56c9048a3ddf6c71dded86597362",
+  "src": [
+   "sqlglot/generators/fabric.py"
+  ]
+ },
+ {
+  "id": "4b84b4d4f3",
+  "commit": "4b84b4d4f3e91e4f64721cb72e0590e4de72aa46",
+  "src": [
+   "sqlglot/generators/fabric.py"
+  ]
+ },
+ {
+  "id": "eee4750c47",
+  "commit": "eee4750c47cf15c8a41432b21df26fdaa0a11ead",
+  "src": [
+   "sqlglot/optimizer/journal.py",
+   "sqlglot/optimizer/pushdown_projections.py",
+   "sqlglot/optimizer/scope.py"
+  ]
+ },
+ {
+  "id": "3ca824895e",
+  "commit": "3ca824895ef423f7895fb13d72357548c0f1f367",
+  "src": [
+   "sqlglot/dialects/mysql.py",
+   "sqlglot/dialects/sqlite.py",
+   "sqlglot/generators/sqlite.py"
+  ]
+ },
+ {
+  "id": "e27b7654a9",
+  "commit": "e27b7654a9d710e29da6f42994de845a99444c84",
+  "src": [
+   "sqlglot/planner.py"
+  ]
+ },
+ {
+  "id": "87d16d022d",
+  "commit": "87d16d022d76e642705681cb6140a544dbde24df",
+  "src": [
+   "sqlglot/generators/singlestore.py"
+  ]
+ },
+ {
+  "id": "9831daa7b7",
+  "commit": "9831daa7b785c941ff7c7f90e7640349cec15151",
+  "src": [
+   "sqlglot/generators/sqlite.py"
+  ]
+ },
+ {
+  "id": "5dea557136",
+  "commit": "5dea557136b0690c280c5c006257f4d681d7f3ce",
+  "src": [
+   "sqlglot/generators/doris.py"
+  ]
+ },
+ {
+  "id": "5cfb5997a9",
+  "commit": "5cfb5997a99010940138670adf3d6b34ac5a0a08",
+  "src": [
+   "sqlglot/optimizer/pushdown_predicates.py"
+  ]
+ },
+ {
+  "id": "a8719ad642",
+  "commit": "a8719ad6425579b8becd9434b93c9a9f0d28b05e",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py"
+  ]
+ },
+ {
+  "id": "56a66cddf6",
+  "commit": "56a66cddf65e83080ae6534824136575bf192274",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "64d6f59a49",
+  "commit": "64d6f59a4981d35f362fecc615a4e3ce764bebb7",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "70951c72df",
+  "commit": "70951c72dff3fb694040353e8db330756a242a7a",
+  "src": [
+   "sqlglot/expressions/query.py"
+  ]
+ },
+ {
+  "id": "45595690cf",
+  "commit": "45595690cfbacaad486683e019e35c4b6c653786",
+  "src": [
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "9ec72cf883",
+  "commit": "9ec72cf88314ef218face2c587957189ab10a21b",
+  "src": [
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "5fac41edc6",
+  "commit": "5fac41edc6d81e9bad5a5d6a64888de4f80ff598",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py"
+  ]
+ },
+ {
+  "id": "cf8a4db927",
+  "commit": "cf8a4db927c6ce462e2962ddc9546ab4152b8626",
+  "src": [
+   "sqlglot/parsers/snowflake.py"
+  ]
+ },
+ {
+  "id": "929fb83698",
+  "commit": "929fb83698f8cfb85e27d560a5182accff43573d",
+  "src": [
+   "sqlglot/parsers/redshift.py"
+  ]
+ },
+ {
+  "id": "8b374bd525",
+  "commit": "8b374bd525eeade40cef0b02d281e7a9636b974a",
+  "src": [
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "83abff6576",
+  "commit": "83abff6576cbc3b5858581b8ae9a912dec0f3304",
+  "src": [
+   "sqlglot/expressions/core.py",
+   "sqlglot/expressions/query.py"
+  ]
+ },
+ {
+  "id": "9f604b3de5",
+  "commit": "9f604b3de5967c0107404676690c82e3c3552593",
+  "src": [
+   "sqlglot/generators/sqlite.py"
+  ]
+ },
+ {
+  "id": "faa5ebf5e7",
+  "commit": "faa5ebf5e7195ea62996d30a1089bf3533731eb2",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "351e97b4c9",
+  "commit": "351e97b4c9a727c656019b5926873275698ccbe2",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "a34fc27653",
+  "commit": "a34fc276539980ee1f3d51e85a17a19f40b3f276",
+  "src": [
+   "sqlglot/optimizer/annotate_types.py",
+   "sqlglot/optimizer/qualify_columns.py",
+   "sqlglot/optimizer/resolver.py"
+  ]
+ },
+ {
+  "id": "0714112aa8",
+  "commit": "0714112aa814778ff371cc33a9441548ae6b924c",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "f22bcdbad7",
+  "commit": "f22bcdbad732d9df2c02d37426cbdc27e64b5da6",
+  "src": [
+   "sqlglot/expressions/array.py",
+   "sqlglot/optimizer/pushdown_projections.py"
+  ]
+ },
+ {
+  "id": "0d88a211de",
+  "commit": "0d88a211de50fa118e7e7185665d2f31310fceaa",
+  "src": [
+   "sqlglot/optimizer/unnest_subqueries.py"
+  ]
+ },
+ {
+  "id": "106ad25d35",
+  "commit": "106ad25d3500f479144a24f3130c8a45a1d547b0",
+  "src": [
+   "sqlglot/optimizer/unnest_subqueries.py"
+  ]
+ },
+ {
+  "id": "3d259070d4",
+  "commit": "3d259070d4c892992e9b1b247166d6056e742599",
+  "src": [
+   "sqlglot/executor/env.py"
+  ]
+ },
+ {
+  "id": "c9ad903e75",
+  "commit": "c9ad903e7553543686472e5babf3c18e4e7dbc7b",
+  "src": [
+   "sqlglot/optimizer/simplify.py"
+  ]
+ },
+ {
+  "id": "1d753d72c6",
+  "commit": "1d753d72c6e81e39cfc7160af33673314d4d600e",
+  "src": [
+   "sqlglot/optimizer/unnest_subqueries.py"
+  ]
+ },
+ {
+  "id": "8bf484ce23",
+  "commit": "8bf484ce23ad684430675d60fcd82c05a957e4db",
+  "src": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/databricks.py"
+  ]
+ },
+ {
+  "id": "18fc199a01",
+  "commit": "18fc199a01f22ef2a62e68560fcb9c589a3e39df",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py",
+   "sqlglot/optimizer/scope.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "3086608e6f",
+  "commit": "3086608e6fd4c41c02dfba47171608d2b193fce2",
+  "src": [
+   "sqlglot/generators/trino.py"
+  ]
+ },
+ {
+  "id": "9794193571",
+  "commit": "97941935711779438b34e11edbed6a736d2ad0c6",
+  "src": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "3f154bfb65",
+  "commit": "3f154bfb65ad77b2e2b71375692aee9a69f2d8da",
+  "src": [
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "d7dd2cd18f",
+  "commit": "d7dd2cd18fd214892136b4d0706cd65d348da285",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "bbb717ebb2",
+  "commit": "bbb717ebb24c8dcbee94d77c9154e74da1dc6c10",
+  "src": [
+   "sqlglot/lineage.py",
+   "sqlglot/optimizer/canonicalize_internal_names.py",
+   "sqlglot/optimizer/eliminate_subqueries.py",
+   "sqlglot/optimizer/merge_subqueries.py",
+   "sqlglot/optimizer/pushdown_projections.py",
+   "sqlglot/optimizer/scope.py"
+  ]
+ },
+ {
+  "id": "2e86ded7d0",
+  "commit": "2e86ded7d0f6474e9041882058358616fb911464",
+  "src": [
+   "sqlglot/parsers/teradata.py"
+  ]
+ },
+ {
+  "id": "9ea78d0a80",
+  "commit": "9ea78d0a802c06815a4ef9af7b20a9976aaeffee",
+  "src": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/teradata.py"
+  ]
+ },
+ {
+  "id": "23911445cb",
+  "commit": "23911445cb38e14978ab9a4e0b29d0a58b80fa88",
+  "src": [
+   "sqlglot/dialects/dialect.py"
+  ]
+ },
+ {
+  "id": "b3f23fe3cf",
+  "commit": "b3f23fe3cfc8107d349e058649728045c707fe5d",
+  "src": [
+   "sqlglot/generator.py",
+   "sqlglot/generators/teradata.py"
+  ]
+ },
+ {
+  "id": "1fa965376c",
+  "commit": "1fa965376ccf6e972c6aa4a3c6a587f4bce9b494",
+  "src": [
+   "sqlglot/dialects/__init__.py"
+  ]
+ },
+ {
+  "id": "bb6220b76a",
+  "commit": "bb6220b76a852e87b95f0b6d00979732b29fcc1f",
+  "src": [
+   "sqlglot/generators/snowflake.py"
+  ]
+ },
+ {
+  "id": "c6c1fa4d37",
+  "commit": "c6c1fa4d3775eadd8673ddb9a8d4211dfe1cdd4f",
+  "src": [
+   "sqlglot/transforms.py"
+  ]
+ },
+ {
+  "id": "d5468304f6",
+  "commit": "d5468304f6a1b8e9ec20aa3ea8564031be2f6e0e",
+  "src": [
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/hive.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "f064484b68",
+  "commit": "f064484b68547d9c80a9bcecd5e07dd8a056a36b",
+  "src": [
+   "sqlglot/parsers/postgres.py"
+  ]
+ },
+ {
+  "id": "b2a1bf560c",
+  "commit": "b2a1bf560ce5c0aafc84995f113f4499b5277e94",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "dcc36544a9",
+  "commit": "dcc36544a928618564e720c2c5b6f187e941a2f9",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py"
+  ]
+ },
+ {
+  "id": "e2f4ad7d50",
+  "commit": "e2f4ad7d50cb764c78da69b5ca7933c69156ebaa",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "6b9cb87bd0",
+  "commit": "6b9cb87bd01ed4606d1902a0266ff79aad78b54f",
+  "src": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/postgres.py"
+  ]
+ },
+ {
+  "id": "67cf1ec91d",
+  "commit": "67cf1ec91dfe2658f41c049130ab242a40bf4789",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "9b25ca5dbe",
+  "commit": "9b25ca5dbef52c348cb9a45706bac4f41fb56f4d",
+  "src": [
+   "sqlglot/expressions/constraints.py",
+   "sqlglot/generator.py",
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "1e6c6c58e1",
+  "commit": "1e6c6c58e1e73bf29d939653e2b3e3eae7fb34ad",
+  "src": [
+   "sqlglot/dialects/tsql.py",
+   "sqlglot/generators/tsql.py",
+   "sqlglot/parsers/tsql.py"
+  ]
+ },
+ {
+  "id": "2be2afc69f",
+  "commit": "2be2afc69fcaeee5bc83ecab555fbdc0a0891b81",
+  "src": [
+   "sqlglot/optimizer/pushdown_predicates.py"
+  ]
+ },
+ {
+  "id": "9fac05c062",
+  "commit": "9fac05c062f0c9258cee2c72108a14f498f47737",
+  "src": [
+   "sqlglot/dialects/dialect.py"
+  ]
+ },
+ {
+  "id": "5a91be3fbc",
+  "commit": "5a91be3fbc014d54d78f2b38bcde89192245b9e4",
+  "src": [
+   "sqlglot/dialects/postgres.py"
+  ]
+ },
+ {
+  "id": "5ae73df94c",
+  "commit": "5ae73df94c81c98a578db97c3acd4623463cdaae",
+  "src": [
+   "sqlglot/optimizer/qualify_columns.py"
+  ]
+ },
+ {
+  "id": "45158c35c7",
+  "commit": "45158c35c7d4ed3aea55564c2bfca352e2075e13",
+  "src": [
+   "sqlglot/generators/presto.py",
+   "sqlglot/generators/trino.py",
+   "sqlglot/transforms.py"
+  ]
+ },
+ {
+  "id": "222eb11fc4",
+  "commit": "222eb11fc491b3593c52a1f6cf7c7adaeaaf4953",
+  "src": [
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "d0aa2b4324",
+  "commit": "d0aa2b432498ec00f88a8721a904afe2e1b5c24d",
+  "src": [
+   "sqlglot/optimizer/scope.py"
+  ]
+ },
+ {
+  "id": "3110e151bf",
+  "commit": "3110e151bfe6e229ec6b85708a56a9340a56c6a6",
+  "src": [
+   "sqlglot/generators/sqlite.py"
+  ]
+ },
+ {
+  "id": "5294204448",
+  "commit": "52942044486ad91d16c93b714e686799591c59d4",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "3762ef4361",
+  "commit": "3762ef4361895ad764a8c3e117132d6a0d1c47df",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "4303c3f30f",
+  "commit": "4303c3f30f8fa23f40853858260d8ec83ccfd882",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "f481c22bcb",
+  "commit": "f481c22bcbd8a453486d1b2a4543e93685b94ce6",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "f131ec9f9e",
+  "commit": "f131ec9f9ea40ce55f0e254baa41b01f87bad25c",
+  "src": [
+   "sqlglot/parsers/snowflake.py"
+  ]
+ },
+ {
+  "id": "bac1a897bb",
+  "commit": "bac1a897bb367732792d7d244d9805cc4ad41f0d",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "88419b1aa1",
+  "commit": "88419b1aa19453be7fca80c0178362b1fbf2d6e1",
+  "src": [
+   "sqlglot/dialects/dialect.py"
+  ]
+ },
+ {
+  "id": "79276b67d3",
+  "commit": "79276b67d3ae01f97a443df0c20b00da51e87251",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "a3a2a2178d",
+  "commit": "a3a2a2178d5f47fa548b5575da6b680bcd95d1c2",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "e105403618",
+  "commit": "e105403618effd3accb9bb43e93138d2b653b7a1",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "a60171e8f7",
+  "commit": "a60171e8f73257a3917f2a95b308183460fb159d",
+  "src": [
+   "sqlglot/optimizer/qualify_columns.py"
+  ]
+ },
+ {
+  "id": "d5e3f14b10",
+  "commit": "d5e3f14b109ebe5decd66bc77bde38fd5b001bb1",
+  "src": [
+   "sqlglot/dialects/starrocks.py",
+   "sqlglot/optimizer/qualify_tables.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/snowflake.py",
+   "sqlglot/parsers/starrocks.py"
+  ]
+ },
+ {
+  "id": "40f285cb61",
+  "commit": "40f285cb61edff4a40950fc708e79ae4e8ed583d",
+  "src": [
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "37362f4fc1",
+  "commit": "37362f4fc1d63c4687149cec3a8aab109c1eb989",
+  "src": [
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "d002d4dac3",
+  "commit": "d002d4dac34967ff10df31557b278a427e63428d",
+  "src": [
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "69b059e045",
+  "commit": "69b059e045150f0d12883eecbc2a0026e67a188e",
+  "src": [
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "2a46a03311",
+  "commit": "2a46a03311aa014e645f26bf4d8ad87ee590bf3a",
+  "src": [
+   "sqlglot/generators/clickhouse.py"
+  ]
+ },
+ {
+  "id": "930f1a32f7",
+  "commit": "930f1a32f788867a02868512eda2371fd1cac4da",
+  "src": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generators/duckdb.py",
+   "sqlglot/generators/postgres.py"
+  ]
+ },
+ {
+  "id": "ce427c9624",
+  "commit": "ce427c96246a8a0bc4f05a47a39adbba0bc7a7b1",
+  "src": [
+   "sqlglot/generators/postgres.py"
+  ]
+ },
+ {
+  "id": "b79cbf86d1",
+  "commit": "b79cbf86d154f3ccfca1dada7073435fdaa06b09",
+  "src": [
+   "sqlglot/optimizer/qualify_columns.py"
+  ]
+ },
+ {
+  "id": "1e9c804ec5",
+  "commit": "1e9c804ec54ff74b81d965fe487dcbd5af72b0a5",
+  "src": [
+   "sqlglot/optimizer/unnest_subqueries.py"
+  ]
+ },
+ {
+  "id": "91119bcaac",
+  "commit": "91119bcaac977ede6f4a641bdda593b0015ef998",
+  "src": [
+   "sqlglot/parsers/mysql.py"
+  ]
+ },
+ {
+  "id": "05eed63b28",
+  "commit": "05eed63b281f7ac020045e2b792beef8fad8d3ee",
+  "src": [
+   "sqlglot/executor/context.py",
+   "sqlglot/executor/python.py",
+   "sqlglot/executor/table.py"
+  ]
+ },
+ {
+  "id": "8efda2c6ce",
+  "commit": "8efda2c6cee394d195ef8ec1856c196228383dc2",
+  "src": [
+   "sqlglot/expressions/ddl.py",
+   "sqlglot/expressions/query.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/tsql.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/spark2.py"
+  ]
+ },
+ {
+  "id": "a04d327b10",
+  "commit": "a04d327b10902537a414f0fa64f91afa1e622e32",
+  "src": [
+   "sqlglot/expressions/ddl.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "038f015992",
+  "commit": "038f015992d31163bd16075b8508a0c1df0f28e2",
+  "src": [
+   "sqlglot/expressions/ddl.py",
+   "sqlglot/generator.py",
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "8579d7ca57",
+  "commit": "8579d7ca57a9056e393161dd1524b76f2d92cc64",
+  "src": [
+   "sqlglot/executor/python.py",
+   "sqlglot/planner.py"
+  ]
+ },
+ {
+  "id": "f62c3446d0",
+  "commit": "f62c3446d0590daea30fed77264194b53b725d24",
+  "src": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/snowflake.py",
+   "sqlglot/optimizer/qualify_columns.py"
+  ]
+ },
+ {
+  "id": "1ba7b2715d",
+  "commit": "1ba7b2715dd9aba896edc7dc69fcc41bbb601b90",
+  "src": [
+   "sqlglot/executor/python.py",
+   "sqlglot/planner.py"
+  ]
+ },
+ {
+  "id": "2c77cb7482",
+  "commit": "2c77cb7482107082679a10aa0c67a264b1da1fad",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "a5804178a5",
+  "commit": "a5804178a558acc3a04eacb0057c280c52963ecd",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "542f7b4ae8",
+  "commit": "542f7b4ae884d6ff7e41a0ddb4f9590de008bc2f",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "585908b184",
+  "commit": "585908b18440149275a0da16e2a7b483b6c34a9b",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "b11c3d915c",
+  "commit": "b11c3d915ca617ea6f343b0c7cc4b392766fdaa0",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py"
+  ]
+ },
+ {
+  "id": "e674a0e8ba",
+  "commit": "e674a0e8bae4f06b94eed72e2a781b2df978d983",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "0575d38760",
+  "commit": "0575d387603ce7e41068489eec022ffe128ac7c6",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "bb77a117d9",
+  "commit": "bb77a117d96265d2732f458fc4e4be23e272d8c1",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "cddb7d03f1",
+  "commit": "cddb7d03f1f4aa29d2f615dad2c086906e7e5ec1",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "36785ce904",
+  "commit": "36785ce904ada62355b19e774b1ccd33f145d900",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "7cca122d28",
+  "commit": "7cca122d28c4cedbd7a9baed4bee39f241710b8c",
+  "src": [
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "d7ada74e21",
+  "commit": "d7ada74e21f33ebeaad0e382b2096460860c5984",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "6874e1c4bf",
+  "commit": "6874e1c4bfa398d8dc2b4310fcadd304a0715d16",
+  "src": [
+   "sqlglot/parsers/clickhouse.py"
+  ]
+ },
+ {
+  "id": "174456c33a",
+  "commit": "174456c33a21886740e307f1c51d1fd3c30ae919",
+  "src": [
+   "sqlglot/parsers/bigquery.py"
+  ]
+ },
+ {
+  "id": "6e30ee791c",
+  "commit": "6e30ee791c1a993d7722d641d12967afc8fd9548",
+  "src": [
+   "sqlglot/parser.py",
+   "sqlglot/parsers/bigquery.py"
+  ]
+ },
+ {
+  "id": "a570cf8a90",
+  "commit": "a570cf8a908d02e78b66cec1478ab066f1ff1f0d",
+  "src": [
+   "sqlglot/optimizer/resolver.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/bigquery.py"
+  ]
+ },
+ {
+  "id": "20f2f7035d",
+  "commit": "20f2f7035df0bda3b8a8e2c25e211a6fa0eb6b77",
+  "src": [
+   "sqlglot/parsers/bigquery.py"
+  ]
+ },
+ {
+  "id": "f64adb4c9a",
+  "commit": "f64adb4c9a3f96ff4ad692d571b80848ad1b649d",
+  "src": [
+   "sqlglot/generator.py"
+  ]
+ },
+ {
+  "id": "4ff8ab3614",
+  "commit": "4ff8ab3614dca6d6cf6c8c73562886694675e443",
+  "src": [
+   "sqlglot/executor/context.py",
+   "sqlglot/executor/python.py",
+   "sqlglot/planner.py"
+  ]
+ },
+ {
+  "id": "b4c9ad5abc",
+  "commit": "b4c9ad5abcdc8cb76be72876b30881a46077a6c4",
+  "src": [
+   "sqlglot/parsers/postgres.py"
+  ]
+ },
+ {
+  "id": "f3b7c6cb73",
+  "commit": "f3b7c6cb737c3d6c798f0c6b408ec8c9ffea6f4b",
+  "src": [
+   "sqlglot/expressions/string.py",
+   "sqlglot/generators/dremio.py",
+   "sqlglot/parsers/dremio.py"
+  ]
+ },
+ {
+  "id": "39e289a75e",
+  "commit": "39e289a75efb250d45c2dfcfffc719f19e9925a2",
+  "src": [
+   "sqlglot/generators/python.py"
+  ]
+ },
+ {
+  "id": "eb5d4daf49",
+  "commit": "eb5d4daf499b498f4ee84af3444c53ab0f8726ea",
+  "src": [
+   "sqlglot/executor/env.py"
+  ]
+ },
+ {
+  "id": "ebd15d9995",
+  "commit": "ebd15d99958662562359b7469bb958f4b4790767",
+  "src": [
+   "sqlglot/executor/env.py",
+   "sqlglot/generators/python.py"
+  ]
+ },
+ {
+  "id": "21092b3086",
+  "commit": "21092b3086f0bfba400de98c6deade6f4f6d3de3",
+  "src": [
+   "sqlglot/dialects/bigquery.py",
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/dialects/duckdb.py",
+   "sqlglot/dialects/postgres.py",
+   "sqlglot/dialects/sqlite.py",
+   "sqlglot/optimizer/annotate_types.py",
+   "sqlglot/optimizer/normalize_identifiers.py"
+  ]
+ },
+ {
+  "id": "bf3410543f",
+  "commit": "bf3410543fd15e983138311577b58455e41f9551",
+  "src": [
+   "sqlglot/generators/sqlite.py"
+  ]
+ },
+ {
+  "id": "d138cae03d",
+  "commit": "d138cae03d21656d66e512ab489a0cf9441d4b0a",
+  "src": [
+   "sqlglot/expressions/builders.py"
+  ]
+ },
+ {
+  "id": "83129c711b",
+  "commit": "83129c711baf600f6ae902f79cf1cd6e50bdba58",
+  "src": [
+   "sqlglot/generators/snowflake.py"
+  ]
+ },
+ {
+  "id": "3bc3350e23",
+  "commit": "3bc3350e23cf62e3136783b3d05fa0e17bff4c34",
+  "src": [
+   "sqlglot/parsers/spark2.py"
+  ]
+ },
+ {
+  "id": "28c8adb19a",
+  "commit": "28c8adb19a4b02c5be116f6f39d4e8385fe2d233",
+  "src": [
+   "sqlglot/optimizer/pushdown_projections.py"
+  ]
+ },
+ {
+  "id": "05f5484294",
+  "commit": "05f548429469133b502b303dd367f96f4e3126ba",
+  "src": [
+   "sqlglot/executor/env.py"
+  ]
+ },
+ {
+  "id": "d89f392e08",
+  "commit": "d89f392e089d13b8e217ca4501558d6da263eb4d",
+  "src": [
+   "sqlglot/dialects/mysql.py"
+  ]
+ },
+ {
+  "id": "829c2b1c70",
+  "commit": "829c2b1c7061cbdc6c65ae7ea13dea73aa12522a",
+  "src": [
+   "sqlglot/dialects/dialect.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/duckdb.py",
+   "sqlglot/generators/oracle.py",
+   "sqlglot/generators/snowflake.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/oracle.py",
+   "sqlglot/parsers/snowflake.py"
+  ]
+ },
+ {
+  "id": "ecf5b97819",
+  "commit": "ecf5b97819c91257a21dcb1acd7780e8e4563932",
+  "src": [
+   "sqlglot/executor/env.py"
+  ]
+ },
+ {
+  "id": "99b33089e9",
+  "commit": "99b33089e905729bdab0f959c6b6ef978773250a",
+  "src": [
+   "sqlglot/generators/oracle.py",
+   "sqlglot/parsers/oracle.py"
+  ]
+ },
+ {
+  "id": "cefce19186",
+  "commit": "cefce19186791442c9995239e1e2bd4931db863a",
+  "src": [
+   "sqlglot/expressions/json.py",
+   "sqlglot/generator.py",
+   "sqlglot/generators/postgres.py",
+   "sqlglot/parser.py",
+   "sqlglot/parsers/postgres.py"
+  ]
+ },
+ {
+  "id": "8f60665907",
+  "commit": "8f606659077c0380cfbfe2ae53bd43583f41c4cf",
+  "src": [
+   "sqlglot/typing/postgres.py"
+  ]
+ },
+ {
+  "id": "8ced6d5495",
+  "commit": "8ced6d5495455cd783fc5e81228d6d7ffd55781d",
+  "src": [
+   "sqlglot/generators/duckdb.py"
+  ]
+ },
+ {
+  "id": "6e109b3a79",
+  "commit": "6e109b3a796c41acba935442a23bf79bebef4a13",
+  "src": [
+   "sqlglot/executor/env.py",
+   "sqlglot/generators/python.py"
+  ]
+ },
+ {
+  "id": "29acdfde9f",
+  "commit": "29acdfde9f2d2c1bfc2215c10279552ca4d63c7c",
+  "src": [
+   "sqlglot/parser.py"
+  ]
+ },
+ {
+  "id": "9a8129b6f2",
+  "commit": "9a8129b6f2667673f24713f4b49162ebae1f699d",
+  "src": [
+   "sqlglot/executor/env.py"
+  ]
+ },
+ {
+  "id": "b7386b7566",
+  "commit": "b7386b756675567f89a098b7a5dbe598264ec2d5",
+  "src": [
+   "sqlglot/optimizer/canonicalize_internal_names.py",
+   "sqlglot/optimizer/eliminate_subqueries.py",
+   "sqlglot/optimizer/qualify_tables.py",
+   "sqlglot/optimizer/scope.py"
+  ]
+ },
+ {
+  "id": "86195827b8",
+  "commit": "86195827b827a34d324d6e21e0076d20031fb8a6",
+  "src": [
+   "sqlglot/optimizer/annotate_types.py"
+  ]
+ },
+ {
+  "id": "98f3d663c9",
+  "commit": "98f3d663c9f110216a5495e8d5b779d9d4e8cc61",
+  "src": [
+   "sqlglot/executor/env.py"
+  ]
+ },
+ {
+  "id": "44b73a0023",
+  "commit": "44b73a002328aea0fe0f655921ce43e43084e2d3",
+  "src": [
+   "sqlglot/executor/env.py"
+  ]
+ }
+]

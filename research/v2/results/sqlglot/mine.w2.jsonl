@@ -1,0 +1,23 @@
+{"id": "022bb41fc5", "commit": "022bb41fc5f9b35ab303a5989edd1f9544ec11bb", "src": ["sqlglot/generators/duckdb.py"], "failing": [], "n_tests": 1166}
+{"id": "30958d6152", "commit": "30958d61522b84765973a8fa6c76ea03d7f97373", "src": ["sqlglot/optimizer/resolver.py"], "failing": [], "n_tests": 1159}
+{"id": "74d8bec7dd", "commit": "74d8bec7ddbde6610e5b47a138bd96a85e2606aa", "src": ["sqlglot/generators/clickhouse.py", "sqlglot/parser.py", "sqlglot/parsers/mysql.py"], "failing": [], "n_tests": 1157}
+{"id": "bffcdefc16", "commit": "bffcdefc16b01527ee252ad2bf322b0bbff33bc8", "src": ["sqlglot/dialects/snowflake.py", "sqlglot/parser.py"], "failing": [], "n_tests": 1146}
+{"id": "fdc0339b21", "commit": "fdc0339b219da56b4433198e3cd53e7604d53188", "src": ["sqlglot/dialects/bigquery.py", "sqlglot/generator.py", "sqlglot/generators/clickhouse.py", "sqlglot/generators/drill.py", "sqlglot/generators/duckdb.py", "sqlglot/generators/hive.py", "sqlglot/generators/mysql.py", "sqlglot/generators/postgres.py", "sqlglot/generators/redshift.py", "sqlglot/generators/snowflake.py", "sqlglot/tokenizer_core.py", "sqlglot/tokens.py"], "failing": ["tests/dialects/test_bigquery.py::TestBigQuery::test_bigquery"], "n_tests": 1145}
+{"id": "53868cf81d", "commit": "53868cf81d56a6c15fcf2637e47d0a53e3205022", "src": ["sqlglot/expressions/query.py", "sqlglot/generator.py", "sqlglot/optimizer/canonicalize_internal_names.py"], "failing": [], "n_tests": 1141}
+{"id": "c4090855c9", "commit": "c4090855c9457971083e43e6e781e83bbd411c19", "src": ["sqlglot/generators/singlestore.py"], "failing": ["tests/dialects/test_singlestore.py::TestSingleStore::test_collate_sql"], "n_tests": 1134}
+{"id": "a313c8bee1", "commit": "a313c8bee143b4b92c9a068fef72a5fd512bba61", "src": ["sqlglot/parser.py", "sqlglot/parsers/teradata.py"], "failing": [], "n_tests": 1128}
+{"id": "1a782c55a8", "commit": "1a782c55a8f2bad4ac9ca7e28b1a1b1164840894", "src": ["sqlglot/generators/mysql.py"], "failing": ["tests/dialects/test_singlestore.py::TestSingleStore::test_math_functions"], "n_tests": 1123}
+{"id": "90d44b8556", "commit": "90d44b8556a19ddf8d4d43395a39f589a42ab748", "src": ["sqlglot/expressions/string.py", "sqlglot/generators/trino.py", "sqlglot/parsers/hive.py"], "failing": [], "n_tests": 1112}
+{"id": "338bb06993", "commit": "338bb0699385f8a35f76c98954c58b920da679b5", "src": ["sqlglot/generators/sqlite.py"], "failing": [], "n_tests": 1112}
+{"id": "a8719ad642", "commit": "a8719ad6425579b8becd9434b93c9a9f0d28b05e", "src": ["sqlglot/optimizer/pushdown_projections.py"], "failing": [], "n_tests": 1110}
+{"id": "9f604b3de5", "commit": "9f604b3de5967c0107404676690c82e3c3552593", "src": ["sqlglot/generators/sqlite.py"], "failing": ["tests/dialects/test_sqlite.py::TestSQLite::test_sqlite"], "n_tests": 1108}
+{"id": "8bf484ce23", "commit": "8bf484ce23ad684430675d60fcd82c05a957e4db", "src": ["sqlglot/dialects/dialect.py", "sqlglot/generator.py", "sqlglot/generators/databricks.py"], "failing": ["tests/test_jsonpath.py::TestJsonpath::test_cts_file"], "n_tests": 1108}
+{"id": "1fa965376c", "commit": "1fa965376ccf6e972c6aa4a3c6a587f4bce9b494", "src": ["sqlglot/dialects/__init__.py"], "failing": [], "n_tests": 1108}
+{"id": "1e6c6c58e1", "commit": "1e6c6c58e1e73bf29d939653e2b3e3eae7fb34ad", "src": ["sqlglot/dialects/tsql.py", "sqlglot/generators/tsql.py", "sqlglot/parsers/tsql.py"], "failing": ["tests/dialects/test_tsql.py::TestTSQL::test_json"], "n_tests": 1106}
+{"id": "4303c3f30f", "commit": "4303c3f30f8fa23f40853858260d8ec83ccfd882", "src": ["sqlglot/parser.py"], "failing": [], "n_tests": 1101}
+{"id": "37362f4fc1", "commit": "37362f4fc1d63c4687149cec3a8aab109c1eb989", "src": ["sqlglot/parsers/clickhouse.py"], "failing": [], "n_tests": 1099}
+{"id": "a04d327b10", "commit": "a04d327b10902537a414f0fa64f91afa1e622e32", "src": ["sqlglot/expressions/ddl.py", "sqlglot/parser.py"], "failing": [], "n_tests": 1098}
+{"id": "0575d38760", "commit": "0575d387603ce7e41068489eec022ffe128ac7c6", "src": ["sqlglot/typing/postgres.py"], "failing": [], "n_tests": 1098}
+{"id": "f64adb4c9a", "commit": "f64adb4c9a3f96ff4ad692d571b80848ad1b649d", "src": ["sqlglot/generator.py"], "failing": [], "n_tests": 1098}
+{"id": "3bc3350e23", "commit": "3bc3350e23cf62e3136783b3d05fa0e17bff4c34", "src": ["sqlglot/parsers/spark2.py"], "failing": [], "n_tests": 1097}
+{"id": "29acdfde9f", "commit": "29acdfde9f2d2c1bfc2215c10279552ca4d63c7c", "src": ["sqlglot/parser.py"], "failing": [], "n_tests": 1097}

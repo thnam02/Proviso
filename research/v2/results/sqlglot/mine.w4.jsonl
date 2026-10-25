@@ -1,0 +1,23 @@
+{"id": "b7e515399a", "commit": "b7e515399a589e720b2bd081e5bb395f408feff8", "src": ["sqlglot/optimizer/simplify.py"], "failing": [], "n_tests": 1166}
+{"id": "5b7b413451", "commit": "5b7b413451e2a7a35bfc8c076d3b3636f8a7b203", "src": ["sqlglot/optimizer/qualify_tables.py"], "failing": [], "n_tests": 1159}
+{"id": "47b94d424a", "commit": "47b94d424a05768a2e3b416cc4282b8449f8197f", "src": ["sqlglot/parser.py", "sqlglot/parsers/mysql.py"], "failing": [], "n_tests": 1156}
+{"id": "b12b50fc06", "commit": "b12b50fc068730fd04f864a3757cd8d356afccfa", "src": ["sqlglot/dialects/snowflake.py", "sqlglot/optimizer/qualify_tables.py"], "failing": [], "n_tests": 1146}
+{"id": "15a77f1d89", "commit": "15a77f1d89c3c6baac93230173e48b626497027d", "src": ["sqlglot/dialects/mysql.py", "sqlglot/generators/singlestore.py", "sqlglot/tokenizer_core.py", "sqlglot/tokens.py"], "failing": ["tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse", "tests/dialects/test_singlestore.py::TestSingleStore::test_string_functions"], "n_tests": 1143}
+{"id": "2960bdd747", "commit": "2960bdd7470f1c21518710ed468466b9bab4bb7b", "src": ["sqlglot/optimizer/simplify.py"], "failing": [], "n_tests": 1141}
+{"id": "2be1e0e2ad", "commit": "2be1e0e2addc0ef01cfa3fd3cf2ef751cdbf411d", "src": ["sqlglot/typing/duckdb.py"], "failing": [], "n_tests": 1134}
+{"id": "b85a8c8b0d", "commit": "b85a8c8b0d107410f6689c2ddad0921dbff9ddad", "src": ["sqlglot/optimizer/merge_subqueries.py"], "failing": [], "n_tests": 1127}
+{"id": "eeece5a564", "commit": "eeece5a564e2d5c37b73d172843e7cd437406c42", "src": ["sqlglot/generator.py", "sqlglot/generators/clickhouse.py", "sqlglot/generators/sqlite.py", "sqlglot/generators/teradata.py", "sqlglot/generators/tsql.py", "sqlglot/parser.py", "sqlglot/parsers/tsql.py", "sqlglot/transforms.py"], "failing": [], "n_tests": 1116}
+{"id": "539b1125db", "commit": "539b1125dbe698145057a58efaff2eb7ae2dfdbd", "src": ["sqlglot/optimizer/pushdown_projections.py"], "failing": [], "n_tests": 1112}
+{"id": "4eb2c99a15", "commit": "4eb2c99a150f56c9048a3ddf6c71dded86597362", "src": ["sqlglot/generators/fabric.py"], "failing": ["tests/dialects/test_fabric.py::TestFabric::test_type_mappings"], "n_tests": 1112}
+{"id": "64d6f59a49", "commit": "64d6f59a4981d35f362fecc615a4e3ce764bebb7", "src": ["sqlglot/optimizer/simplify.py"], "failing": [], "n_tests": 1110}
+{"id": "351e97b4c9", "commit": "351e97b4c9a727c656019b5926873275698ccbe2", "src": ["sqlglot/optimizer/simplify.py"], "failing": [], "n_tests": 1108}
+{"id": "3086608e6f", "commit": "3086608e6fd4c41c02dfba47171608d2b193fce2", "src": ["sqlglot/generators/trino.py"], "failing": ["tests/dialects/test_tsql.py::TestTSQL::test_json"], "n_tests": 1108}
+{"id": "c6c1fa4d37", "commit": "c6c1fa4d3775eadd8673ddb9a8d4211dfe1cdd4f", "src": ["sqlglot/transforms.py"], "failing": [], "n_tests": 1107}
+{"id": "9fac05c062", "commit": "9fac05c062f0c9258cee2c72108a14f498f47737", "src": ["sqlglot/dialects/dialect.py"], "failing": [], "n_tests": 1106}
+{"id": "f131ec9f9e", "commit": "f131ec9f9ea40ce55f0e254baa41b01f87bad25c", "src": ["sqlglot/parsers/snowflake.py"], "failing": [], "n_tests": 1101}
+{"id": "69b059e045", "commit": "69b059e045150f0d12883eecbc2a0026e67a188e", "src": ["sqlglot/parsers/clickhouse.py"], "failing": [], "n_tests": 1099}
+{"id": "8579d7ca57", "commit": "8579d7ca57a9056e393161dd1524b76f2d92cc64", "src": ["sqlglot/executor/python.py", "sqlglot/planner.py"], "failing": [], "n_tests": 1098}
+{"id": "cddb7d03f1", "commit": "cddb7d03f1f4aa29d2f615dad2c086906e7e5ec1", "src": ["sqlglot/typing/postgres.py"], "failing": [], "n_tests": 1098}
+{"id": "b4c9ad5abc", "commit": "b4c9ad5abcdc8cb76be72876b30881a46077a6c4", "src": ["sqlglot/parsers/postgres.py"], "failing": [], "n_tests": 1098}
+{"id": "05f5484294", "commit": "05f548429469133b502b303dd367f96f4e3126ba", "src": ["sqlglot/executor/env.py"], "failing": [], "n_tests": 1097}
+{"id": "b7386b7566", "commit": "b7386b756675567f89a098b7a5dbe598264ec2d5", "src": ["sqlglot/optimizer/canonicalize_internal_names.py", "sqlglot/optimizer/eliminate_subqueries.py", "sqlglot/optimizer/qualify_tables.py", "sqlglot/optimizer/scope.py"], "failing": [], "n_tests": 1097}

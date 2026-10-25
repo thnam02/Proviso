@@ -1,0 +1,23 @@
+{"id": "7f1cf60c88", "commit": "7f1cf60c884868a295f76dfd42745b931dd9cfbb", "src": ["sqlglot/expressions/ddl.py", "sqlglot/generator.py", "sqlglot/generators/mysql.py", "sqlglot/generators/starrocks.py", "sqlglot/parser.py", "sqlglot/parsers/mysql.py"], "failing": ["tests/dialects/test_mysql.py::TestMySQL::test_alter_mixed_actions"], "n_tests": 1166}
+{"id": "af9915fa4c", "commit": "af9915fa4cc1f20fcae8b09058be5b96b2cbc8b0", "src": ["sqlglot/expressions/string.py", "sqlglot/generator.py", "sqlglot/parser.py"], "failing": [], "n_tests": 1159}
+{"id": "51587ffdec", "commit": "51587ffdecfc8b2c08ee1da24b543312ded90d39", "src": ["sqlglot/parsers/mysql.py"], "failing": [], "n_tests": 1157}
+{"id": "a6698b765b", "commit": "a6698b765b006b4b3b181fcdc75319f7f990164f", "src": ["sqlglot/dialects/dialect.py"], "failing": [], "n_tests": 1147}
+{"id": "5cc5ef046e", "commit": "5cc5ef046e8213dcb373c82f6c00fcf918fb4a5b", "src": ["sqlglot/dialects/drill.py", "sqlglot/generators/drill.py"], "failing": ["tests/dialects/test_hive.py::TestHive::test_quotes"], "n_tests": 1146}
+{"id": "aa70202072", "commit": "aa702020725f4d1591cfb2d308c72937a38e8fd4", "src": ["sqlglot/optimizer/qualify_columns.py"], "failing": [], "n_tests": 1141}
+{"id": "65a0e22447", "commit": "65a0e22447fcca9ea4a89f6167954fbb872c8e6d", "src": ["sqlglot/optimizer/pushdown_projections.py", "sqlglot/optimizer/qualify_columns.py"], "failing": [], "n_tests": 1135}
+{"id": "4c11d07af4", "commit": "4c11d07af4b533274cabbcae9271234e9a0b039c", "src": ["sqlglot/generators/sqlite.py"], "failing": [], "n_tests": 1131}
+{"id": "1d0e3f3486", "commit": "1d0e3f34864037c54cf6bdf45af594db62ad7319", "src": ["sqlglot/generators/mysql.py"], "failing": ["tests/dialects/test_tsql.py::TestTSQL::test_eomonth"], "n_tests": 1125}
+{"id": "a470787be2", "commit": "a470787be21812ba235963c41f23107e3502c00b", "src": ["sqlglot/expressions/__init__.py", "sqlglot/expressions/array.py", "sqlglot/expressions/json.py", "sqlglot/optimizer/merge_subqueries.py", "sqlglot/optimizer/pushdown_projections.py"], "failing": [], "n_tests": 1115}
+{"id": "d53cbc9885", "commit": "d53cbc988512ee63ca547694c6a1656fd4dbb637", "src": ["sqlglot/parser.py"], "failing": [], "n_tests": 1112}
+{"id": "5dea557136", "commit": "5dea557136b0690c280c5c006257f4d681d7f3ce", "src": ["sqlglot/generators/doris.py"], "failing": [], "n_tests": 1110}
+{"id": "8b374bd525", "commit": "8b374bd525eeade40cef0b02d281e7a9636b974a", "src": ["sqlglot/parsers/mysql.py"], "failing": [], "n_tests": 1108}
+{"id": "c9ad903e75", "commit": "c9ad903e7553543686472e5babf3c18e4e7dbc7b", "src": ["sqlglot/optimizer/simplify.py"], "failing": [], "n_tests": 1108}
+{"id": "23911445cb", "commit": "23911445cb38e14978ab9a4e0b29d0a58b80fa88", "src": ["sqlglot/dialects/dialect.py"], "failing": [], "n_tests": 1108}
+{"id": "67cf1ec91d", "commit": "67cf1ec91dfe2658f41c049130ab242a40bf4789", "src": ["sqlglot/parser.py"], "failing": [], "n_tests": 1106}
+{"id": "5294204448", "commit": "52942044486ad91d16c93b714e686799591c59d4", "src": ["sqlglot/typing/postgres.py"], "failing": [], "n_tests": 1105}
+{"id": "d5e3f14b10", "commit": "d5e3f14b109ebe5decd66bc77bde38fd5b001bb1", "src": ["sqlglot/dialects/starrocks.py", "sqlglot/optimizer/qualify_tables.py", "sqlglot/parser.py", "sqlglot/parsers/snowflake.py", "sqlglot/parsers/starrocks.py"], "failing": [], "n_tests": 1099}
+{"id": "05eed63b28", "commit": "05eed63b281f7ac020045e2b792beef8fad8d3ee", "src": ["sqlglot/executor/context.py", "sqlglot/executor/python.py", "sqlglot/executor/table.py"], "failing": [], "n_tests": 1098}
+{"id": "b11c3d915c", "commit": "b11c3d915ca617ea6f343b0c7cc4b392766fdaa0", "src": ["sqlglot/optimizer/pushdown_projections.py"], "failing": [], "n_tests": 1098}
+{"id": "a570cf8a90", "commit": "a570cf8a908d02e78b66cec1478ab066f1ff1f0d", "src": ["sqlglot/optimizer/resolver.py", "sqlglot/parser.py", "sqlglot/parsers/bigquery.py"], "failing": [], "n_tests": 1098}
+{"id": "d138cae03d", "commit": "d138cae03d21656d66e512ab489a0cf9441d4b0a", "src": ["sqlglot/expressions/builders.py"], "failing": [], "n_tests": 1097}
+{"id": "8ced6d5495", "commit": "8ced6d5495455cd783fc5e81228d6d7ffd55781d", "src": ["sqlglot/generators/duckdb.py"], "failing": [], "n_tests": 1097}

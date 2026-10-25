@@ -1,0 +1,667 @@
+[
+ {
+  "id": "function:sqlglot/tokenizer_core.py:885",
+  "kind": "function",
+  "file": "sqlglot/tokenizer_core.py",
+  "line": 885,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:6328",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 6328,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:5953",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 5953,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/serde.py:48",
+  "kind": "function",
+  "file": "sqlglot/serde.py",
+  "line": 48,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/executor/env.py:26",
+  "kind": "function",
+  "file": "sqlglot/executor/env.py",
+  "line": 26,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/generator.py:1827",
+  "kind": "function",
+  "file": "sqlglot/generator.py",
+  "line": 1827,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parsers/athena.py:74",
+  "kind": "function",
+  "file": "sqlglot/parsers/athena.py",
+  "line": 74,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/jsonpath.py:173",
+  "kind": "function",
+  "file": "sqlglot/jsonpath.py",
+  "line": 173,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:2080",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 2080,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/generators/postgres.py:229",
+  "kind": "function",
+  "file": "sqlglot/generators/postgres.py",
+  "line": 229,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:10412",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 10412,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:8518",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 8518,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parsers/hive.py:186",
+  "kind": "function",
+  "file": "sqlglot/parsers/hive.py",
+  "line": 186,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/generators/sqlite.py:334",
+  "kind": "function",
+  "file": "sqlglot/generators/sqlite.py",
+  "line": 334,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:10396",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 10396,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/optimizer/simplify.py:362",
+  "kind": "function",
+  "file": "sqlglot/optimizer/simplify.py",
+  "line": 362,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:10443",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 10443,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:5944",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 5944,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/anonymize.py:104",
+  "kind": "function",
+  "file": "sqlglot/anonymize.py",
+  "line": 104,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parsers/bigquery.py:49",
+  "kind": "function",
+  "file": "sqlglot/parsers/bigquery.py",
+  "line": 49,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/dialects/dialect.py:1943",
+  "kind": "function",
+  "file": "sqlglot/dialects/dialect.py",
+  "line": 1943,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/generator.py:4862",
+  "kind": "function",
+  "file": "sqlglot/generator.py",
+  "line": 4862,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/generators/duckdb.py:599",
+  "kind": "function",
+  "file": "sqlglot/generators/duckdb.py",
+  "line": 599,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parsers/snowflake.py:135",
+  "kind": "function",
+  "file": "sqlglot/parsers/snowflake.py",
+  "line": 135,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/jsonpath.py:133",
+  "kind": "function",
+  "file": "sqlglot/jsonpath.py",
+  "line": 133,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/optimizer/pushdown_predicates.py:144",
+  "kind": "function",
+  "file": "sqlglot/optimizer/pushdown_predicates.py",
+  "line": 144,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/optimizer/simplify.py:1619",
+  "kind": "function",
+  "file": "sqlglot/optimizer/simplify.py",
+  "line": 1619,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:5988",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 5988,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/dialects/dialect.py:1336",
+  "kind": "function",
+  "file": "sqlglot/dialects/dialect.py",
+  "line": 1336,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/generators/clickhouse.py:684",
+  "kind": "function",
+  "file": "sqlglot/generators/clickhouse.py",
+  "line": 684,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/generators/sqlite.py:328",
+  "kind": "function",
+  "file": "sqlglot/generators/sqlite.py",
+  "line": 328,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:3103",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 3103,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:4310",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 4310,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/tokenizer_core.py:1314",
+  "kind": "function",
+  "file": "sqlglot/tokenizer_core.py",
+  "line": 1314,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parsers/exasol.py:144",
+  "kind": "function",
+  "file": "sqlglot/parsers/exasol.py",
+  "line": 144,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parsers/tsql.py:200",
+  "kind": "function",
+  "file": "sqlglot/parsers/tsql.py",
+  "line": 200,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/expressions/core.py:837",
+  "kind": "function",
+  "file": "sqlglot/expressions/core.py",
+  "line": 837,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parsers/bigquery.py:747",
+  "kind": "function",
+  "file": "sqlglot/parsers/bigquery.py",
+  "line": 747,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/generator.py:1422",
+  "kind": "function",
+  "file": "sqlglot/generator.py",
+  "line": 1422,
+  "op": "flip"
+ },
+ {
+  "id": "function:sqlglot/parser.py:5441",
+  "kind": "function",
+  "file": "sqlglot/parser.py",
+  "line": 5441,
+  "op": "flip"
+ },
+ {
+  "id": "class:sqlglot/parsers/singlestore.py:210",
+  "kind": "class",
+  "file": "sqlglot/parsers/singlestore.py",
+  "line": 210,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/parsers/clickhouse.py:343",
+  "kind": "class",
+  "file": "sqlglot/parsers/clickhouse.py",
+  "line": 343,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/expressions/ddl.py:144",
+  "kind": "class",
+  "file": "sqlglot/expressions/ddl.py",
+  "line": 144,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/expressions/query.py:1913",
+  "kind": "class",
+  "file": "sqlglot/expressions/query.py",
+  "line": 1913,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/dialects/spark.py:32",
+  "kind": "class",
+  "file": "sqlglot/dialects/spark.py",
+  "line": 32,
+  "op": "flip"
+ },
+ {
+  "id": "class:sqlglot/dialects/drill.py:17",
+  "kind": "class",
+  "file": "sqlglot/dialects/drill.py",
+  "line": 17,
+  "op": "flip"
+ },
+ {
+  "id": "class:sqlglot/expressions/math.py:114",
+  "kind": "class",
+  "file": "sqlglot/expressions/math.py",
+  "line": 114,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/hive.py:328",
+  "kind": "class",
+  "file": "sqlglot/generators/hive.py",
+  "line": 328,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/parsers/dax.py:10",
+  "kind": "class",
+  "file": "sqlglot/parsers/dax.py",
+  "line": 10,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/duckdb.py:1695",
+  "kind": "class",
+  "file": "sqlglot/generators/duckdb.py",
+  "line": 1695,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/redshift.py:88",
+  "kind": "class",
+  "file": "sqlglot/generators/redshift.py",
+  "line": 88,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/mysql.py:320",
+  "kind": "class",
+  "file": "sqlglot/generators/mysql.py",
+  "line": 320,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/bigquery.py:443",
+  "kind": "class",
+  "file": "sqlglot/generators/bigquery.py",
+  "line": 443,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/dremio.py:41",
+  "kind": "class",
+  "file": "sqlglot/generators/dremio.py",
+  "line": 41,
+  "op": "flip"
+ },
+ {
+  "id": "class:sqlglot/dialects/exasol.py:20",
+  "kind": "class",
+  "file": "sqlglot/dialects/exasol.py",
+  "line": 20,
+  "op": "flip"
+ },
+ {
+  "id": "class:sqlglot/dialects/tableau.py:10",
+  "kind": "class",
+  "file": "sqlglot/dialects/tableau.py",
+  "line": 10,
+  "op": "flip"
+ },
+ {
+  "id": "class:sqlglot/generator.py:158",
+  "kind": "class",
+  "file": "sqlglot/generator.py",
+  "line": 158,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/mysql.py:186",
+  "kind": "class",
+  "file": "sqlglot/generators/mysql.py",
+  "line": 186,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/duckdb.py:1576",
+  "kind": "class",
+  "file": "sqlglot/generators/duckdb.py",
+  "line": 1576,
+  "op": "flip"
+ },
+ {
+  "id": "class:sqlglot/generators/mysql.py:171",
+  "kind": "class",
+  "file": "sqlglot/generators/mysql.py",
+  "line": 171,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/expressions/query.py:845",
+  "kind": "class",
+  "file": "sqlglot/expressions/query.py",
+  "line": 845,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/parser.py:987",
+  "kind": "class",
+  "file": "sqlglot/parser.py",
+  "line": 987,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/expressions/ddl.py:252",
+  "kind": "class",
+  "file": "sqlglot/expressions/ddl.py",
+  "line": 252,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/expressions/temporal.py:311",
+  "kind": "class",
+  "file": "sqlglot/expressions/temporal.py",
+  "line": 311,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/parser.py:1370",
+  "kind": "class",
+  "file": "sqlglot/parser.py",
+  "line": 1370,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/parsers/clickhouse.py:480",
+  "kind": "class",
+  "file": "sqlglot/parsers/clickhouse.py",
+  "line": 480,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/tokens.py:335",
+  "kind": "class",
+  "file": "sqlglot/tokens.py",
+  "line": 335,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/duckdb.py:1716",
+  "kind": "class",
+  "file": "sqlglot/generators/duckdb.py",
+  "line": 1716,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/duckdb.py:1823",
+  "kind": "class",
+  "file": "sqlglot/generators/duckdb.py",
+  "line": 1823,
+  "op": "delete"
+ },
+ {
+  "id": "class:sqlglot/generators/hive.py:352",
+  "kind": "class",
+  "file": "sqlglot/generators/hive.py",
+  "line": 352,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/executor/env.py:308",
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 308,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/dialects/dialect.py:2182",
+  "kind": "module",
+  "file": "sqlglot/dialects/dialect.py",
+  "line": 2182,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/optimizer/__init__.py:40",
+  "kind": "module",
+  "file": "sqlglot/optimizer/__init__.py",
+  "line": 40,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/typing/duckdb.py:125",
+  "kind": "module",
+  "file": "sqlglot/typing/duckdb.py",
+  "line": 125,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/typing/__init__.py:424",
+  "kind": "module",
+  "file": "sqlglot/typing/__init__.py",
+  "line": 424,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/executor/env.py:298",
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 298,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/executor/env.py:263",
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 263,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/executor/env.py:267",
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 267,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/typing/snowflake.py:568",
+  "kind": "module",
+  "file": "sqlglot/typing/snowflake.py",
+  "line": 568,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/executor/env.py:268",
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 268,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/generators/duckdb.py:57",
+  "kind": "module",
+  "file": "sqlglot/generators/duckdb.py",
+  "line": 57,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/typing/mysql.py:202",
+  "kind": "module",
+  "file": "sqlglot/typing/mysql.py",
+  "line": 202,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/dialects/__init__.py:108",
+  "kind": "module",
+  "file": "sqlglot/dialects/__init__.py",
+  "line": 108,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/expressions/core.py:2491",
+  "kind": "module",
+  "file": "sqlglot/expressions/core.py",
+  "line": 2491,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/typing/__init__.py:412",
+  "kind": "module",
+  "file": "sqlglot/typing/__init__.py",
+  "line": 412,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/expressions/core.py:2501",
+  "kind": "module",
+  "file": "sqlglot/expressions/core.py",
+  "line": 2501,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/parsers/tsql.py:40",
+  "kind": "module",
+  "file": "sqlglot/parsers/tsql.py",
+  "line": 40,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/executor/env.py:259",
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 259,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/jsonpath.py:221",
+  "kind": "module",
+  "file": "sqlglot/jsonpath.py",
+  "line": 221,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/expressions/core.py:2475",
+  "kind": "module",
+  "file": "sqlglot/expressions/core.py",
+  "line": 2475,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/optimizer/__init__.py:46",
+  "kind": "module",
+  "file": "sqlglot/optimizer/__init__.py",
+  "line": 46,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/executor/env.py:296",
+  "kind": "module",
+  "file": "sqlglot/executor/env.py",
+  "line": 296,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/expressions/core.py:2481",
+  "kind": "module",
+  "file": "sqlglot/expressions/core.py",
+  "line": 2481,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/parsers/tsql.py:37",
+  "kind": "module",
+  "file": "sqlglot/parsers/tsql.py",
+  "line": 37,
+  "op": "delete"
+ },
+ {
+  "id": "module:sqlglot/dialects/dialect.py:2181",
+  "kind": "module",
+  "file": "sqlglot/dialects/dialect.py",
+  "line": 2181,
+  "op": "delete"
+ }
+]

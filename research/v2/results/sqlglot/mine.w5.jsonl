@@ -1,0 +1,23 @@
+{"id": "6aeb6a0ab7", "commit": "6aeb6a0ab705c5a4f07a4b6d3af8040c689c4f4b", "src": ["sqlglot/executor/env.py", "sqlglot/generators/mysql.py"], "failing": [], "n_tests": 1165}
+{"id": "d5d436bc32", "commit": "d5d436bc32030c019ca07e1dcb4a247f5b4a0f53", "src": ["sqlglot/dialects/dialect.py", "sqlglot/generator.py"], "failing": [], "n_tests": 1159}
+{"id": "7fb054f17f", "commit": "7fb054f17f0b86bf572884a524067ca9eb883fb4", "src": ["sqlglot/generators/clickhouse.py"], "failing": [], "n_tests": 1156}
+{"id": "5fc93a9eab", "commit": "5fc93a9eab142393c0ef688c82d898329bcddb67", "src": ["sqlglot/dialects/snowflake.py", "sqlglot/expressions/array.py", "sqlglot/optimizer/qualify_tables.py"], "failing": [], "n_tests": 1146}
+{"id": "c7778cf56d", "commit": "c7778cf56d90e409c75e59b82842544b118fa850", "src": ["sqlglot/parser.py", "sqlglot/parsers/doris.py", "sqlglot/parsers/starrocks.py"], "failing": [], "n_tests": 1143}
+{"id": "18520e2b5b", "commit": "18520e2b5bfa3f1d7ed1a261d1bd463132054db1", "src": ["sqlglot/generators/clickhouse.py"], "failing": [], "n_tests": 1141}
+{"id": "1d40af146d", "commit": "1d40af146d77dcf890ae18c1a59e649bf0862db3", "src": ["sqlglot/optimizer/resolver.py"], "failing": [], "n_tests": 1134}
+{"id": "20fa8aedc4", "commit": "20fa8aedc48fccb780b973987908db63d0f76895", "src": ["sqlglot/generator.py", "sqlglot/generators/duckdb.py"], "failing": [], "n_tests": 1127}
+{"id": "8b6ff9386d", "commit": "8b6ff9386ddf4f6f8e3120a21f1991a384e60abd", "src": ["sqlglot/executor/env.py", "sqlglot/generators/python.py", "sqlglot/planner.py"], "failing": [], "n_tests": 1116}
+{"id": "4e973f0c0c", "commit": "4e973f0c0cd426ab2260db291d45a7a207b48356", "src": ["sqlglot/optimizer/pushdown_projections.py"], "failing": [], "n_tests": 1112}
+{"id": "4b84b4d4f3", "commit": "4b84b4d4f3e91e4f64721cb72e0590e4de72aa46", "src": ["sqlglot/generators/fabric.py"], "failing": ["tests/dialects/test_fabric.py::TestFabric::test_type_mappings"], "n_tests": 1111}
+{"id": "70951c72df", "commit": "70951c72dff3fb694040353e8db330756a242a7a", "src": ["sqlglot/expressions/query.py"], "failing": [], "n_tests": 1110}
+{"id": "a34fc27653", "commit": "a34fc276539980ee1f3d51e85a17a19f40b3f276", "src": ["sqlglot/optimizer/annotate_types.py", "sqlglot/optimizer/qualify_columns.py", "sqlglot/optimizer/resolver.py"], "failing": [], "n_tests": 1108}
+{"id": "9794193571", "commit": "97941935711779438b34e11edbed6a736d2ad0c6", "src": ["sqlglot/expressions/query.py", "sqlglot/generator.py", "sqlglot/parser.py"], "failing": ["tests/dialects/test_presto.py::TestPresto::test_presto", "tests/dialects/test_spark.py::TestSpark::test_grouping_sets_as_group_by_element"], "n_tests": 1108}
+{"id": "d5468304f6", "commit": "d5468304f6a1b8e9ec20aa3ea8564031be2f6e0e", "src": ["sqlglot/expressions/query.py", "sqlglot/generator.py", "sqlglot/generators/hive.py", "sqlglot/parser.py"], "failing": [], "n_tests": 1106}
+{"id": "5a91be3fbc", "commit": "5a91be3fbc014d54d78f2b38bcde89192245b9e4", "src": ["sqlglot/dialects/postgres.py"], "failing": [], "n_tests": 1106}
+{"id": "bac1a897bb", "commit": "bac1a897bb367732792d7d244d9805cc4ad41f0d", "src": ["sqlglot/typing/postgres.py"], "failing": [], "n_tests": 1101}
+{"id": "2a46a03311", "commit": "2a46a03311aa014e645f26bf4d8ad87ee590bf3a", "src": ["sqlglot/generators/clickhouse.py"], "failing": ["tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse"], "n_tests": 1099}
+{"id": "f62c3446d0", "commit": "f62c3446d0590daea30fed77264194b53b725d24", "src": ["sqlglot/dialects/dialect.py", "sqlglot/dialects/snowflake.py", "sqlglot/optimizer/qualify_columns.py"], "failing": [], "n_tests": 1098}
+{"id": "36785ce904", "commit": "36785ce904ada62355b19e774b1ccd33f145d900", "src": ["sqlglot/typing/postgres.py"], "failing": [], "n_tests": 1098}
+{"id": "f3b7c6cb73", "commit": "f3b7c6cb737c3d6c798f0c6b408ec8c9ffea6f4b", "src": ["sqlglot/expressions/string.py", "sqlglot/generators/dremio.py", "sqlglot/parsers/dremio.py"], "failing": [], "n_tests": 1097}
+{"id": "d89f392e08", "commit": "d89f392e089d13b8e217ca4501558d6da263eb4d", "src": ["sqlglot/dialects/mysql.py"], "failing": [], "n_tests": 1097}
+{"id": "86195827b8", "commit": "86195827b827a34d324d6e21e0076d20031fb8a6", "src": ["sqlglot/optimizer/annotate_types.py"], "failing": [], "n_tests": 1097}
