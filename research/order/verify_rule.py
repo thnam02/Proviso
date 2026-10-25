@@ -35,7 +35,7 @@ for d in sorted(glob.glob(os.path.join(O.SQ, "*"))):
     cov = json.load(open(os.path.join(O.S, "ripple", f"cov2_{tid}.json")))
     ok = O.ok_filter({k for k, v in O.SEL.I._junit(os.path.join(d, "base.xml")).items() if not v})
     truth = sorted(n for n, v in O.SEL.I._junit(os.path.join(d, "change.xml")).items() if not v and ok(n))
-    universe = {n for n in cov if n != "__global__" and ok(n)}
+    universe = {n for n in cov if not n.startswith("__") and ok(n)}
     check({"id": f"real:{tid}"}, os.path.join(d, "tree"), cov, universe, truth, stored[("real", "sqlglot", tid)])
 # planted
 allbugs = json.load(open(os.path.join(O.ROOT, "research", "ripple", "mutants2_scored.json")))
@@ -48,7 +48,7 @@ sets.append(("sympy-functions", os.path.join(O.S, "mut-sympy"), json.load(open(o
 g = lambda w, *a: subprocess.run(["git", *a], cwd=w, capture_output=True)
 for tag, work, cov, base, prefix, pkgs, bugs in sets:
     ok = O.ok_filter(base)
-    universe = {n for n in cov if n != "__global__" and ok(n) and n.startswith(prefix)}
+    universe = {n for n in cov if not n.startswith("__") and ok(n) and n.startswith(prefix)}
     shutil.rmtree(os.path.join(work, O.SEL.I.STATE_DIR), ignore_errors=True)
     ov = {(c[0], c[1], c[2]): c for c in O.M.override_candidates(work)} if any(b["kind"] == "override" for b in bugs) else {}
     for b in bugs:

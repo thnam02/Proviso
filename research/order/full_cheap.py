@@ -26,7 +26,7 @@ for d in sorted(os.listdir(O.SQ)):
     truth = sorted(n for n, v in O.SEL.I._junit(os.path.join(p, "change.xml")).items() if not v and ok(n))
     if truth:
         put(lambda r, d=d: r["dataset"] == "real" and r["change"] == d,
-            {n for n in cov if n != "__global__" and ok(n)}, truth, cov)
+            {n for n in cov if not n.startswith("__") and ok(n)}, truth, cov)
 allbugs = json.load(open(os.path.join(O.ROOT, "research", "ripple", "mutants2_scored.json")))
 sets = [(tid, json.load(open(os.path.join(O.S, "ripple", f"cov2_{tid}.json"))),
          {k for k, v in O.SEL.I._junit(os.path.join(O.SQ, tid, "base.xml")).items() if not v}, "",
@@ -36,7 +36,7 @@ sets.append(("sympy-functions", json.load(open(os.path.join(O.S, "cov_mut_sympy_
              json.load(open(os.path.join(O.ROOT, "research", "sympy", "mutants.json")))))
 for tag, cov, base, prefix, bugs in sets:
     ok = O.ok_filter(base)
-    universe = {n for n in cov if n != "__global__" and ok(n) and n.startswith(prefix)}
+    universe = {n for n in cov if not n.startswith("__") and ok(n) and n.startswith(prefix)}
     for b in bugs:
         truth = sorted(t for t in (b.get("failing_set") or b.get("failing") or []) if ok(t)) if b.get("killed") else []
         if truth:

@@ -89,7 +89,7 @@ def planted():
     base_fail = {k for k, v in base.items() if not v}
     bad = {k for k in base_fail if "::" not in k}
     ok = lambda n: n not in base_fail and n.split("::", 1)[0] not in bad
-    universe = {n for n in cov if n != "__global__" and ok(n) and n.startswith("sympy/functions/")}
+    universe = {n for n in cov if not n.startswith("__") and ok(n) and n.startswith("sympy/functions/")}
     bugs = json.load(open(os.path.join(ROOT, "research", "sympy", "mutants.json")))
     for b in bugs:
         if b.get("killed") is None:
@@ -124,7 +124,7 @@ def real():
         cov = json.load(open(os.path.join(a, "covmap.json")))
         base_fail = set(json.load(open(os.path.join(a, "base_failures.json"))))
         bad = {k for k in base_fail if "::" not in k}
-        universe = {n for n in cov if n != "__global__" and any(n.startswith(s + "/") for s in subs)
+        universe = {n for n in cov if not n.startswith("__") and any(n.startswith(s + "/") for s in subs)
                     and n not in base_fail and n.split("::", 1)[0] not in bad}
         if os.path.exists(f"/home/claude/cmp/sy/{tid}/done.v2"):
             continue

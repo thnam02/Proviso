@@ -18,7 +18,7 @@ for d in sorted(glob.glob(os.path.join(OUT, "*"))):
     base_fail = {k for k, ok in base.items() if not ok}
     bad_files = {k for k in base_fail if "::" not in k}
     ok_at_base = lambda n: n not in base_fail and n.split("::", 1)[0] not in bad_files
-    universe = {n for n in cov if n != "__global__" and ok_at_base(n)}
+    universe = {n for n in cov if not n.startswith("__") and ok_at_base(n)}
     truth = sorted(n for n, ok in change.items() if not ok and ok_at_base(n))
     ch = SEL.Change(os.path.join(d, "tree"), ["sqlglot"])
     pv = json.load(open(os.path.join(d, "proviso.json")))["selected"]

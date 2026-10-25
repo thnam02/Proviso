@@ -36,7 +36,7 @@ def ttff(order, truth, cov):
 def orders(sel, universe, cov, funcs):
     keyorder = {n: i for i, n in enumerate(cov)}           # the coverage map is recorded in pytest's order
     tm = lambda n: cov.get(n, {}).get("time", 0) or 0
-    hits = lambda n: len({tuple(x) for x in cov.get(n, {}).get("funcs", [])} & funcs)
+    hits = lambda n: len(SEL.I.test_funcs(cov, n) & funcs)
     full = sorted(universe, key=keyorder.get)
     s = sorted(sel, key=keyorder.get)
     return {"full_default": full, "sel_default": s, "sel_cheap": sorted(s, key=lambda n: (tm(n), keyorder[n])),
@@ -69,7 +69,7 @@ def real_sqlglot():
         truth = sorted(n for n, v in SEL.I._junit(os.path.join(d, "change.xml")).items() if not v and ok(n))
         if not truth:
             continue
-        universe = {n for n in cov if n != "__global__" and ok(n)}
+        universe = {n for n in cov if not n.startswith("__") and ok(n)}
         funcs, _ = SEL.Change(os.path.join(d, "tree"), ["sqlglot"]).units()
         sel = json.load(open(os.path.join(d, "proviso.json")))["selected"]
         yield score({"repo": "sqlglot", "dataset": "real", "change": tid}, sel, universe, truth, cov, funcs)
@@ -77,7 +77,7 @@ def real_sqlglot():
 
 def planted(repo, work, bugs, cov, base_fail, prefix, pkgs, tag):
     ok = ok_filter(base_fail)
-    universe = {n for n in cov if n != "__global__" and ok(n) and n.startswith(prefix)}
+    universe = {n for n in cov if not n.startswith("__") and ok(n) and n.startswith(prefix)}
     g = lambda *a: subprocess.run(["git", *a], cwd=work, capture_output=True)
     ov = {(c[0], c[1], c[2]): c for c in M.override_candidates(work)} if any(b["kind"] == "override" for b in bugs) \
         else {}

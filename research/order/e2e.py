@@ -20,7 +20,7 @@ WARM = {r["change"]: r["warm"] for r in json.load(open(os.path.join(HERE, "resul
 
 def plain_cov(cov, plain):
     """cov with plain times; the scale for missing tests is the plain/traced ratio over the tests in both."""
-    both = [n for n in cov if n != "__global__" and n in plain]
+    both = [n for n in cov if not n.startswith("__") and n in plain]
     ratio = sum(plain[n] for n in both) / max(1e-9, sum(cov[n].get("time", 0) or 0 for n in both))
     out = {}
     for n, v in cov.items():
@@ -53,7 +53,7 @@ def real_sqlglot():
         cov0 = json.load(open(os.path.join(O.S, "ripple", f"cov2_{d}.json")))
         ok = O.ok_filter({k for k, v in O.SEL.I._junit(os.path.join(p, "base.xml")).items() if not v})
         truth = sorted(n for n, v in O.SEL.I._junit(os.path.join(p, "change.xml")).items() if not v and ok(n))
-        universe = {n for n in cov0 if n != "__global__" and ok(n)}
+        universe = {n for n in cov0 if not n.startswith("__") and ok(n)}
         cov, ratio = plain_cov(cov0, PLAIN[d])
         funcs, _ = O.SEL.Change(os.path.join(p, "tree"), ["sqlglot"]).units()
         sel = json.load(open(os.path.join(p, "proviso.json")))["selected"]
@@ -64,7 +64,7 @@ def real_sqlglot():
 
 def planted(repo, work, bugs, cov0, base_fail, prefix, pkgs, tag):
     ok = O.ok_filter(base_fail)
-    universe = {n for n in cov0 if n != "__global__" and ok(n) and n.startswith(prefix)}
+    universe = {n for n in cov0 if not n.startswith("__") and ok(n) and n.startswith(prefix)}
     cov, ratio = plain_cov(cov0, PLAIN[tag])
     import shutil
     shutil.rmtree(os.path.join(work, O.SEL.I.STATE_DIR), ignore_errors=True)  # no cache from an earlier code version

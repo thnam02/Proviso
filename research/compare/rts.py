@@ -220,7 +220,9 @@ def testmon_cc(ch, universe, testmon_selected_cc=None, **_):
 # ------------------------------------------------------------------ Proviso and ablations
 
 def _always(cov, universe):
-    return {n for n in universe if cov.get(n, {}).get("always")}
+    fx = cov.get("__fixtures__") or {}
+    return {n for n in universe if cov.get(n, {}).get("always")
+            or any(fx.get(k, {}).get("always") for k in cov.get(n, {}).get("fx", []))}
 
 
 def func_only(ch, universe, cov=None, **_):
@@ -229,7 +231,7 @@ def func_only(ch, universe, cov=None, **_):
     funcs, _ = ch.units()
     if not funcs:
         return set()
-    return {n for n in universe if {tuple(x) for x in cov.get(n, {}).get("funcs", [])} & funcs} | _always(cov, universe)
+    return {n for n in universe if I.test_funcs(cov, n) & funcs} | _always(cov, universe)
 
 
 def func_file(ch, universe, cov=None, **_):
@@ -238,7 +240,7 @@ def func_file(ch, universe, cov=None, **_):
     funcs, outside = ch.units()
     out = func_only(ch, universe, cov=cov)
     if outside:
-        out |= {n for n in universe if any(f in outside for f, _ in cov.get(n, {}).get("funcs", []))}
+        out |= {n for n in universe if any(f in outside for f, _ in I.test_funcs(cov, n))}
         out |= _always(cov, universe)
     return out
 

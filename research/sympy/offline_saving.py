@@ -25,7 +25,7 @@ for f in sorted(glob.glob(os.path.join(sys.argv[1], "tasks", "*.json"))):
         src = G("show", f"{t['fix_commit']}:{p}").stdout
         open(os.path.join(d, p), "w").write(src)
     sel, why = I.selection(d, cov, sys.executable)
-    scope = [n for n in cov if n != "__global__" and any(n.startswith(s + "/") for s in t["subpackages"])]
+    scope = [n for n in cov if not n.startswith("__") and any(n.startswith(s + "/") for s in t["subpackages"])]
     chosen = set(scope) if sel is None else set(sel) & set(scope)
     tsum = lambda ns: sum(cov[n].get("time", 0) for n in ns)
     r = {"task": t["id"], "scope_tests": len(scope), "selected": len(chosen), "scope_time": round(tsum(scope), 1),

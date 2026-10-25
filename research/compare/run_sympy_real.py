@@ -23,7 +23,7 @@ for f in sorted(glob.glob(os.path.join(EVAL, "tasks", "*.json"))):
     cov = json.load(open(os.path.join(a, "covmap.json")))
     base_fail = set(json.load(open(os.path.join(a, "base_failures.json"))))
     bad_files = {k for k in base_fail if "::" not in k}
-    universe = {n for n in cov if n != "__global__" and any(n.startswith(s + "/") for s in subs)
+    universe = {n for n in cov if not n.startswith("__") and any(n.startswith(s + "/") for s in subs)
                 and n not in base_fail and n.split("::", 1)[0] not in bad_files}
     d = os.path.join(OUT, tid)
     tree = os.path.join(d, "tree")

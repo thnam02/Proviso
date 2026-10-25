@@ -74,7 +74,7 @@ def load(out):
 
 def planted(repo, tag, tree, cache, bugs, cov, base_fail, scope, pkg, out):
     ok = ok_filter(base_fail)
-    universe = {n for n in cov if n != "__global__" and ok(n)}
+    universe = {n for n in cov if not n.startswith("__") and ok(n)}
     if scope:
         universe = {n for n in universe if any(n.startswith(s + "/") for s in scope)}
     rows = load(out)
@@ -137,7 +137,7 @@ def main():
                 base = SEL.I._junit(os.path.join(d, "base.xml"))
                 change = SEL.I._junit(os.path.join(d, "change.xml"))
                 ok = ok_filter({k for k, v in base.items() if not v})
-                universe = {n for n in cov if n != "__global__" and ok(n)}
+                universe = {n for n in cov if not n.startswith("__") and ok(n)}
                 truth = sorted(n for n, v in change.items() if not v and ok(n))
                 reset(tree, "sqlglot")
                 diff = SEL.git(os.path.join(d, "tree"), "diff", "HEAD", "--binary", "--", "sqlglot")
@@ -167,7 +167,7 @@ def main():
             a = os.path.join(ev, "impact", t["id"])
             cov = json.load(open(os.path.join(a, "covmap.json")))
             ok = ok_filter(set(json.load(open(os.path.join(a, "base_failures.json")))))
-            universe = {n for n in cov if n != "__global__" and any(n.startswith(s + "/") for s in subs) and ok(n)}
+            universe = {n for n in cov if not n.startswith("__") and any(n.startswith(s + "/") for s in subs) and ok(n)}
             try:
                 tree, cache = base_tree(f"sy-{tid}", f"/home/claude/cmp/sy/{tid}/tree", "sympy", subs)
                 reset(tree, "sympy")

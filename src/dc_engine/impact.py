@@ -98,12 +98,74 @@ def _changed_old_lines(diff: str) -> dict[str, set[int]]:
     return out
 
 
+def tests_of(covmap: dict) -> dict:
+    """The per-test entries of a coverage map (keys like "__global__" and "__fixtures__" are not tests)."""
+    return {n: v for n, v in covmap.items() if not n.startswith("__")}
+
+
+def map_files(covmap: dict) -> set[str]:
+    """Every file with a recorded function: tests' own records, fixture records and the global record."""
+    out = {f for v in tests_of(covmap).values() for f, _ in v.get("funcs", [])}
+    out |= {f for r in (covmap.get("__fixtures__") or {}).values() for f, _ in r.get("funcs", [])}
+    out |= {f for f, _ in (covmap.get("__global__") or {}).get("funcs", [])}
+    return out
+
+
+def test_funcs(covmap: dict, node: str) -> set[tuple[str, int]]:
+    """Functions a test depends on: its own call, plus the fixture/setup/import/session records it is linked to (v2
+    maps); for analysis code, where building the union per test is affordable."""
+    v = covmap.get(node) or {}
+    fx = covmap.get("__fixtures__") or {}
+    out = {tuple(x) for x in v.get("funcs", [])}
+    for k in v.get("fx", []):
+        out |= {tuple(x) for x in fx.get(k, {}).get("funcs", [])}
+    return out
+
+
+class _DepView:
+    """Per-test dependencies of a coverage map, without building per-test unions (fixture records are shared by many
+    tests and can be large): a test reaches a set S if its own functions or one of its linked records reach S."""
+
+    def __init__(self, covmap: dict):
+        self.tests = tests_of(covmap)
+        self.fx = {k: ({tuple(x) for x in r.get("funcs", [])}, set(r.get("classes", [])), bool(r.get("always")))
+                   for k, r in (covmap.get("__fixtures__") or {}).items()}
+        self._own: dict = {}
+        self._memo: dict = {}
+
+    def own(self, node):
+        got = self._own.get(node)
+        if got is None:
+            got = self._own[node] = {tuple(x) for x in self.tests[node].get("funcs", [])}
+        return got
+
+    def reaches(self, node, s: set, tag) -> bool:
+        if not s:
+            return False
+        if self.own(node) & s:
+            return True
+        for k in self.tests[node].get("fx", ()):
+            m = (tag, k)
+            if m not in self._memo:
+                self._memo[m] = bool(k in self.fx and self.fx[k][0] & s)
+            if self._memo[m]:
+                return True
+        return False
+
+    def classes(self, node) -> set:
+        out = set(self.tests[node].get("classes") or [])
+        for k in self.tests[node].get("fx", ()):
+            if k in self.fx:
+                out |= self.fx[k][1]
+        return out
+
+    def always(self, node) -> bool:
+        v = self.tests[node]
+        return bool(v.get("always")) or any(self.fx.get(k, (None, None, False))[2] for k in v.get("fx", ()))
+
+
 def packages(covmap: dict) -> list[str]:
-    tops = set()
-    for v in covmap.values():
-        for f, _ in v["funcs"]:
-            tops.add(f.split("/", 1)[0])
-    return sorted(tops)
+    return sorted({f.split("/", 1)[0] for f in map_files(covmap)})
 
 
 IMPORT_STATE_MAX_NAMES = 200
@@ -350,7 +412,7 @@ def _import_state_effect(root: str, covmap: dict, python: str, changed_files: se
     import-time effect; None: unknown), and classes to treat as edited (they gained an attribute that is looked up
     by computed name, or their bases changed)."""
     from . import importstate
-    files = sorted({f for k, v in covmap.items() for f, _ in v["funcs"] if not _is_test_path(f)})
+    files = sorted(f for f in map_files(covmap) if not _is_test_path(f))
     base = importstate.base_snapshot(root, files, python, os.path.join(root, STATE_DIR, "importstate_base.json"))
     cur = importstate.snapshot(root, files, python) if base is not None else None
     if base is None or cur is None:
@@ -381,7 +443,8 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
                       tests reaching code that reads a changed name are added
     """
     python = python or sys.executable
-    pk = packages({k: v for k, v in covmap.items() if k != "__global__"})
+    pk = packages(covmap)
+    dep = _DepView(covmap)
     if not pk:
         return None, {"reason": "empty coverage map"}
     diff = _git(root, "diff", "-U0", "HEAD", "--", *pk)
@@ -411,13 +474,20 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
     # the edited functions alone already reach nearly all of the test time: the selection can only grow from here
     # (import-time readers are added, never removed), so run the full suite and skip the import-time snapshot
     if funcs and EARLY_FULL_SHARE < 1:
-        times = {n: (v.get("time") or 0) for n, v in covmap.items() if n != "__global__"}
+        times = {n: (v.get("time") or 0) for n, v in dep.tests.items()}
         total = sum(times.values())
-        reached = sum(t for n, t in times.items() if {tuple(x) for x in covmap[n]["funcs"]} & funcs)
+        reached = sum(t for n, t in times.items() if dep.reaches(n, funcs, "funcs"))
         if total > 0 and reached / total >= EARLY_FULL_SHARE:
             return None, {"reason": f"your edited functions run in {100 * reached / total:.0f}% of the test time",
                           "functions": len(funcs)}
     glob_funcs = {tuple(x) for x in (covmap.get("__global__") or {}).get("funcs", [])}
+    if funcs:
+        # functions that run while the package is imported, as recorded by the base snapshot itself (v2): an edit to
+        # one can change import-time state however the test runner happened to import the package
+        from . import importstate
+        files_all = sorted(f for f in map_files(covmap) if not _is_test_path(f))
+        base = importstate.base_snapshot(root, files_all, python, os.path.join(root, STATE_DIR, "importstate_base.json"))
+        glob_funcs |= {tuple(x) for x in (base or {}).get("import_funcs", [])}
     hit_global = sorted(funcs & glob_funcs)
     why: dict[str, Any] = {"functions": len(funcs), "files": sorted(module_level),
                            "changed_functions": sorted([f, ln] for f, ln in funcs)}
@@ -440,7 +510,7 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
     test_attrs_cls: dict[str, set[str]] = {}
     test_file_names: dict[str, set[str]] = {}
     if read_names:
-        idx = _name_index(root, sorted({f for k, v in covmap.items() for f, _ in v["funcs"]}))
+        idx = _name_index(root, sorted(map_files(covmap)))
         by_name: dict[str, set[tuple[str, int]]] = {}
         for fl, ns in idx.items():
             for n in ns:
@@ -467,7 +537,7 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
             callers = {fl for c in calls for fl in by_name.get(c, set())}
             return direct | callers
 
-        prefix = _layout_prefix({f for v in covmap.values() for f, _ in v["funcs"]})
+        prefix = _layout_prefix(map_files(covmap))
         for key in read_names:
             cls = _key_class(key, prefix)
             attr = key.rsplit(":", 1)[1].rsplit(".", 1)[-1]
@@ -481,21 +551,18 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
                     test_attrs_cls.setdefault(c, set()).add(attr)
     sel = []
     any_change = bool(funcs or module_level)
-    for node, v in covmap.items():
-        if node == "__global__":
-            continue
-        if any_change and v.get("always"):
+    for node in dep.tests:
+        if any_change and dep.always(node):
             sel.append(node)
             continue
-        if class_names and class_names & set(v.get("classes") or []):
+        used = dep.classes(node)
+        if class_names and class_names & used:
             sel.append(node)
             continue
-        tf = {tuple(x) for x in v["funcs"]}
-        if tf & funcs or tf & readers_any:
+        if dep.reaches(node, funcs, "funcs") or dep.reaches(node, readers_any, "readers"):
             sel.append(node)
             continue
-        used = set(v.get("classes") or [])
-        if readers_cls and any(tf & readers_cls[c] for c in used & readers_cls.keys()):
+        if readers_cls and any(dep.reaches(node, readers_cls[c], ("cls", c)) for c in used & readers_cls.keys()):
             sel.append(node)
             continue
         if test_attrs_any or test_attrs_cls:
@@ -901,7 +968,7 @@ def _new_input_ripple(root: str, cfg: dict[str, Any], probes: list, env: dict, s
     cur_p, base_p = os.path.join(d, "ripple_new_cur.json"), os.path.join(d, "ripple_new_base.json")
     import shutil
     import tempfile
-    tops = sorted({f.split("/", 1)[0] for v in (_asset(root, "covmap.json") or {}).values() for f, _ in v.get("funcs", [])})
+    tops = sorted({f.split("/", 1)[0] for f in map_files(_asset(root, "covmap.json") or {})})
     tmp = tempfile.mkdtemp(prefix="dc-ripple-base-")
     try:
         arch = subprocess.run(["git", "-C", root, "archive", "HEAD", *tops], capture_output=True)

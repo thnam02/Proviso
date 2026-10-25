@@ -347,7 +347,7 @@ def truth_worker(i, n):
 
 def universe_of(cov, base_fail):
     ok = ok_filter(base_fail)
-    return {n for n in cov if n != "__global__" and ok(n)}
+    return {n for n in cov if not n.startswith("__") and ok(n)}
 
 
 def score_all(tree, cov, universe, truth, plain, testmon_db, nr_cache, nr_tree=None):

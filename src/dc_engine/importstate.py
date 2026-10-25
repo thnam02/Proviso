@@ -29,7 +29,7 @@ import tempfile
 
 HERE = os.path.abspath(__file__)
 SNAPSHOT_TIMEOUT = 300
-FORMAT = 9  # bump when fingerprints change; cached base snapshots of another format are rebuilt
+FORMAT = 10  # bump when fingerprints change; cached base snapshots of another format are rebuilt
 # bookkeeping that changes whenever lines move, or that Python fills in itself
 IGNORED_CLASS_KEYS = {"__dict__", "__weakref__", "__doc__", "__module__", "__qualname__", "__annotations__",
                       "__firstlineno__", "__static_attributes__", "__annotate__", "__annotate_func__",
@@ -85,6 +85,21 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
     pad_bytes = [bytearray(64 * (i % 7 + 1)) for i in range(int(os.environ.get("DC_HEAP_PAD", "0")) // 3)]  # noqa: F841
     mods = {}
     errors = {}
+    # which package functions run while the package is imported: an edit to one of them can change import-time state
+    # (recorded here, independent of when a test runner happens to import the package)
+    base_dir = os.path.realpath(tree)
+    wanted = {os.path.join(base_dir, f) for f in files}
+    import_funcs: set = set()
+    mon = getattr(sys, "monitoring", None)
+    if mon is not None:
+        def _seen(code, offset):
+            fn = code.co_filename if code.co_filename in wanted else os.path.realpath(code.co_filename)
+            if fn in wanted:
+                import_funcs.add((os.path.relpath(fn, base_dir), code.co_firstlineno))
+            return mon.DISABLE
+        mon.use_tool_id(4, "proviso-importstate")
+        mon.register_callback(4, mon.events.PY_START, _seen)
+        mon.set_events(4, mon.events.PY_START)
     for rel in files:
         name = _module_name(rel)
         if not name:
@@ -93,6 +108,9 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             mods[name] = importlib.import_module(name)
         except BaseException as e:  # noqa: BLE001
             errors[name] = type(e).__name__
+    if mon is not None:
+        mon.set_events(4, 0)
+        mon.free_tool_id(4)
 
     def code_hash(co, h):
         h.update(co.co_code)
@@ -256,7 +274,8 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             out[f"{name}:{k}"] = one(v)
             if isinstance(v, type) and v.__module__ == name and v.__qualname__ == k:
                 do_class(name, v, k)
-    json.dump({"state": out, "overrides": sorted(overrides), "errors": errors}, open(out_path, "w"))
+    json.dump({"state": out, "overrides": sorted(overrides), "errors": errors,
+               "import_funcs": sorted(import_funcs)}, open(out_path, "w"))
 
 
 def snapshot(tree: str, files: list[str], python: str, heap_pad: int = 0) -> dict | None:

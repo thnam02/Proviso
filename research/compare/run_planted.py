@@ -35,7 +35,7 @@ def testmon_select(tree, db, target):
 def run(repo, work, bugs, cov, db, base_fail, target, roots, pkgs, out_path, tag, db_cc=None):
     bad_files = {k for k in base_fail if "::" not in k}
     ok_at_base = lambda n: n not in base_fail and n.split("::", 1)[0] not in bad_files
-    universe = {n for n in cov if n != "__global__" and ok_at_base(n)}
+    universe = {n for n in cov if not n.startswith("__") and ok_at_base(n)}
     if target != "tests":
         universe = {n for n in universe if n.startswith(target + "/")}
     rows = json.load(open(out_path)) if os.path.exists(out_path) else []
