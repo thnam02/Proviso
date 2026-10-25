@@ -46,7 +46,9 @@ REPOS = {
     "sqlglot": dict(url="https://github.com/tobymao/sqlglot.git", commit="7f1cf60c884868a295f76dfd42745b931dd9cfbb",
                     pkg="sqlglot", targets=["tests"], mutate=None, test_dirs="tests", pythonpath=[],
                     pytest_args=[], before_test="", nr_repo="sqlglot", pip=[]),
-    "sympy": dict(url="https://github.com/sympy/sympy.git", commit="22c8c1f738c7ce7c2c2101a9f1255d8e42fcc6cd",
+    # a real upstream commit (the base of one of the earlier sympy fix tasks); the hash used before named a local
+    # snapshot that never existed on GitHub
+    "sympy": dict(url="https://github.com/sympy/sympy.git", commit="01c75e920fe969c9cbc4e2723ae7ceef89394a7f",
                   pkg="sympy", targets=["sympy/functions"], mutate=["functions", "core"], test_dirs="tests",
                   pythonpath=[], pytest_args=["-o", "addopts=", "-p", "noslow"],
                   before_test="sympy.core.cache:clear_cache", nr_repo="sympy", pip=["mpmath"]),
