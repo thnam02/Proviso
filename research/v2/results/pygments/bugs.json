@@ -1,0 +1,667 @@
+[
+ {
+  "id": "function:pygments/lexers/markup.py:1013",
+  "kind": "function",
+  "file": "pygments/lexers/markup.py",
+  "line": 1013,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/dsls.py:896",
+  "kind": "function",
+  "file": "pygments/lexers/dsls.py",
+  "line": 896,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/bibtex.py:47",
+  "kind": "function",
+  "file": "pygments/lexers/bibtex.py",
+  "line": 47,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexer.py:952",
+  "kind": "function",
+  "file": "pygments/lexer.py",
+  "line": 952,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/pascal.py:493",
+  "kind": "function",
+  "file": "pygments/lexers/pascal.py",
+  "line": 493,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/php.py:119",
+  "kind": "function",
+  "file": "pygments/lexers/php.py",
+  "line": 119,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/markup.py:274",
+  "kind": "function",
+  "file": "pygments/lexers/markup.py",
+  "line": 274,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/scripting.py:1441",
+  "kind": "function",
+  "file": "pygments/lexers/scripting.py",
+  "line": 1441,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/data.py:482",
+  "kind": "function",
+  "file": "pygments/lexers/data.py",
+  "line": 482,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/esoteric.py:62",
+  "kind": "function",
+  "file": "pygments/lexers/esoteric.py",
+  "line": 62,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/lisp.py:2436",
+  "kind": "function",
+  "file": "pygments/lexers/lisp.py",
+  "line": 2436,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/scripting.py:1439",
+  "kind": "function",
+  "file": "pygments/lexers/scripting.py",
+  "line": 1439,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/style.py:99",
+  "kind": "function",
+  "file": "pygments/style.py",
+  "line": 99,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/style.py:103",
+  "kind": "function",
+  "file": "pygments/style.py",
+  "line": 103,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/dsls.py:908",
+  "kind": "function",
+  "file": "pygments/lexers/dsls.py",
+  "line": 908,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/modula2.py:1550",
+  "kind": "function",
+  "file": "pygments/lexers/modula2.py",
+  "line": 1550,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/formatters/rtf.py:306",
+  "kind": "function",
+  "file": "pygments/formatters/rtf.py",
+  "line": 306,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/formatters/terminal256.py:53",
+  "kind": "function",
+  "file": "pygments/formatters/terminal256.py",
+  "line": 53,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/formatters/rtf.py:336",
+  "kind": "function",
+  "file": "pygments/formatters/rtf.py",
+  "line": 336,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/configs.py:80",
+  "kind": "function",
+  "file": "pygments/lexers/configs.py",
+  "line": 80,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/formatters/terminal.py:86",
+  "kind": "function",
+  "file": "pygments/formatters/terminal.py",
+  "line": 86,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/_php_builtins.py:3313",
+  "kind": "function",
+  "file": "pygments/lexers/_php_builtins.py",
+  "line": 3313,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexer.py:838",
+  "kind": "function",
+  "file": "pygments/lexer.py",
+  "line": 838,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/dsls.py:892",
+  "kind": "function",
+  "file": "pygments/lexers/dsls.py",
+  "line": 892,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/perl.py:529",
+  "kind": "function",
+  "file": "pygments/lexers/perl.py",
+  "line": 529,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/robotframework.py:538",
+  "kind": "function",
+  "file": "pygments/lexers/robotframework.py",
+  "line": 538,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/templates.py:724",
+  "kind": "function",
+  "file": "pygments/lexers/templates.py",
+  "line": 724,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexer.py:831",
+  "kind": "function",
+  "file": "pygments/lexer.py",
+  "line": 831,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/scripting.py:1471",
+  "kind": "function",
+  "file": "pygments/lexers/scripting.py",
+  "line": 1471,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/formatters/html.py:805",
+  "kind": "function",
+  "file": "pygments/formatters/html.py",
+  "line": 805,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/scripting.py:464",
+  "kind": "function",
+  "file": "pygments/lexers/scripting.py",
+  "line": 464,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/javascript.py:755",
+  "kind": "function",
+  "file": "pygments/lexers/javascript.py",
+  "line": 755,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexer.py:741",
+  "kind": "function",
+  "file": "pygments/lexer.py",
+  "line": 741,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/_sourcemod_builtins.py:1129",
+  "kind": "function",
+  "file": "pygments/lexers/_sourcemod_builtins.py",
+  "line": 1129,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/data.py:605",
+  "kind": "function",
+  "file": "pygments/lexers/data.py",
+  "line": 605,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/mime.py:175",
+  "kind": "function",
+  "file": "pygments/lexers/mime.py",
+  "line": 175,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/formatters/groff.py:157",
+  "kind": "function",
+  "file": "pygments/formatters/groff.py",
+  "line": 157,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/formatters/img.py:159",
+  "kind": "function",
+  "file": "pygments/formatters/img.py",
+  "line": 159,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/util.py:193",
+  "kind": "function",
+  "file": "pygments/util.py",
+  "line": 193,
+  "op": "flip"
+ },
+ {
+  "id": "function:pygments/lexers/pascal.py:437",
+  "kind": "function",
+  "file": "pygments/lexers/pascal.py",
+  "line": 437,
+  "op": "flip"
+ },
+ {
+  "id": "class:pygments/lexers/haxe.py:583",
+  "kind": "class",
+  "file": "pygments/lexers/haxe.py",
+  "line": 583,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/grammar_notation.py:257",
+  "kind": "class",
+  "file": "pygments/lexers/grammar_notation.py",
+  "line": 257,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/filters/__init__.py:597",
+  "kind": "class",
+  "file": "pygments/filters/__init__.py",
+  "line": 597,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/javascript.py:1281",
+  "kind": "class",
+  "file": "pygments/lexers/javascript.py",
+  "line": 1281,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/stata_dark.py:39",
+  "kind": "class",
+  "file": "pygments/styles/stata_dark.py",
+  "line": 39,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/coffee.py:48",
+  "kind": "class",
+  "file": "pygments/styles/coffee.py",
+  "line": 48,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/filters/__init__.py:227",
+  "kind": "class",
+  "file": "pygments/filters/__init__.py",
+  "line": 227,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/stata_light.py:35",
+  "kind": "class",
+  "file": "pygments/styles/stata_light.py",
+  "line": 35,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/default.py:69",
+  "kind": "class",
+  "file": "pygments/styles/default.py",
+  "line": 69,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/gh_dark.py:82",
+  "kind": "class",
+  "file": "pygments/styles/gh_dark.py",
+  "line": 82,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/markup.py:1659",
+  "kind": "class",
+  "file": "pygments/lexers/markup.py",
+  "line": 1659,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/nord.py:57",
+  "kind": "class",
+  "file": "pygments/styles/nord.py",
+  "line": 57,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/lean.py:58",
+  "kind": "class",
+  "file": "pygments/lexers/lean.py",
+  "line": 58,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/pddl.py:51",
+  "kind": "class",
+  "file": "pygments/lexers/pddl.py",
+  "line": 51,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/filters/__init__.py:554",
+  "kind": "class",
+  "file": "pygments/filters/__init__.py",
+  "line": 554,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/configs.py:345",
+  "kind": "class",
+  "file": "pygments/lexers/configs.py",
+  "line": 345,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/asm.py:934",
+  "kind": "class",
+  "file": "pygments/lexers/asm.py",
+  "line": 934,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/autumn.py:61",
+  "kind": "class",
+  "file": "pygments/styles/autumn.py",
+  "line": 61,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/emacs.py:65",
+  "kind": "class",
+  "file": "pygments/styles/emacs.py",
+  "line": 65,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/emacs.py:43",
+  "kind": "class",
+  "file": "pygments/styles/emacs.py",
+  "line": 43,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/jvm.py:1150",
+  "kind": "class",
+  "file": "pygments/lexers/jvm.py",
+  "line": 1150,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/lilypond.py:44",
+  "kind": "class",
+  "file": "pygments/styles/lilypond.py",
+  "line": 44,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/json5.py:59",
+  "kind": "class",
+  "file": "pygments/lexers/json5.py",
+  "line": 59,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/murphy.py:56",
+  "kind": "class",
+  "file": "pygments/styles/murphy.py",
+  "line": 56,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/algol.py:54",
+  "kind": "class",
+  "file": "pygments/styles/algol.py",
+  "line": 54,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/filters/__init__.py:546",
+  "kind": "class",
+  "file": "pygments/filters/__init__.py",
+  "line": 546,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/snobol.py:66",
+  "kind": "class",
+  "file": "pygments/lexers/snobol.py",
+  "line": 66,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/filters/__init__.py:239",
+  "kind": "class",
+  "file": "pygments/filters/__init__.py",
+  "line": 239,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/lexers/int_fiction.py:1281",
+  "kind": "class",
+  "file": "pygments/lexers/int_fiction.py",
+  "line": 1281,
+  "op": "delete"
+ },
+ {
+  "id": "class:pygments/styles/perldoc.py:67",
+  "kind": "class",
+  "file": "pygments/styles/perldoc.py",
+  "line": 67,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:185",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 185,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:584",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 584,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/style.py:22",
+  "kind": "module",
+  "file": "pygments/style.py",
+  "line": 22,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/styles/_mapping.py:37",
+  "kind": "module",
+  "file": "pygments/styles/_mapping.py",
+  "line": 37,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:7",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 7,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:192",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 192,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:222",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 222,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:240",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 240,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/token.py:211",
+  "kind": "module",
+  "file": "pygments/token.py",
+  "line": 211,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_php_builtins.py:480",
+  "kind": "module",
+  "file": "pygments/lexers/_php_builtins.py",
+  "line": 480,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:171",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 171,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:405",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 405,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:583",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 583,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/token.py:169",
+  "kind": "module",
+  "file": "pygments/token.py",
+  "line": 169,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/css.py:347",
+  "kind": "module",
+  "file": "pygments/lexers/css.py",
+  "line": 347,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:472",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 472,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/styles/solarized.py:85",
+  "kind": "module",
+  "file": "pygments/styles/solarized.py",
+  "line": 85,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:366",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 366,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:205",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 205,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:150",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 150,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:559",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 559,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:325",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 325,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:179",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 179,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:234",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 234,
+  "op": "delete"
+ },
+ {
+  "id": "module:pygments/lexers/_mapping.py:102",
+  "kind": "module",
+  "file": "pygments/lexers/_mapping.py",
+  "line": 102,
+  "op": "delete"
+ }
+]
