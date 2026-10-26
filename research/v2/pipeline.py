@@ -64,7 +64,10 @@ REPOS = {
     # held out (an application, not a library): pinned 2026-10-26 before any run; only its packaging file was read
     "datasette": dict(url="https://github.com/simonw/datasette.git", commit="a8e13cc489b41f2f9a5aa691f5eb1bedf99a0e0b",
                       pkg="datasette", targets=["tests"], mutate=None, test_dirs="tests", pythonpath=[],
-                      pytest_args=[], before_test="", nr_repo="datasette", pip=[]),
+                      pytest_args=[], before_test="", nr_repo="datasette", pip=[],
+                      # its tests hang under an address-space cap (async server, threads reserve address space):
+                      # no cap for this repository; the per-run timeout still guards against runaway bugs
+                      mem_limit_gb=0),
 }
 PER_KIND = {"function": 2, "class": 2, "module": 2} if SMOKE else {"function": 40, "class": 30, "module": 25}
 SCAN_COMMITS = 6 if SMOKE else 250
@@ -158,14 +161,18 @@ def reset(tree):
 PLUG = os.path.join(HERE, "plug")
 
 
-MEM_LIMIT_GB = float(os.environ.get("PROVISO_MEM_LIMIT_GB", "10"))
+def mem_limit_gb():
+    """Address-space cap per test run, GB (0 = none): PROVISO_MEM_LIMIT_GB if set, else the repository's
+    mem_limit_gb, else 10."""
+    v = os.environ.get("PROVISO_MEM_LIMIT_GB")
+    return float(v) if v not in (None, "") else float(CFG.get("mem_limit_gb", 10))
 
 
 def _limit_memory():
     # a planted bug can make a test allocate without bound (one pygments bug reached 23 GB): cap the address space
     # of each test run, so such a run fails (and its tests count as failing) instead of exhausting the machine
     import resource
-    lim = int(MEM_LIMIT_GB * 2 ** 30)
+    lim = int(mem_limit_gb() * 2 ** 30)
     resource.setrlimit(resource.RLIMIT_AS, (lim, lim))
 
 
@@ -177,7 +184,7 @@ def run_tests(tree, out, targets=None, timeout=int(os.environ.get("PROVISO_TEST_
     # a hang raises TimeoutExpired: the caller leaves that change out (its ground truth is unknown), as before
     subprocess.run([PY, "-m", "pytest", "-p", "no:cacheprovider", "-p", "outcomes", *PYTEST, *CFG["pytest_args"],
                     *(targets or CFG["targets"])], cwd=tree, env=e, capture_output=True, timeout=timeout,
-                   preexec_fn=_limit_memory if MEM_LIMIT_GB > 0 else None)
+                   preexec_fn=_limit_memory if mem_limit_gb() > 0 else None)
     return jload(out, {})
 
 
