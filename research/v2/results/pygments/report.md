@@ -1,37 +1,37 @@
 # pygments (156d85fdd1; targets tests)
 
-## Planted bugs: 94 changes, 56 break tests (714 failing tests)
+## Planted bugs: 94 changes, 56 break tests (700 failing tests); 14 flaky failures dropped (passed when re-run)
 
 | selector | changes with a missed failure | failing tests missed | test time selected, mean (median) |
 |---|---|---|---|
-| retest_all | 44 of 56 | 204 | 100.0% (100.0%) |
-| name_match | 56 of 56 | 713 | 0.0% (0.0%) |
-| static_imports | 55 of 56 | 561 | 34.0% (0.0%) |
-| file_coverage | 56 of 56 | 714 | 0.0% (0.0%) |
-| testmon | 44 of 56 | 204 | 100.0% (100.0%) |
-| func_only | 47 of 56 | 534 | 3.8% (0.0%) |
-| func_file | 46 of 56 | 528 | 9.5% (4.5%) |
-| proviso | 44 of 56 | 205 | 30.9% (7.6%) |
-| namerts | 56 of 56 | 590 | 15.2% (0.0%) |
-| tdad | 56 of 56 | 628 | 7.1% (0.3%) |
-| tdad_nocap | 56 of 56 | 626 | 15.2% (0.3%) |
+| retest_all | 0 of 56 | 0 | 100.0% (100.0%) |
+| name_match | 56 of 56 | 699 | 0.0% (0.0%) |
+| static_imports | 18 of 56 | 356 | 79.1% (68.3%) |
+| file_coverage | 56 of 56 | 700 | 0.0% (0.0%) |
+| testmon | 0 of 56 | 0 | 100.0% (100.0%) |
+| func_only | 31 of 56 | 411 | 2.1% (0.0%) |
+| func_file | 22 of 56 | 390 | 6.0% (1.6%) |
+| proviso | 0 of 56 | 0 | 28.4% (2.8%) |
+| namerts | 56 of 56 | 588 | 4.8% (0.0%) |
+| tdad | 56 of 56 | 629 | 2.3% (0.1%) |
+| tdad_nocap | 56 of 56 | 627 | 4.8% (0.1%) |
 
-End to end (plain s): full suite median 2.5; Proviso median 1.1, mean 1.5; faster on 70 of 94; selection median 1.00 s
+End to end (plain s): full suite median 7.9; Proviso median 1.1, mean 2.9; faster on 72 of 94; selection median 0.96 s
 
-## Real commits: 53 changes, 34 break tests (62 failing tests)
+## Real commits: 54 changes, 29 break tests (57 failing tests); 5 flaky failures dropped (passed when re-run)
 
 | selector | changes with a missed failure | failing tests missed | test time selected, mean (median) |
 |---|---|---|---|
-| retest_all | 27 of 34 | 52 | 100.0% (100.0%) |
-| name_match | 34 of 34 | 62 | 0.1% (0.0%) |
-| static_imports | 32 of 34 | 60 | 12.9% (0.0%) |
-| file_coverage | 33 of 34 | 61 | 0.9% (0.0%) |
-| testmon | 27 of 34 | 52 | 89.5% (100.0%) |
-| func_only | 31 of 34 | 59 | 1.7% (0.0%) |
-| func_file | 31 of 34 | 59 | 12.9% (8.2%) |
-| proviso | 30 of 34 | 56 | 24.1% (7.4%) |
-| namerts | 34 of 34 | 62 | 3.8% (0.0%) |
-| tdad | 34 of 34 | 62 | 4.3% (1.0%) |
-| tdad_nocap | 34 of 34 | 62 | 6.4% (1.0%) |
+| retest_all | 1 of 29 | 2 | 100.0% (100.0%) |
+| name_match | 29 of 29 | 57 | 0.0% (0.0%) |
+| static_imports | 3 of 29 | 7 | 65.2% (66.8%) |
+| file_coverage | 28 of 29 | 56 | 0.8% (0.0%) |
+| testmon | 1 of 29 | 2 | 100.0% (100.0%) |
+| func_only | 24 of 29 | 50 | 1.4% (0.0%) |
+| func_file | 1 of 29 | 12 | 9.7% (4.2%) |
+| proviso | 1 of 29 | 3 | 19.5% (3.1%) |
+| namerts | 29 of 29 | 57 | 2.2% (0.0%) |
+| tdad | 29 of 29 | 57 | 1.5% (0.4%) |
+| tdad_nocap | 29 of 29 | 57 | 2.2% (0.4%) |
 
-End to end (plain s): full suite median 3.1; Proviso median 1.3, mean 1.9; faster on 44 of 53; selection median 1.07 s
+End to end (plain s): full suite median 9.5; Proviso median 1.5, mean 2.9; faster on 46 of 54; selection median 1.23 s
