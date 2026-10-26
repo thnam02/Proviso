@@ -550,23 +550,44 @@ def realeval_worker(i, n):
 
 # ---------------------------------------------------------------------------------------------------- flaky tests
 
+DFL = "deflake2"   # rows of the flaky-test check; "deflake" rows (first version: re-ran test ids, which pytest cannot
+                   # always address, e.g. SQLAlchemy's per-backend classes, and then counted unrun tests as passing)
+                   # are ignored
+
+
 def _rerun_targets(names):
-    """pytest targets for test ids: an id as is; a file-level entry (collection error, or a data-file test whose
-    id ends in '::') as its file."""
+    """pytest targets: the files of the failing tests (test ids are not always addressable on the command line: a
+    test class generated at collection, a parameter id; one unknown id makes pytest run nothing)."""
     out = []
     for n in names:
-        f, _, rest = n.partition("::")
-        t = n if rest else f
-        if t not in out:
-            out.append(t)
+        f = n.split("::", 1)[0]
+        if f not in out:
+            out.append(f)
     return out
+
+
+def _still_failing(names, out):
+    """The failures that are not shown flaky: a test is flaky only if it ran again and passed; a test absent from the
+    re-run counts as failing (unknown is not evidence of flakiness). A file-level entry (collection error) is flaky
+    only if the file's tests ran and all passed."""
+    conf = []
+    for t in names:
+        if t in out:
+            if not out[t][0]:
+                conf.append(t)
+            continue
+        f = t.split("::", 1)[0]
+        ran = [ok for n, (ok, _) in out.items() if n.split("::", 1)[0] == f]
+        if not ran or not all(ran):
+            conf.append(t)
+    return sorted(conf)
 
 
 def deflake_worker(i, n):
     """Re-run each change's failing tests once more on the changed tree; a test counts as broken by the change only
     if it fails again. Tests that pass on the re-run are flaky (e.g. two parallel runs racing on a fixed /tmp path)
     and are dropped from scoring. Planted bugs: rows of 'truth'; real commits: rows of 'mine'."""
-    done = set(merged("deflake"))
+    done = set(merged(DFL))
     tree = make_tree(f"w{i}", CFG["commit"])
     jobs = [("truth", r) for r in merged("truth").values()] + [("mine", r) for r in merged("mine").values()]
     for stage, r in [j for j in jobs if j[1].get("failing") and f"{j[0]}:{j[1]['id']}" not in done][i::n]:
@@ -578,12 +599,10 @@ def deflake_worker(i, n):
                 tree = make_tree(f"w{i}", r["commit"] + "^")
                 apply_commit_src(tree, r)
             out = run_tests(tree, os.path.join(WORK, f"deflake_w{i}.json"), _rerun_targets(r["failing"]))
-            still = failing(out)
-            # a file-level entry is confirmed if its file still fails to collect or any of its tests fail
-            conf = sorted(t for t in r["failing"] if t in still or
-                          ("::" not in t or t.endswith("::")) and any(x.split("::", 1)[0] == t.split("::", 1)[0]
-                                                                      for x in still))
-            append("deflake", i, {"id": key, "confirmed": conf, "flaky": sorted(set(r["failing"]) - set(conf))})
+            if not out:
+                raise RuntimeError("re-run produced no test outcomes")
+            conf = _still_failing(r["failing"], out)
+            append(DFL, i, {"id": key, "confirmed": conf, "flaky": sorted(set(r["failing"]) - set(conf))})
         except Exception as e:  # noqa: BLE001
             print(key, "ERROR", repr(e)[:300], flush=True)
         finally:
@@ -593,7 +612,7 @@ def deflake_worker(i, n):
 def deflake():
     jobs = [r for st in ("truth", "mine") for r in merged(st).values() if r.get("failing")]
     parallel("deflake", jobs)
-    rows = merged("deflake")
+    rows = merged(DFL)
     fl = sorted({t for r in rows.values() for t in r["flaky"]})
     log("deflake:", len(rows), "changes re-checked;", sum(bool(r["flaky"]) for r in rows.values()),
         "had flaky failures;", len(fl), "distinct flaky tests", fl[:10])
@@ -601,7 +620,7 @@ def deflake():
 
 def _confirmed(rows, stage):
     """Score only confirmed failures: truth count and missed lists restricted to the tests that failed again."""
-    dfl = merged("deflake")
+    dfl = merged(DFL)
     if not dfl:
         return rows
     src = "truth" if stage == "select" else "mine"
@@ -681,9 +700,20 @@ def jdump_lines(rows, p):
 
 # ---------------------------------------------------------------------------------------------------- TDAD baseline
 
+TDAD_SKIP = {
+    # TDAD's link_tests adds an edge from every test to every function of every file its test file imports; on sympy
+    # (13,217 tests, 36,003 functions) its memory grew past 23 GB (WSL, 2026-10-26) and ~1.2 GB per 10 s in a re-check;
+    # TDAD is run unmodified, so it is reported as not completing here
+    "sympy": "did not complete: TDAD's test linking ran out of memory (over 23 GB)",
+}
+
+
 def tdad():
     """Add TDAD's selections (as published: cap 50; and uncapped) to the planted and real rows. TDAD is static and
     needs only the base code and the changed files, so no test is run here."""
+    if REPO in TDAD_SKIP:
+        log("TDAD skipped:", TDAD_SKIP[REPO])
+        return
     import tdad_select as T
     base = baseline()
     plain = {k: t for k, (ok, t) in base.items()}
@@ -744,6 +774,8 @@ def report():
                   f"median {st.median(tot(r) for r in pv):.1f}, mean {st.mean(tot(r) for r in pv):.1f}; faster on "
                   f"{sum(tot(r) < r['full_s'] for r in pv)} of {len(pv)}; selection median "
                   f"{st.median(r['selectors']['proviso']['selection_s'] for r in pv):.2f} s", ""]
+    if REPO in TDAD_SKIP:
+        lines += [f"TDAD: {TDAD_SKIP[REPO]}", ""]
     open(os.path.join(RES, "report.md"), "w").write("\n".join(lines))
     print("\n".join(lines))
 
