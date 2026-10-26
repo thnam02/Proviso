@@ -1,0 +1,9 @@
+{"id": "truth:class:sqlglot/expressions/math.py:114", "confirmed": ["tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake"], "flaky": []}
+{"id": "truth:function:sqlglot/parser.py:4310", "confirmed": ["tests/dialects/test_postgres.py::TestPostgres::test_postgres", "tests/dialects/test_risingwave.py::TestRisingWave::test_risingwave"], "flaky": []}
+{"id": "truth:class:sqlglot/generators/redshift.py:88", "confirmed": ["tests/dialects/test_redshift.py::TestRedshift::test_identity"], "flaky": []}
+{"id": "truth:class:sqlglot/dialects/spark.py:32", "confirmed": ["tests/dialects/test_databricks.py::TestDatabricks::test_databricks"], "flaky": []}
+{"id": "truth:class:sqlglot/generators/duckdb.py:1695", "confirmed": ["tests/dialects/test_clickhouse.py::TestClickhouse::test_clickhouse", "tests/dialects/test_duckdb.py::TestDuckDB::test_isinf", "tests/dialects/test_snowflake.py::TestSnowflake::test_snowflake"], "flaky": []}
+{"id": "truth:class:sqlglot/expressions/ddl.py:252", "confirmed": ["tests/dialects/test_hive.py::TestHive::test_ddl", "tests/dialects/test_spark.py::TestSpark::test_ddl", "tests/test_parser.py::TestParser::test_text_match_excludes_delimited_tokens"], "flaky": []}
+{"id": "mine:a7fcf9e07f", "confirmed": ["tests/dialects/test_tsql.py::TestTSQL::test_tsql"], "flaky": []}
+{"id": "mine:5fe5606b90", "confirmed": ["tests/dialects/test_postgres.py::TestPostgres::test_postgres"], "flaky": []}
+{"id": "mine:8efda2c6ce", "confirmed": ["tests/test_parser.py::TestParser::test_parse_drop_schema"], "flaky": []}
