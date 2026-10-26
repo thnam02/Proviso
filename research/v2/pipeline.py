@@ -20,6 +20,7 @@ Env: PROVISO_WORK, PROVISO_WORKERS, PROVISO_NR_WORKERS, V2_SMOKE=1 (a few bugs/c
 from __future__ import annotations
 
 import glob
+import sqlite3
 import json
 import os
 import random
@@ -237,17 +238,43 @@ def covmap(tree=None, out=None, workers=None):
     return jload(out)
 
 
+def _testmon_ok(db):
+    """A usable testmon database: it has recorded test executions (an interrupted or failed run leaves an empty
+    file, which was then reused)."""
+    try:
+        c = sqlite3.connect(db)
+        n = c.execute("select count(*) from test_execution").fetchone()[0]
+        c.close()
+        return n > 0
+    except (sqlite3.Error, OSError):
+        return False
+
+
 def testmon(tree=None, db=None):
+    """The testmon database of a tree (recorded once); None if testmon records nothing there (its two selectors,
+    testmon and file_coverage, are then left out for this tree and the reason is in WORK/testmon.log)."""
     db = db or os.path.join(WORK, "testmondata.base")
+    if os.path.exists(db) and not _testmon_ok(db):
+        log("testmon database without executions, re-recording:", db)
+        os.remove(db)
     if not os.path.exists(db):
         tree = tree or make_tree("base", CFG["commit"])
         reset(tree)
         t = time.time()
-        subprocess.run([PY, "-m", "pytest", "--testmon", "-p", "no:randomly", "--tb=no", "-q",
-                        "--continue-on-collection-errors", *CFG["pytest_args"], *CFG["targets"]], cwd=tree,
-                       env=env(tree, [PLUG]), capture_output=True, timeout=7200)
-        shutil.move(os.path.join(tree, ".testmondata"), db)
+        r = subprocess.run([PY, "-m", "pytest", "--testmon", "-p", "no:randomly", "--tb=no", "-q",
+                            "--continue-on-collection-errors", *CFG["pytest_args"], *CFG["targets"]], cwd=tree,
+                           env=env(tree, [PLUG]), capture_output=True, text=True, timeout=7200)
         shutil.rmtree(os.path.join(tree, ".pytest_cache"), ignore_errors=True)
+        made = os.path.join(tree, ".testmondata")
+        if not (os.path.exists(made) and _testmon_ok(made)):
+            if os.path.exists(made):
+                os.remove(made)
+            with open(os.path.join(WORK, "testmon.log"), "a") as fh:
+                fh.write(f"== {tree} {time.strftime('%F %T')}: testmon recorded no executions\n"
+                         f"{r.stdout[-3000:]}\n{r.stderr[-3000:]}\n")
+            log("testmon recorded nothing in", tree, "(see testmon.log); testmon and file_coverage left out")
+            return None
+        shutil.move(made, db)
         log("testmon db", round(time.time() - t), "s")
     return db
 
@@ -407,6 +434,24 @@ def truth_worker(i, n):
 
 # ---------------------------------------------------------------------------------------------------- selection
 
+def truth_failing(b, universe):
+    """Failing tests of a planted bug; a bug after which the suite produces no outcome at all (it cannot start, or the
+    run is killed at the memory cap) breaks every test."""
+    return sorted(universe) if b.get("n_tests") == 0 else b["failing"]
+
+
+def drop_crash_rows():
+    """Selection rows scored before truth_failing (a suite crash scored as breaking nothing) are removed, so the
+    select stage scores them again."""
+    tr = merged("truth")
+    for p in glob.glob(os.path.join(RES, "select.w*.jsonl")):
+        rows = [json.loads(l) for l in open(p) if l.strip()]
+        keep = [r for r in rows if not (tr.get(r["id"], {}).get("n_tests") == 0 and r["truth"] == 0)]
+        if len(keep) < len(rows):
+            jdump_lines(keep, p)
+            log("re-scoring", len(rows) - len(keep), "suite-crash bugs from", os.path.basename(p))
+
+
 def universe_of(cov, base_fail):
     ok = ok_filter(base_fail)
     return {n for n in cov if not n.startswith("__") and ok(n)}
@@ -417,8 +462,13 @@ def score_all(tree, cov, universe, truth, plain, db, nr_cache, nr_tree):
     T = lambda ns: sum(plain.get(n, 0) for n in ns)
     tot = T(universe) or 1e-9
     roots = (CFG["pkg"], *sorted({t.split("/", 1)[0] for t in CFG["targets"]}))
-    ctx = {"testmon_db": db, "roots": roots, "top": CFG["pkg"].rsplit("/", 1)[-1],
-           "testmon_selected": testmon_select(tree, db)}
+    ctx = {"testmon_db": db, "roots": roots, "top": CFG["pkg"].rsplit("/", 1)[-1], "testmon_selected": []}
+    tm_err = None
+    if db:
+        try:
+            ctx["testmon_selected"] = testmon_select(tree, db)
+        except Exception as e:  # noqa: BLE001  e.g. the change breaks collection under testmon
+            tm_err = repr(e)[:300]
     I.selection(tree, cov, PY)                  # warm the per-commit caches, as after a session's first run
     t = time.time()
     psel, why = I.selection(tree, cov, PY)
@@ -426,6 +476,11 @@ def score_all(tree, cov, universe, truth, plain, db, nr_cache, nr_tree):
     ctx["proviso_selected"] = psel
     rows = {}
     for name in SELECTORS:
+        if not db and name in ("testmon", "file_coverage"):
+            continue
+        if name == "testmon" and tm_err:
+            rows[name] = {"error": tm_err}
+            continue
         s = SEL.SELECTORS[name](ch, universe, cov=cov, **ctx) & universe
         rows[name] = {"selected": len(s), "time_share": round(T(s) / tot, 4), "missed": SEL.missed(truth, s)}
     rows["proviso"].update(selection_s=round(sel_s, 2), reason=why.get("reason"))
@@ -452,7 +507,7 @@ def select_worker(i, n):
     for b in [b for b in bugs()[i::n] if b["id"] not in done and b["id"] in truth]:
         try:
             apply_bug(tree, b)
-            r = score_all(tree, cov, universe, truth[b["id"]]["failing"], plain, db, nr_cache, nr_tree)
+            r = score_all(tree, cov, universe, truth_failing(truth[b["id"]], universe), plain, db, nr_cache, nr_tree)
             append("select", i, {"id": b["id"], "kind": b["kind"], **r})
         except Exception as e:  # noqa: BLE001
             print(b["id"], "ERROR", repr(e)[:300], flush=True)
@@ -514,12 +569,18 @@ def mine_worker(i, n):
 
 
 def real_set():
+    """Sampled real commits. A commit counts only if the suite runs at its parent in this environment (at least half
+    of the base commit's tests): older history stops running past some commit (Python and dependency versions), and
+    such a commit's empty runs say nothing. The sample order is the same as before this filter, so repositories
+    whose commits all run keep the same set."""
     m = sorted(merged("mine").values(), key=lambda r: r["id"])
     rnd = random.Random(f"{SEED}-{REPO}-real")
     brk, rest = [r for r in m if r["failing"]], [r for r in m if not r["failing"]]
     rnd.shuffle(brk)
     rnd.shuffle(rest)
-    return brk[:REAL_BREAKING_MAX] + rest[:REAL_NONBREAKING]
+    need = 0.5 * len(jload(os.path.join(RES, "base_outcomes.json"), {}) or {})
+    runs = lambda r: r.get("n_tests", 0) >= need
+    return [r for r in brk if runs(r)][:REAL_BREAKING_MAX] + [r for r in rest if runs(r)][:REAL_NONBREAKING]
 
 
 def realeval_worker(i, n):
@@ -589,7 +650,7 @@ def deflake_worker(i, n):
     and are dropped from scoring. Planted bugs: rows of 'truth'; real commits: rows of 'mine'."""
     done = set(merged(DFL))
     tree = make_tree(f"w{i}", CFG["commit"])
-    jobs = [("truth", r) for r in merged("truth").values()] + [("mine", r) for r in merged("mine").values()]
+    jobs = [("truth", r) for r in merged("truth").values()] + [("mine", r) for r in real_set()]
     for stage, r in [j for j in jobs if j[1].get("failing") and f"{j[0]}:{j[1]['id']}" not in done][i::n]:
         key = f"{stage}:{r['id']}"
         try:
@@ -610,7 +671,7 @@ def deflake_worker(i, n):
 
 
 def deflake():
-    jobs = [r for st in ("truth", "mine") for r in merged(st).values() if r.get("failing")]
+    jobs = [r for r in merged("truth").values() if r.get("failing")] + [r for r in real_set() if r.get("failing")]
     parallel("deflake", jobs)
     rows = merged(DFL)
     fl = sorted({t for r in rows.values() for t in r["flaky"]})
@@ -661,29 +722,44 @@ def retestmon():
     plain = {k: t for k, (ok, t) in base.items()}
     for stage in ("select", "realeval"):
         files = sorted(glob.glob(os.path.join(RES, f"{stage}.w*.jsonl")))
-        truth = merged("truth") if stage == "select" else {r["id"]: r for r in merged("mine").values()}
+        truth = merged("truth") if stage == "select" else {r["id"]: r for r in real_set()}
         bug_by_id = {b["id"]: b for b in bugs()} if stage == "select" else {}
         for p in files:
             rows = [json.loads(l) for l in open(p) if l.strip()]
             for row in rows:
+                if stage == "realeval" and row["id"] not in truth:
+                    continue
                 if stage == "select":
-                    tree, db = make_tree("w0", CFG["commit"]), os.path.join(WORK, "testmondata.base")
+                    tree, db = make_tree("w0", CFG["commit"]), testmon()
                     universe, pl = universe_of(covmap(), failing(base)), plain
                     apply_bug(tree, bug_by_id[row["id"]])
-                    fails = truth[row["id"]]["failing"]
+                    fails = truth_failing(truth[row["id"]], universe)
                 else:
                     r, d = truth[row["id"]], os.path.join(WORK, "real", row["id"])
-                    tree, db = make_tree("w0", r["commit"] + "^"), os.path.join(d, "testmondata")
+                    tree = make_tree("w0", r["commit"] + "^")
+                    db = testmon(tree, os.path.join(d, "testmondata"))
                     b0 = jload(os.path.join(d, "base_outcomes.json"))
                     universe, pl = universe_of(jload(os.path.join(d, "covmap.json")), failing(b0)), \
                         {k: t for k, (ok, t) in b0.items()}
                     apply_commit_src(tree, r)
                     fails = r["failing"]
                 try:
-                    s_ = set(testmon_select(tree, db)) & universe
+                    if not db:
+                        row["selectors"].pop("testmon", None)
+                        row["selectors"].pop("file_coverage", None)
+                        continue
                     tot = sum(pl.get(n, 0) for n in universe) or 1e-9
-                    row["selectors"]["testmon"] = {"selected": len(s_), "missed": SEL.missed(fails, s_),
-                                                   "time_share": round(sum(pl.get(n, 0) for n in s_) / tot, 4)}
+                    share = lambda ss: round(sum(pl.get(n, 0) for n in ss) / tot, 4)
+                    try:
+                        s_ = set(testmon_select(tree, db)) & universe
+                        row["selectors"]["testmon"] = {"selected": len(s_), "missed": SEL.missed(fails, s_),
+                                                       "time_share": share(s_)}
+                    except Exception as e:  # noqa: BLE001
+                        row["selectors"]["testmon"] = {"error": repr(e)[:300]}
+                    s_ = SEL.SELECTORS["file_coverage"](SEL.Change(tree, [CFG["pkg"]]), universe, testmon_db=db) \
+                        & universe
+                    row["selectors"]["file_coverage"] = {"selected": len(s_), "missed": SEL.missed(fails, s_),
+                                                         "time_share": share(s_)}
                 finally:
                     reset(tree)
             jdump_lines(rows, p)
@@ -726,8 +802,8 @@ def tdad():
                     continue
                 if stage == "select":
                     b = info[row["id"]]
-                    tree, files, fails = make_tree("tdad", CFG["commit"]), [b["file"]], b["failing"]
                     universe, pl = universe_of(covmap(), failing(base)), plain
+                    tree, files, fails = make_tree("tdad", CFG["commit"]), [b["file"]], truth_failing(b, universe)
                 else:
                     r, d = info[row["id"]], os.path.join(WORK, "real", row["id"])
                     tree, files, fails = make_tree("tdad", r["commit"] + "^"), r["src"], r["failing"]
@@ -750,7 +826,11 @@ def tdad():
 def report():
     lines = [f"# {REPO} ({CFG['commit'][:10]}; targets {' '.join(CFG['targets'])})", ""]
     for stage, title in (("select", "Planted bugs"), ("realeval", "Real commits")):
-        rows = _confirmed(list(merged(stage).values()), stage)
+        rows = list(merged(stage).values())
+        if stage == "realeval":
+            ids = {r["id"] for r in real_set()}
+            rows = [r for r in rows if r["id"] in ids]
+        rows = _confirmed(rows, stage)
         if not rows:
             continue
         brk = [r for r in rows if r["truth"]]
@@ -761,13 +841,19 @@ def report():
                   + (f"; {nfl} flaky failures dropped (passed when re-run)" if nfl else ""),
                   "", "| selector | changes with a missed failure | failing tests missed | test time selected, mean (median) |",
                   "|---|---|---|---|"]
+        errs = {}
         for k in names:
-            have = [r for r in rows if k in r["selectors"]]
-            mb = [r for r in brk if k in r["selectors"]]
+            errs[k] = sum(1 for r in rows if "error" in r["selectors"].get(k, {}))
+            have = [r for r in rows if k in r["selectors"] and "error" not in r["selectors"][k]]
+            mb = [r for r in brk if k in r["selectors"] and "error" not in r["selectors"][k]]
             ts = [r["selectors"][k]["time_share"] for r in have]
             lines.append(f"| {k} | {sum(1 for r in mb if r['selectors'][k]['missed'])} of {len(mb)} | "
                          f"{sum(len(r['selectors'][k]['missed']) for r in mb)} | "
                          f"{100 * st.mean(ts):.1f}% ({100 * st.median(ts):.1f}%) |")
+        for k, n in errs.items():
+            if n:
+                lines.append(f"\n{k}: could not run on {n} change(s) (e.g. the change breaks collection under it); "
+                             "those changes are left out of its row")
         pv = [r for r in rows if "proviso" in r["selectors"]]
         tot = lambda r: r["selectors"]["proviso"]["selection_s"] + r["selectors"]["proviso"]["time_share"] * r["full_s"]
         lines += ["", f"End to end (plain s): full suite median {st.median(r['full_s'] for r in pv):.1f}; Proviso "
@@ -782,7 +868,8 @@ def report():
 
 STAGES = {"prepare": prepare, "baseline": baseline, "covmap": covmap, "testmon": testmon, "nrinit": nrinit,
           "bugs": bugs, "truth": lambda: (baseline(), parallel("truth", bugs())),
-          "select": lambda: (baseline(), covmap(), testmon(), nrinit(), parallel("select", bugs(), NR_WORKERS)),
+          "select": lambda: (baseline(), covmap(), testmon(), nrinit(), drop_crash_rows(),
+                             parallel("select", bugs(), NR_WORKERS)),
           "mine": lambda: parallel("mine", commits()), "realeval": lambda: parallel("realeval", real_set(), NR_WORKERS),
           "deflake": deflake, "report": report, "retestmon": retestmon, "tdad": tdad, "rescore": lambda: rescore()}
 WORKER = {"truth": truth_worker, "select": select_worker, "mine": mine_worker, "realeval": realeval_worker,

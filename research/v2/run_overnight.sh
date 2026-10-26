@@ -53,9 +53,10 @@ stage() {  # stage REPO STAGES... -> run, log, push
   python research/v2/pipeline.py "$r" "$@" 2>&1 | tee -a "$LOG" && push "v2 evaluation: $r $*"
 }
 # 2. pygments: coverage maps re-recorded with tests collected from data files, selection rows recomputed
-[ -d research/v2/results/pygments ] && stage pygments rescore tdad deflake report
-# 3. finished repositories: flaky-test check, then the report
-for r in sqlglot sqlalchemy; do [ -d "research/v2/results/$r" ] && stage "$r" deflake report; done
+#    and testmon / file_coverage rows recomputed (its first testmon database was empty)
+[ -d research/v2/results/pygments ] && stage pygments rescore retestmon tdad deflake report
+# 3. finished repositories: real commits not yet scored (sqlalchemy), TDAD for them, flaky-test check, report
+for r in sqlglot sqlalchemy; do [ -d "research/v2/results/$r" ] && stage "$r" realeval tdad deflake report; done
 # 4. TDAD's rows (static: no tests are run) for the repositories of step 1
 for r in sympy datasette; do [ -d "research/v2/results/$r" ] && stage "$r" tdad report; done
 
