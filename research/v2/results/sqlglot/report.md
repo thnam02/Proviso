@@ -8,7 +8,7 @@
 | name_match | 41 of 59 | 713 | 11.9% (0.6%) |
 | static_imports | 13 of 59 | 16 | 63.5% (100.0%) |
 | file_coverage | 13 of 59 | 94 | 30.8% (6.1%) |
-| testmon | 59 of 59 | 778 | 0.0% (0.0%) |
+| testmon | 5 of 59 | 170 | 99.1% (100.0%) |
 | func_only | 37 of 59 | 245 | 4.7% (0.0%) |
 | func_file | 14 of 59 | 93 | 16.9% (5.2%) |
 | proviso | 0 of 59 | 0 | 24.1% (4.5%) |
@@ -24,7 +24,7 @@ End to end (plain s): full suite median 27.4; Proviso median 2.1, mean 7.2; fast
 | name_match | 13 of 32 | 18 | 14.6% (0.9%) |
 | static_imports | 9 of 32 | 13 | 59.3% (100.0%) |
 | file_coverage | 2 of 32 | 2 | 32.2% (5.9%) |
-| testmon | 32 of 32 | 45 | 0.0% (0.0%) |
+| testmon | 0 of 32 | 0 | 100.0% (100.0%) |
 | func_only | 9 of 32 | 10 | 13.5% (1.2%) |
 | func_file | 1 of 32 | 1 | 23.6% (6.1%) |
 | proviso | 0 of 32 | 0 | 32.4% (7.8%) |
