@@ -31,3 +31,5 @@ End to end (plain s): full suite median 58.0; Proviso median 35.9, mean 31.7; fa
 | namerts | 0 of 1 | 0 | 10.9% (0.0%) |
 
 End to end (plain s): full suite median 53.5; Proviso median 2.6, mean 3.2; faster on 3 of 3; selection median 0.12 s
+
+TDAD: did not complete: TDAD's test linking ran out of memory (over 23 GB)
