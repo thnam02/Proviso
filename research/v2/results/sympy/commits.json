@@ -1,0 +1,2011 @@
+[
+ {
+  "id": "434184cdcf",
+  "commit": "434184cdcf7f7233fa74dd5b142275e3dbba6486",
+  "src": [
+   "sympy/core/mul.py",
+   "sympy/core/power.py",
+   "sympy/functions/special/zeta_functions.py",
+   "sympy/solvers/solvers.py",
+   "sympy/stats/__init__.py",
+   "sympy/stats/drv_types.py",
+   "sympy/stats/joint_rv_types.py"
+  ]
+ },
+ {
+  "id": "9bc95b1a80",
+  "commit": "9bc95b1a80941bcfe64c1d60e3417fc7bea2562a",
+  "src": [
+   "sympy/core/exprtools.py"
+  ]
+ },
+ {
+  "id": "33231a3fb5",
+  "commit": "33231a3fb5895da109da8541434fd2f5d526d8fc",
+  "src": [
+   "sympy/core/relational.py",
+   "sympy/sets/fancysets.py",
+   "sympy/solvers/inequalities.py",
+   "sympy/solvers/solvers.py",
+   "sympy/solvers/solveset.py"
+  ]
+ },
+ {
+  "id": "1f818f624d",
+  "commit": "1f818f624d2bfd88aadc68298039b616649ed1a4",
+  "src": [
+   "sympy/core/relational.py"
+  ]
+ },
+ {
+  "id": "afc5607ad0",
+  "commit": "afc5607ad04a16e81479b224b359dbf507d6c580",
+  "src": [
+   "sympy/functions/elementary/complexes.py"
+  ]
+ },
+ {
+  "id": "ce96d33116",
+  "commit": "ce96d33116cc816c02fe759200b3424ffcaa98e1",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "751a370416",
+  "commit": "751a37041610a83fb22559bc0618f84623fcea04",
+  "src": [
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "a1021ffb1f",
+  "commit": "a1021ffb1f40f860960119e70e6329cd5937862c",
+  "src": [
+   "sympy/core/evalf.py"
+  ]
+ },
+ {
+  "id": "94f14043f5",
+  "commit": "94f14043f5195c6c58d2c21dcc2beccd9d476aa4",
+  "src": [
+   "sympy/functions/elementary/hyperbolic.py",
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "3f58eb0ce8",
+  "commit": "3f58eb0ce808f8c4917ab0b8ae67d133fc794c3f",
+  "src": [
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "5968b9bfd2",
+  "commit": "5968b9bfd2bd3db4b6caf35bc07712cb70b8807b",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "00c969e914",
+  "commit": "00c969e914b986a39c9c2d1410cc289c06b4cdff",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "850d9a3f79",
+  "commit": "850d9a3f79366bfaf66ba0b114194dfb84087c21",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "a5160b5815",
+  "commit": "a5160b58150f1d9942fca9772a205d267ab3ee8c",
+  "src": [
+   "sympy/core/__init__.py",
+   "sympy/core/assumptions.py"
+  ]
+ },
+ {
+  "id": "d7c3be2816",
+  "commit": "d7c3be28162858ced4799f33f40ed1ad9b8ed369",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/core/relational.py",
+   "sympy/logic/boolalg.py",
+   "sympy/sets/sets.py"
+  ]
+ },
+ {
+  "id": "42869fd021",
+  "commit": "42869fd021e987c27eb5ad87ec500d4ed31d8ab0",
+  "src": [
+   "sympy/functions/combinatorial/numbers.py"
+  ]
+ },
+ {
+  "id": "c42397116c",
+  "commit": "c42397116c0d80fb7ff16f571801f50a0bc89d20",
+  "src": [
+   "sympy/functions/combinatorial/factorials.py",
+   "sympy/interactive/printing.py",
+   "sympy/logic/boolalg.py",
+   "sympy/physics/biomechanics/_mixin.py"
+  ]
+ },
+ {
+  "id": "cef500a371",
+  "commit": "cef500a3718115d666c76230691f4a79babb74e3",
+  "src": [
+   "sympy/parsing/sympy_parser.py"
+  ]
+ },
+ {
+  "id": "70849bbdea",
+  "commit": "70849bbdeaed39e7937d8a3adf2a3dce53c61de6",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "5f8bf9bae0",
+  "commit": "5f8bf9bae0df5e425da0c402fbf95dea75ae7dca",
+  "src": [
+   "sympy/core/power.py"
+  ]
+ },
+ {
+  "id": "fd5d037a88",
+  "commit": "fd5d037a88634b39ac4ba1ad1a66dffa3aa24669",
+  "src": [
+   "sympy/core/power.py"
+  ]
+ },
+ {
+  "id": "f6ca6b37c0",
+  "commit": "f6ca6b37c01af556db9f657a902a278df49cc1ba",
+  "src": [
+   "sympy/functions/elementary/complexes.py"
+  ]
+ },
+ {
+  "id": "4c068e54a0",
+  "commit": "4c068e54a04e8f2ac00f3113b6cf70f765c50734",
+  "src": [
+   "sympy/core/exprtools.py"
+  ]
+ },
+ {
+  "id": "365d96cd9c",
+  "commit": "365d96cd9c889b5e7867a174ae31c4e569fa991e",
+  "src": [
+   "sympy/polys/polyroots.py"
+  ]
+ },
+ {
+  "id": "83854ce3c1",
+  "commit": "83854ce3c15429de75f77a022c0dab5f80543506",
+  "src": [
+   "sympy/polys/polyroots.py"
+  ]
+ },
+ {
+  "id": "59924a53ad",
+  "commit": "59924a53adc7d9836aa79962601e14ef69a4db44",
+  "src": [
+   "sympy/core/evalf.py"
+  ]
+ },
+ {
+  "id": "6db8ea791f",
+  "commit": "6db8ea791f4d1ab03370c06687680a17dc685bc0",
+  "src": [
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "103be6aeba",
+  "commit": "103be6aeba9bed20be7fc4a5fb8c88c4caf04ac0",
+  "src": [
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "98659cc0fe",
+  "commit": "98659cc0fee3e04abe34c0589cb8924e1812e855",
+  "src": [
+   "sympy/core/symbol.py"
+  ]
+ },
+ {
+  "id": "f5806e67b3",
+  "commit": "f5806e67b34d20429952e874ff056511a7285774",
+  "src": [
+   "sympy/core/assumptions.py"
+  ]
+ },
+ {
+  "id": "bfb4fe26de",
+  "commit": "bfb4fe26def3c929ee58f5e637240a57c107cf75",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "c7c5c4892c",
+  "commit": "c7c5c4892c9257cdd88d17f21b56a56d2e99b433",
+  "src": [
+   "sympy/core/symbol.py"
+  ]
+ },
+ {
+  "id": "56b613c139",
+  "commit": "56b613c1394e7b86646574133c0cdfdb7a4cf064",
+  "src": [
+   "sympy/core/add.py",
+   "sympy/functions/elementary/complexes.py",
+   "sympy/functions/elementary/integers.py"
+  ]
+ },
+ {
+  "id": "8868f2715e",
+  "commit": "8868f2715e4e2d0c2554af4d7b08074574c9543f",
+  "src": [
+   "sympy/functions/elementary/integers.py"
+  ]
+ },
+ {
+  "id": "7b6ae3778b",
+  "commit": "7b6ae3778bc0c5c76fe48ca6b9ade544360c3574",
+  "src": [
+   "sympy/functions/elementary/complexes.py"
+  ]
+ },
+ {
+  "id": "f4ee101b3c",
+  "commit": "f4ee101b3c5ecdefcc1790763c20d3d8e449d38e",
+  "src": [
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "aaba0438f0",
+  "commit": "aaba0438f011032704143c0613769ab185721696",
+  "src": [
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "010456468d",
+  "commit": "010456468db45060ad20265daa3e39509ccf32e5",
+  "src": [
+   "sympy/core/evalf.py",
+   "sympy/utilities/lambdify.py"
+  ]
+ },
+ {
+  "id": "bba7d33a01",
+  "commit": "bba7d33a01ce07ba6d0f0d9c0cec566fc781160d",
+  "src": [
+   "sympy/core/evalf.py",
+   "sympy/utilities/lambdify.py"
+  ]
+ },
+ {
+  "id": "947a95447f",
+  "commit": "947a95447fc55238493a77b65a3af91e805b3684",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "cb81567b2d",
+  "commit": "cb81567b2d6e2703690ad82e5ea053df638604f2",
+  "src": [
+   "sympy/core/logic.py"
+  ]
+ },
+ {
+  "id": "04aa71c927",
+  "commit": "04aa71c927650c752038408513c6cd6b53abfc3b",
+  "src": [
+   "sympy/core/evalf.py"
+  ]
+ },
+ {
+  "id": "8beab24017",
+  "commit": "8beab240175092c292f382207338e8887b442a17",
+  "src": [
+   "sympy/core/mod.py"
+  ]
+ },
+ {
+  "id": "ee2a1cba1b",
+  "commit": "ee2a1cba1b29e5c449ffcbfc9a889c6d59c00490",
+  "src": [
+   "sympy/core/expr.py"
+  ]
+ },
+ {
+  "id": "79a4952351",
+  "commit": "79a495235198b27534f124f8cd5010277ccffd09",
+  "src": [
+   "sympy/core/relational.py"
+  ]
+ },
+ {
+  "id": "25c634e228",
+  "commit": "25c634e2289f2b3c1ca29c182b0c32bd738ed928",
+  "src": [
+   "sympy/core/relational.py"
+  ]
+ },
+ {
+  "id": "1e1acdf28b",
+  "commit": "1e1acdf28bd3dc4b331afc704a1c9d56aef9de6a",
+  "src": [
+   "sympy/core/relational.py"
+  ]
+ },
+ {
+  "id": "0eefad1c44",
+  "commit": "0eefad1c4428b916077f1c191c23a788ab75e38a",
+  "src": [
+   "sympy/core/sympify.py"
+  ]
+ },
+ {
+  "id": "e0241473bc",
+  "commit": "e0241473bcebfe57b5f662c37a605297c850e076",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "c0de12f818",
+  "commit": "c0de12f81859e154bd197e63eeb7bd3a8763b071",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "31a4f3ded9",
+  "commit": "31a4f3ded9ef6e553276fac7d5160ccfc93c18dc",
+  "src": [
+   "sympy/stats/rv_interface.py"
+  ]
+ },
+ {
+  "id": "147b462848",
+  "commit": "147b4628480813150388d3543cb8438a142ab1b0",
+  "src": [
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "19732b06e1",
+  "commit": "19732b06e1d449c9e9ec96b3a5bfab574108a976",
+  "src": [
+   "sympy/core/exprtools.py",
+   "sympy/integrals/meijerint.py",
+   "sympy/simplify/simplify.py"
+  ]
+ },
+ {
+  "id": "24113aaec2",
+  "commit": "24113aaec2d86631a97d409a87c1f53ee6672b80",
+  "src": [
+   "sympy/core/compatibility.py"
+  ]
+ },
+ {
+  "id": "02f60e9abf",
+  "commit": "02f60e9abf4ddbe403a0c573b68c4bcfc10c7efe",
+  "src": [
+   "sympy/core/exprtools.py"
+  ]
+ },
+ {
+  "id": "9aff6ffcbd",
+  "commit": "9aff6ffcbd2b72875390e4257513848bb0ce8b9b",
+  "src": [
+   "sympy/core/exprtools.py",
+   "sympy/core/relational.py",
+   "sympy/matrices/matrices.py",
+   "sympy/series/gruntz.py"
+  ]
+ },
+ {
+  "id": "21fcd1b5ed",
+  "commit": "21fcd1b5eded4c300da40a3a0fd12592c490dbc7",
+  "src": [
+   "sympy/functions/__init__.py",
+   "sympy/functions/special/hyper.py"
+  ]
+ },
+ {
+  "id": "69b395785e",
+  "commit": "69b395785ebdbe937be9394ccd28d57b9ebd493d",
+  "src": [
+   "sympy/functions/combinatorial/numbers.py",
+   "sympy/functions/elementary/exponential.py",
+   "sympy/functions/elementary/miscellaneous.py",
+   "sympy/functions/elementary/piecewise.py",
+   "sympy/functions/elementary/trigonometric.py",
+   "sympy/functions/special/error_functions.py"
+  ]
+ },
+ {
+  "id": "ba25bb2a23",
+  "commit": "ba25bb2a2399c3faf7cca58eb65921b61650fbec",
+  "src": [
+   "sympy/assumptions/handlers/ntheory.py",
+   "sympy/concrete/products.py",
+   "sympy/core/add.py",
+   "sympy/core/basic.py",
+   "sympy/core/expr.py",
+   "sympy/core/exprtools.py",
+   "sympy/core/facts.py",
+   "sympy/core/function.py",
+   "sympy/core/mul.py",
+   "sympy/core/numbers.py",
+   "sympy/core/relational.py",
+   "sympy/core/sets.py",
+   "sympy/core/symbol.py",
+   "sympy/core/sympify.py"
+  ]
+ },
+ {
+  "id": "111dda03ae",
+  "commit": "111dda03ae02097efb4d476848863c1e8792b4f5",
+  "src": [
+   "sympy/combinatorics/subsets.py",
+   "sympy/core/evalf.py",
+   "sympy/interactive/session.py"
+  ]
+ },
+ {
+  "id": "d6d13d415d",
+  "commit": "d6d13d415d17eec50d927ba077fd0ed81e77c0a2",
+  "src": [
+   "sympy/combinatorics/prufer.py",
+   "sympy/matrices/matrices.py",
+   "sympy/sets/fancysets.py",
+   "sympy/utilities/benchmarking.py",
+   "sympy/utilities/lambdify.py"
+  ]
+ },
+ {
+  "id": "32f02fa73b",
+  "commit": "32f02fa73b359945fabfa434dd30014cadc7db05",
+  "src": [
+   "sympy/printing/latex.py"
+  ]
+ },
+ {
+  "id": "0b4acb8e5a",
+  "commit": "0b4acb8e5a6e76f75c1adabf677a3c16c4e31fb6",
+  "src": [
+   "sympy/printing/latex.py",
+   "sympy/printing/pretty/pretty.py",
+   "sympy/printing/pretty/pretty_symbology.py",
+   "sympy/sets/fancysets.py"
+  ]
+ },
+ {
+  "id": "8e14e464b8",
+  "commit": "8e14e464b8f5f8e1b28a75c6f06f4f33a40a6bf8",
+  "src": [
+   "sympy/printing/latex.py",
+   "sympy/printing/pretty/pretty.py",
+   "sympy/sets/__init__.py",
+   "sympy/sets/fancysets.py"
+  ]
+ },
+ {
+  "id": "36a8828038",
+  "commit": "36a88280383624a1312ded23e15408f976ae899c",
+  "src": [
+   "sympy/sets/__init__.py",
+   "sympy/sets/fancysets.py"
+  ]
+ },
+ {
+  "id": "73263133a2",
+  "commit": "73263133a24b353907e22dec7e47174384495643",
+  "src": [
+   "sympy/matrices/matrices.py"
+  ]
+ },
+ {
+  "id": "6f7eb4feba",
+  "commit": "6f7eb4febae2a36d318d1264e7a5933a71561070",
+  "src": [
+   "sympy/matrices/matrices.py"
+  ]
+ },
+ {
+  "id": "1622970ed0",
+  "commit": "1622970ed0dd9d04d56c9742243d7d4661b82cf5",
+  "src": [
+   "sympy/core/sympify.py"
+  ]
+ },
+ {
+  "id": "f2e27059ef",
+  "commit": "f2e27059ef4c28bd2b53986029e34689ae4c047c",
+  "src": [
+   "sympy/core/exprtools.py"
+  ]
+ },
+ {
+  "id": "979b4e7eeb",
+  "commit": "979b4e7eeb97e8ed719d1dd978c79fa382b754f7",
+  "src": [
+   "sympy/core/expr.py",
+   "sympy/functions/elementary/complexes.py",
+   "sympy/functions/elementary/exponential.py",
+   "sympy/simplify/simplify.py"
+  ]
+ },
+ {
+  "id": "bc4d19411a",
+  "commit": "bc4d19411abf627e15e448e650f44671f6b86df7",
+  "src": [
+   "sympy/core/power.py"
+  ]
+ },
+ {
+  "id": "8896d19cb8",
+  "commit": "8896d19cb82f4d3d8cb3fd5c2510761aa048d2e4",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "9a78e37b64",
+  "commit": "9a78e37b64fbd94b0c52dbbfa19f17aa82b2fe95",
+  "src": [
+   "sympy/core/relational.py"
+  ]
+ },
+ {
+  "id": "999396e6ef",
+  "commit": "999396e6efaa866fddc24348ebee783ca54998fb",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "a58617ff20",
+  "commit": "a58617ff2079b5c159bf12eb3bcc27e3f55a0e2c",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "b3c20e39c5",
+  "commit": "b3c20e39c5751b1f9470cd5910edab1ebc698dfc",
+  "src": [
+   "sympy/core/expr.py"
+  ]
+ },
+ {
+  "id": "a359e8704a",
+  "commit": "a359e8704abc1583a5cbac42f0c8c12362c735fb",
+  "src": [
+   "sympy/core/add.py",
+   "sympy/core/basic.py",
+   "sympy/core/cache.py",
+   "sympy/core/evalf.py",
+   "sympy/core/expr.py",
+   "sympy/core/exprtools.py",
+   "sympy/core/function.py",
+   "sympy/core/multidimensional.py",
+   "sympy/core/numbers.py",
+   "sympy/core/symbol.py",
+   "sympy/core/sympify.py"
+  ]
+ },
+ {
+  "id": "2f6d03360f",
+  "commit": "2f6d03360f271dec684781526b2fc75168cef330",
+  "src": [
+   "sympy/core/sympify.py"
+  ]
+ },
+ {
+  "id": "2aa8fd3830",
+  "commit": "2aa8fd3830462f2b4d9ed24628f4bb8582b184ed",
+  "src": [
+   "sympy/core/sympify.py"
+  ]
+ },
+ {
+  "id": "0519c56ff4",
+  "commit": "0519c56ff4ff78aeb0e8dcfef40ab06f9b39c356",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/core/compatibility.py",
+   "sympy/core/expr.py",
+   "sympy/core/function.py",
+   "sympy/functions/elementary/complexes.py",
+   "sympy/ntheory/factor_.py",
+   "sympy/parsing/sympy_tokenize.py",
+   "sympy/physics/secondquant.py",
+   "sympy/polys/polyfuncs.py",
+   "sympy/solvers/solvers.py",
+   "sympy/utilities/__init__.py",
+   "sympy/utilities/iterables.py"
+  ]
+ },
+ {
+  "id": "f9543bd175",
+  "commit": "f9543bd175057ab9de03b9ca4b286f2ff0c3ad67",
+  "src": [
+   "sympy/functions/elementary/piecewise.py"
+  ]
+ },
+ {
+  "id": "1e89f95369",
+  "commit": "1e89f95369d79d6ea19482f21c2d1a31c0be6950",
+  "src": [
+   "sympy/core/compatibility.py",
+   "sympy/polys/groebnertools.py",
+   "sympy/simplify/simplify.py",
+   "sympy/solvers/ode.py",
+   "sympy/solvers/polysys.py",
+   "sympy/utilities/iterables.py"
+  ]
+ },
+ {
+  "id": "6cf7650b1d",
+  "commit": "6cf7650b1d47a6ca45a955c6783dd00b2b0058d1",
+  "src": [
+   "sympy/core/compatibility.py"
+  ]
+ },
+ {
+  "id": "8752f4e17a",
+  "commit": "8752f4e17af8a5d9f167c343a097c09b65a40567",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "a081f002cb",
+  "commit": "a081f002cb3bb73b06e10e22470b6c4adb7509d8",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "df25cee0dd",
+  "commit": "df25cee0ddd6843c283db36dd7eca4871b8bf1fc",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "df809f6ee5",
+  "commit": "df809f6ee53493e46f2743990598196d1b07500a",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "b7ef7eb2dc",
+  "commit": "b7ef7eb2dca4ff019354fe124495c5f990178f0a",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "f918b17b03",
+  "commit": "f918b17b0333d550269d96356fff0c40767a54f2",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "b32dbdbc4f",
+  "commit": "b32dbdbc4ff83063b8a16b48c891f954d9b2bcc0",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "ea83001cc2",
+  "commit": "ea83001cc268cbf9d87b31f5ac8d11fab1040f07",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "2af9255ab6",
+  "commit": "2af9255ab654db1b3dcd1339e85f7bd55f82ca94",
+  "src": [
+   "sympy/core/sets.py",
+   "sympy/printing/str.py"
+  ]
+ },
+ {
+  "id": "289ffc8d1c",
+  "commit": "289ffc8d1cf649ba36c676a27a298a8cc616c074",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "d44be6e476",
+  "commit": "d44be6e476d92782e6e5aa8e84f29bf0ddf8af2a",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "a4b67c2515",
+  "commit": "a4b67c251578db0fa7261a04f97618b36f18ded1",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "e0acf25d1e",
+  "commit": "e0acf25d1ed7b714371cb5a853a1cdff152e83ee",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "f5205270e9",
+  "commit": "f5205270e9b1e31420de466ab2a1124f7ad4e65d",
+  "src": [
+   "sympy/core/sets.py",
+   "sympy/solvers/inequalities.py"
+  ]
+ },
+ {
+  "id": "5812f87ed1",
+  "commit": "5812f87ed188ad81bfa7a954c995cb58ea3596a8",
+  "src": [
+   "sympy/core/sets.py",
+   "sympy/solvers/inequalities.py"
+  ]
+ },
+ {
+  "id": "f5a0e6ed95",
+  "commit": "f5a0e6ed95f15bd8f1c5d1e56e011ecf52f9d601",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "346389e4b3",
+  "commit": "346389e4b3edb07bd92bca989b8c4219f547ec53",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "b74cb91f7d",
+  "commit": "b74cb91f7d722340140b143da3a387e7b5b092ac",
+  "src": [
+   "sympy/core/__init__.py",
+   "sympy/core/sets.py",
+   "sympy/printing/latex.py",
+   "sympy/printing/pretty/pretty.py",
+   "sympy/printing/str.py"
+  ]
+ },
+ {
+  "id": "8a4eb70374",
+  "commit": "8a4eb7037486300189fb9b340d45b1166e7b733e",
+  "src": [
+   "sympy/core/sets.py",
+   "sympy/printing/latex.py"
+  ]
+ },
+ {
+  "id": "93eec3098a",
+  "commit": "93eec3098ad530b7d22eeb6e540459d79793457a",
+  "src": [
+   "sympy/core/sets.py",
+   "sympy/printing/latex.py",
+   "sympy/printing/pretty/pretty.py"
+  ]
+ },
+ {
+  "id": "668ade0bde",
+  "commit": "668ade0bde970ae93663c711da01257fce43777a",
+  "src": [
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "43d0294bc9",
+  "commit": "43d0294bc96589d1fb426d84320e94a4c7146730",
+  "src": [
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "64028c732d",
+  "commit": "64028c732d9d49d7e604a25d963a2118497dfafc",
+  "src": [
+   "sympy/core/expr.py"
+  ]
+ },
+ {
+  "id": "3e756c8276",
+  "commit": "3e756c8276903c636ca7c632cb2c4750402dc43c",
+  "src": [
+   "sympy/core/expr.py"
+  ]
+ },
+ {
+  "id": "c82aab3958",
+  "commit": "c82aab3958c7b2cac143db99164fff09825551a2",
+  "src": [
+   "sympy/core/compatibility.py",
+   "sympy/utilities/iterables.py"
+  ]
+ },
+ {
+  "id": "b28868a4dc",
+  "commit": "b28868a4dc2c7786d814f1d35a3cc8b15045592a",
+  "src": [
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "72ee033424",
+  "commit": "72ee0334240077c71c4df260774b882d15f3fdbb",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "771aa5ec92",
+  "commit": "771aa5ec92262c0d097b1c1a5e170152aec22e10",
+  "src": [
+   "sympy/core/__init__.py",
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "700eb3e661",
+  "commit": "700eb3e661cad3011cf538b8ac00cddcd8ac703c",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "2b33584db0",
+  "commit": "2b33584db0aa7ceb8c71f59e3a10d884328f3307",
+  "src": [
+   "sympy/core/function.py",
+   "sympy/solvers/ode.py"
+  ]
+ },
+ {
+  "id": "f2898a21d8",
+  "commit": "f2898a21d81c6aedc046f8109ba78f57ec0ebf87",
+  "src": [
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "b483a86dc3",
+  "commit": "b483a86dc30506be6d028d04793e60d035ae1c32",
+  "src": [
+   "sympy/core/cache.py",
+   "sympy/core/decorators.py",
+   "sympy/core/multidimensional.py"
+  ]
+ },
+ {
+  "id": "77b17786df",
+  "commit": "77b17786df4bd3b8f47f44013d81605b77322749",
+  "src": [
+   "sympy/core/decorators.py"
+  ]
+ },
+ {
+  "id": "affb48973f",
+  "commit": "affb48973f67e8b9b530995c93e6cebebba6bc40",
+  "src": [
+   "sympy/core/decorators.py",
+   "sympy/core/function.py",
+   "sympy/utilities/__init__.py",
+   "sympy/utilities/decorator.py"
+  ]
+ },
+ {
+  "id": "041995d375",
+  "commit": "041995d37563f1e0743c75a311035b553f66741e",
+  "src": [
+   "sympy/core/decorators.py",
+   "sympy/core/expr.py"
+  ]
+ },
+ {
+  "id": "b361ecdaa1",
+  "commit": "b361ecdaa156e4531d36f853535c23c516d281b2",
+  "src": [
+   "sympy/core/mul.py",
+   "sympy/polys/polyroots.py"
+  ]
+ },
+ {
+  "id": "9f65206167",
+  "commit": "9f652061671c0d19e67b2446610c94fddc3cf248",
+  "src": [
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "631abc7a7b",
+  "commit": "631abc7a7bd448a1f3db3ff67e0b720d2b98590c",
+  "src": [
+   "sympy/core/mul.py",
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "c8c8ba5415",
+  "commit": "c8c8ba5415ddf973e234eee00b8b60e8a498fd2c",
+  "src": [
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "9351a5b9de",
+  "commit": "9351a5b9debaba7650098ebf5947c4fff08bd035",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "399440af6b",
+  "commit": "399440af6bdb63bc17a02212e5fb39b1b4053a21",
+  "src": [
+   "sympy/core/numbers.py",
+   "sympy/ntheory/factor_.py"
+  ]
+ },
+ {
+  "id": "a87f3f1fc4",
+  "commit": "a87f3f1fc4221a76684b7320ab0dfea94242c185",
+  "src": [
+   "sympy/core/expr.py"
+  ]
+ },
+ {
+  "id": "aa2fa9cbda",
+  "commit": "aa2fa9cbda0c22df57c841888dcefe1f65480550",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "0a693025dd",
+  "commit": "0a693025dd77114d85a3ce525f6cea5ca24b7931",
+  "src": [
+   "sympy/core/power.py",
+   "sympy/series/gruntz.py",
+   "sympy/series/order.py"
+  ]
+ },
+ {
+  "id": "4a39b9d331",
+  "commit": "4a39b9d331f1636d5aa818ca7253d50132615182",
+  "src": [
+   "sympy/core/add.py"
+  ]
+ },
+ {
+  "id": "2f7a4dfe18",
+  "commit": "2f7a4dfe18fdad6e2816e49a34a90d9f9eaca629",
+  "src": [
+   "sympy/core/function.py",
+   "sympy/functions/elementary/piecewise.py"
+  ]
+ },
+ {
+  "id": "35e3525796",
+  "commit": "35e3525796a22d9058a25d5baefc3d916e95f0a3",
+  "src": [
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "9c46974da1",
+  "commit": "9c46974da12df56818020e29f76313fc0903ecc6",
+  "src": [
+   "sympy/core/add.py",
+   "sympy/core/expr.py",
+   "sympy/core/function.py",
+   "sympy/core/mul.py",
+   "sympy/core/power.py",
+   "sympy/functions/elementary/complexes.py",
+   "sympy/functions/elementary/exponential.py",
+   "sympy/functions/elementary/integers.py",
+   "sympy/functions/elementary/trigonometric.py",
+   "sympy/functions/special/gamma_functions.py",
+   "sympy/integrals/integrals.py",
+   "sympy/series/gruntz.py",
+   "sympy/series/order.py"
+  ]
+ },
+ {
+  "id": "e3d96c4446",
+  "commit": "e3d96c4446577d4ea367b68de7062dcf67307bd1",
+  "src": [
+   "sympy/functions/__init__.py",
+   "sympy/functions/special/gamma_functions.py"
+  ]
+ },
+ {
+  "id": "646af03778",
+  "commit": "646af0377840b39fba47998a70e58d4438c614a5",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "8cd76fcd3b",
+  "commit": "8cd76fcd3b5fe607e70229ef87e83655fd35b868",
+  "src": [
+   "sympy/functions/special/gamma_functions.py",
+   "sympy/series/gruntz.py"
+  ]
+ },
+ {
+  "id": "7df019d5b4",
+  "commit": "7df019d5b4a7f34627323d3841fd19a303d6de76",
+  "src": [
+   "sympy/core/function.py",
+   "sympy/functions/special/gamma_functions.py"
+  ]
+ },
+ {
+  "id": "89c7626b12",
+  "commit": "89c7626b124043ffc0c8bfe4a275e32eaf040346",
+  "src": [
+   "sympy/core/expr.py",
+   "sympy/core/power.py",
+   "sympy/functions/elementary/exponential.py",
+   "sympy/series/gruntz.py"
+  ]
+ },
+ {
+  "id": "73f341d7f2",
+  "commit": "73f341d7f26eb37bea0cd95b851e5cb380ce0b77",
+  "src": [
+   "sympy/core/power.py",
+   "sympy/series/order.py"
+  ]
+ },
+ {
+  "id": "3c500b1aa6",
+  "commit": "3c500b1aa66042554c4fc34fca2acb8b37289683",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/polys/polyroots.py",
+   "sympy/polys/polytools.py",
+   "sympy/solvers/ode.py",
+   "sympy/utilities/iterables.py"
+  ]
+ },
+ {
+  "id": "1873c07618",
+  "commit": "1873c0761895c221b049059c50480075b333bed3",
+  "src": [
+   "sympy/functions/elementary/exponential.py"
+  ]
+ },
+ {
+  "id": "0eb44d4479",
+  "commit": "0eb44d44793d498113286ab9b4ef1558377e46bd",
+  "src": [
+   "sympy/core/add.py"
+  ]
+ },
+ {
+  "id": "befe8ddf2a",
+  "commit": "befe8ddf2af5750ba3c02389b8290acce5e39dbf",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "e94c1f80fc",
+  "commit": "e94c1f80fcf237241e3eb93f2bb7f4a60dfaf544",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "ca2784d3dd",
+  "commit": "ca2784d3ddaf2240fb9dfe010003544319c85acf",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "b3a9dddb12",
+  "commit": "b3a9dddb12d1e48e5ab8ad2cebbe197b4abdee40",
+  "src": [
+   "sympy/functions/elementary/hyperbolic.py"
+  ]
+ },
+ {
+  "id": "d9bb82aa68",
+  "commit": "d9bb82aa68a956a9d7f0ce92c0b2d8db49f7aa7b",
+  "src": [
+   "sympy/functions/elementary/hyperbolic.py"
+  ]
+ },
+ {
+  "id": "4571bcce72",
+  "commit": "4571bcce7290abf152914aa321c2926fffcfb029",
+  "src": [
+   "sympy/functions/elementary/hyperbolic.py"
+  ]
+ },
+ {
+  "id": "80f76f5d23",
+  "commit": "80f76f5d23e90156f9c2691abffb6520e81583f1",
+  "src": [
+   "sympy/functions/elementary/hyperbolic.py"
+  ]
+ },
+ {
+  "id": "ff417f0182",
+  "commit": "ff417f018203a24f70a24ae17315d4fdb56cf4b2",
+  "src": [
+   "sympy/functions/elementary/exponential.py"
+  ]
+ },
+ {
+  "id": "09e072c1e5",
+  "commit": "09e072c1e5f239feb4945f7c82dcf37e15ef02eb",
+  "src": [
+   "sympy/functions/elementary/exponential.py",
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "9f844c8565",
+  "commit": "9f844c856531dbb4299364f8bb94a40dc4e7df13",
+  "src": [
+   "sympy/core/add.py",
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "b4de0cf6fa",
+  "commit": "b4de0cf6fa66e57ed38df5e99ae023bfd1b8a9db",
+  "src": [
+   "sympy/core/power.py"
+  ]
+ },
+ {
+  "id": "c55cd978dc",
+  "commit": "c55cd978dc15acf5df79646d9b57cf8738e29886",
+  "src": [
+   "sympy/core/power.py"
+  ]
+ },
+ {
+  "id": "1b39329b48",
+  "commit": "1b39329b48ba325c40f370c1657c23c5832ab3f0",
+  "src": [
+   "sympy/core/expr.py"
+  ]
+ },
+ {
+  "id": "ca8179f982",
+  "commit": "ca8179f982940d7ceb3124570dfd67e2cb9ec1fa",
+  "src": [
+   "sympy/core/function.py",
+   "sympy/core/power.py",
+   "sympy/functions/elementary/trigonometric.py",
+   "sympy/integrals/integrals.py"
+  ]
+ },
+ {
+  "id": "369a8ecabf",
+  "commit": "369a8ecabf70eaa0b475cb70a061ee902c53cd3d",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "21a9d0bfbc",
+  "commit": "21a9d0bfbcbf75fed183e723528c23e893c85de7",
+  "src": [
+   "sympy/core/core.py",
+   "sympy/functions/elementary/exponential.py"
+  ]
+ },
+ {
+  "id": "1fc30f8c4f",
+  "commit": "1fc30f8c4f475d262077d5f5851d2137593073e3",
+  "src": [
+   "sympy/functions/special/polynomials.py"
+  ]
+ },
+ {
+  "id": "3f38c10fc3",
+  "commit": "3f38c10fc375cd6479313ec1bf43523c43c327fb",
+  "src": [
+   "sympy/core/function.py",
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "d4d351d967",
+  "commit": "d4d351d9679c4a29441a4bd9e6007190c2dd4dcb",
+  "src": [
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "eb7c23d3be",
+  "commit": "eb7c23d3be8735f558a43cdfb8d27d46cf980cff",
+  "src": [
+   "sympy/core/__init__.py",
+   "sympy/core/basic.py",
+   "sympy/core/symbol.py",
+   "sympy/printing/pretty/pretty.py"
+  ]
+ },
+ {
+  "id": "13df71dfef",
+  "commit": "13df71dfef0fb6210fed671757b7ec841aecd324",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "9266e029ef",
+  "commit": "9266e029ef267db77bb90aba4fcbd53c052dcb7d",
+  "src": [
+   "sympy/core/core.py",
+   "sympy/core/expr.py"
+  ]
+ },
+ {
+  "id": "65d8644d1b",
+  "commit": "65d8644d1b390add012144016c0669ce01035239",
+  "src": [
+   "sympy/core/add.py",
+   "sympy/core/expr.py",
+   "sympy/core/mul.py",
+   "sympy/core/operations.py",
+   "sympy/core/power.py",
+   "sympy/core/singleton.py",
+   "sympy/printing/latex.py",
+   "sympy/solvers/ode.py"
+  ]
+ },
+ {
+  "id": "80dfe91372",
+  "commit": "80dfe913720e933c546141a41bacc3183843ebf4",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/core/expr.py",
+   "sympy/polys/polytools.py"
+  ]
+ },
+ {
+  "id": "4255969efc",
+  "commit": "4255969efc9125ffa5e7572ca555d29f543d9859",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "ae7c2f0950",
+  "commit": "ae7c2f0950ddb25d142dc20e78fa08da4eb2b3a8",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "c62a46f113",
+  "commit": "c62a46f1134dde76d31ef0ba303d2f79f1ed4390",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/printing/printer.py"
+  ]
+ },
+ {
+  "id": "81f1855327",
+  "commit": "81f1855327ca806b1378a3a317cf4b2fadfe03a1",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "03c5760f4d",
+  "commit": "03c5760f4df0f31ea61c07fdc14d7f26dd232cdb",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/printing/printer.py"
+  ]
+ },
+ {
+  "id": "61bc45702d",
+  "commit": "61bc45702d9a35e63fd7315dd55a68ed9c4ef68b",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "847ae3939f",
+  "commit": "847ae3939fdc24bc47f2768fe4f0d3498eab03db",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "a73a4f1a5d",
+  "commit": "a73a4f1a5db4a3c9b409c5d83c1a8b7cb1251295",
+  "src": [
+   "sympy/core/expr.py",
+   "sympy/core/mul.py",
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "11c779f5d4",
+  "commit": "11c779f5d4dec8ab3ac5c922ed7c8d6d2be60fac",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "6780bd11d5",
+  "commit": "6780bd11d54f6050415c9c2bf04ea445bf1ed76e",
+  "src": [
+   "sympy/core/exprtools.py",
+   "sympy/polys/domains/modularinteger.py",
+   "sympy/polys/groebnertools.py",
+   "sympy/polys/polytools.py",
+   "sympy/polys/rootisolation.py"
+  ]
+ },
+ {
+  "id": "5fa2e58d34",
+  "commit": "5fa2e58d34770d3abf494239018d606139e92592",
+  "src": [
+   "sympy/core/function.py",
+   "sympy/polys/rootoftools.py"
+  ]
+ },
+ {
+  "id": "9d4f9edda1",
+  "commit": "9d4f9edda1dca2504c39a07ef59d64f0758f0b06",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "d68c216023",
+  "commit": "d68c216023d02c537d3aae8bb7e56a6205da78e6",
+  "src": [
+   "sympy/core/basic.py"
+  ]
+ },
+ {
+  "id": "56369618da",
+  "commit": "56369618da4e92300782131214aa416c1fe772e2",
+  "src": [
+   "sympy/core/__init__.py",
+   "sympy/core/exprtools.py"
+  ]
+ },
+ {
+  "id": "52ff5dc7b2",
+  "commit": "52ff5dc7b2139f7deb615fefccd73508ca37782c",
+  "src": [
+   "sympy/core/expr.py",
+   "sympy/polys/__init__.py",
+   "sympy/polys/polyroots.py",
+   "sympy/polys/rationaltools.py",
+   "sympy/simplify/__init__.py",
+   "sympy/simplify/simplify.py"
+  ]
+ },
+ {
+  "id": "95d39261d0",
+  "commit": "95d39261d06254dddec47a391271d31ad1651041",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "957745a12f",
+  "commit": "957745a12f5115afd40b6953c7d3310fec04cc34",
+  "src": [
+   "sympy/core/symbol.py"
+  ]
+ },
+ {
+  "id": "a6b196f5f1",
+  "commit": "a6b196f5f13d27e6de7cc32e4fd75c04c15b2434",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "ca67796984",
+  "commit": "ca677969843246ac2a435e97360e4096b1c58a32",
+  "src": [
+   "sympy/core/exprtools.py",
+   "sympy/polys/polytools.py"
+  ]
+ },
+ {
+  "id": "b2ff0771b3",
+  "commit": "b2ff0771b357ab4f5e30a2f3eb5e26ebecd016b9",
+  "src": [
+   "sympy/core/coreerrors.py",
+   "sympy/core/exprtools.py"
+  ]
+ },
+ {
+  "id": "785f3468d9",
+  "commit": "785f3468d9c83bd219041c57b0cff19e03900b77",
+  "src": [
+   "sympy/core/add.py"
+  ]
+ },
+ {
+  "id": "996499ae7a",
+  "commit": "996499ae7a9c617105a5dea0616e779f33aa8040",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "dc1e1120fb",
+  "commit": "dc1e1120fb5f031c460de104fc96fc02aa1e7958",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "afc470666a",
+  "commit": "afc470666a327b682788f58f2a1a035c8add637b",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "661a8dfc47",
+  "commit": "661a8dfc47515c273c41301d203cba900e9e585a",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "1ea5be88d9",
+  "commit": "1ea5be88d958acd3550be315ecffc16244ca5ffd",
+  "src": [
+   "sympy/core/expr.py",
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "707998f75b",
+  "commit": "707998f75bd92cdc8c2014afc07eff866df03c42",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "496f08fa0d",
+  "commit": "496f08fa0da50aa54ac599d69825f2fb3f3e825c",
+  "src": [
+   "sympy/core/expr.py",
+   "sympy/polys/__init__.py",
+   "sympy/polys/partfrac.py",
+   "sympy/simplify/__init__.py",
+   "sympy/simplify/rewrite.py",
+   "sympy/simplify/simplify.py"
+  ]
+ },
+ {
+  "id": "46b9c63605",
+  "commit": "46b9c63605fee9d2cb24199518e8553b0afb5085",
+  "src": [
+   "sympy/core/symbol.py"
+  ]
+ },
+ {
+  "id": "f6452a8494",
+  "commit": "f6452a849436c0a271f1587260f0b2b9e0510b6e",
+  "src": [
+   "sympy/core/symbol.py"
+  ]
+ },
+ {
+  "id": "9aeb220ad7",
+  "commit": "9aeb220ad70af6744166e3065e29877de7f85d8f",
+  "src": [
+   "sympy/core/symbol.py"
+  ]
+ },
+ {
+  "id": "c7bd05952c",
+  "commit": "c7bd05952c187be583732fa31418207f13cd7af7",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "aba51c2758",
+  "commit": "aba51c27586c1d7a2e8b08cbd02f9e7ca8764cb5",
+  "src": [
+   "sympy/core/__init__.py",
+   "sympy/core/basic.py",
+   "sympy/core/symbol.py",
+   "sympy/printing/pretty/pretty.py"
+  ]
+ },
+ {
+  "id": "f31739b584",
+  "commit": "f31739b584e89fc16cca9931aa9e9dc2342a6d0c",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/core/relational.py"
+  ]
+ },
+ {
+  "id": "ad09e53030",
+  "commit": "ad09e53030175e2525087aebf7b4968a1e2e2564",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "4c269feeed",
+  "commit": "4c269feeed859dfcf5172dc8f366354ceed94a01",
+  "src": [
+   "sympy/core/sets.py"
+  ]
+ },
+ {
+  "id": "221faa239b",
+  "commit": "221faa239b1cebce1e8868f4f2a3d800ba263a0a",
+  "src": [
+   "sympy/core/relational.py"
+  ]
+ },
+ {
+  "id": "be0cae112f",
+  "commit": "be0cae112f0a03f12508b4574a2ff45c3b0a0b6b",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/logic/boolalg.py",
+   "sympy/printing/pretty/pretty.py"
+  ]
+ },
+ {
+  "id": "b107d61259",
+  "commit": "b107d612592b12fc73d795904740de292637c22a",
+  "src": [
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "b9b3da3b19",
+  "commit": "b9b3da3b19563bc8570cf0cdcfb16bf0b6a21424",
+  "src": [
+   "sympy/functions/special/polynomials.py"
+  ]
+ },
+ {
+  "id": "287c70127f",
+  "commit": "287c70127fd74661e295ec8855258ef369cff3fe",
+  "src": [
+   "sympy/core/expr.py",
+   "sympy/physics/quantum/matrixutils.py",
+   "sympy/physics/quantum/qubit.py",
+   "sympy/series/order.py"
+  ]
+ },
+ {
+  "id": "8001f1d304",
+  "commit": "8001f1d304887c0749fa096afd81d9f25ca76da0",
+  "src": [
+   "sympy/core/function.py",
+   "sympy/core/power.py"
+  ]
+ },
+ {
+  "id": "ab6e73215f",
+  "commit": "ab6e73215fca24b3f033eb3d8600f63c3eaf37df",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/solvers/recurr.py"
+  ]
+ },
+ {
+  "id": "c20062e78c",
+  "commit": "c20062e78c34a39096157de7c294db49dccc318b",
+  "src": [
+   "sympy/core/function.py",
+   "sympy/functions/elementary/complexes.py",
+   "sympy/integrals/integrals.py"
+  ]
+ },
+ {
+  "id": "2361dd86df",
+  "commit": "2361dd86df3757939dfd9fcb5e39888465e2dfc3",
+  "src": [
+   "sympy/core/expr.py",
+   "sympy/core/function.py",
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "7be6295d90",
+  "commit": "7be6295d90d31a93b41b93e25f99da3b2e661976",
+  "src": [
+   "sympy/functions/elementary/hyperbolic.py"
+  ]
+ },
+ {
+  "id": "9d8c822129",
+  "commit": "9d8c82212906ecd3b3be4660b8f06e19820dc974",
+  "src": [
+   "sympy/core/add.py",
+   "sympy/core/expr.py",
+   "sympy/core/mul.py",
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "487f59e699",
+  "commit": "487f59e699ec6f78405cf6b2c63778fc92a70383",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "73af07e2d6",
+  "commit": "73af07e2d672dd71b9f483fa5631b792e4f92109",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "e7347cb4e9",
+  "commit": "e7347cb4e97ae6f3b1a99a6de69d95529850f323",
+  "src": [
+   "sympy/core/mul.py",
+   "sympy/core/power.py",
+   "sympy/functions/elementary/exponential.py",
+   "sympy/simplify/simplify.py"
+  ]
+ },
+ {
+  "id": "c302557264",
+  "commit": "c3025572647c252d1dc0ef3cb4ab1b7d4802ffe4",
+  "src": [
+   "sympy/core/mul.py",
+   "sympy/core/power.py"
+  ]
+ },
+ {
+  "id": "c83c9b0d2e",
+  "commit": "c83c9b0d2e75a43c8986aa2bb6d824b449a9081f",
+  "src": [
+   "sympy/core/basic.py",
+   "sympy/core/mul.py",
+   "sympy/core/operations.py",
+   "sympy/functions/elementary/integers.py",
+   "sympy/geometry/ellipse.py",
+   "sympy/geometry/line.py",
+   "sympy/integrals/integrals.py",
+   "sympy/integrals/risch.py",
+   "sympy/matrices/matrices.py",
+   "sympy/simplify/simplify.py",
+   "sympy/solvers/ode.py",
+   "sympy/solvers/pde.py"
+  ]
+ },
+ {
+  "id": "99a271e160",
+  "commit": "99a271e160b00ebb48f54cd78c8b00f99912e36a",
+  "src": [
+   "sympy/core/sets.py",
+   "sympy/functions/__init__.py",
+   "sympy/functions/elementary/miscellaneous.py",
+   "sympy/utilities/lambdify.py"
+  ]
+ },
+ {
+  "id": "7458c3ff17",
+  "commit": "7458c3ff17d184fc9a0e9e131fb0999f47154233",
+  "src": [
+   "sympy/core/mul.py",
+   "sympy/simplify/__init__.py",
+   "sympy/simplify/simplify.py",
+   "sympy/solvers/ode.py"
+  ]
+ },
+ {
+  "id": "e3714d7e76",
+  "commit": "e3714d7e76764223715d727c7ee4ff59c326f5f5",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "831309dfa8",
+  "commit": "831309dfa842763004f0dcab17dc763b332cc236",
+  "src": [
+   "sympy/core/add.py",
+   "sympy/core/mul.py"
+  ]
+ },
+ {
+  "id": "a0c5f931d4",
+  "commit": "a0c5f931d40a9aefbc2716024975d6f1234d8e0f",
+  "src": [
+   "sympy/concrete/summations.py",
+   "sympy/concrete/sums_products.py",
+   "sympy/functions/elementary/piecewise.py",
+   "sympy/galgebra/GA.py",
+   "sympy/galgebra/latex_ex.py",
+   "sympy/matrices/matrices.py",
+   "sympy/solvers/ode.py"
+  ]
+ },
+ {
+  "id": "3418c8ad69",
+  "commit": "3418c8ad696f08f4a8c802de2b28258af55bd6a3",
+  "src": [
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "aeb80f87a1",
+  "commit": "aeb80f87a16fad38ffc44b18aa52d739519e003b",
+  "src": [
+   "sympy/core/function.py",
+   "sympy/solvers/ode.py",
+   "sympy/solvers/pde.py"
+  ]
+ },
+ {
+  "id": "ec162760c7",
+  "commit": "ec162760c77c86fcce2fd7c0894979a160dcec9b",
+  "src": [
+   "sympy/functions/elementary/exponential.py"
+  ]
+ },
+ {
+  "id": "1075c00681",
+  "commit": "1075c0068112be2263c9c2532a209043b73473b9",
+  "src": [
+   "sympy/core/evalf.py",
+   "sympy/integrals/integrals.py",
+   "sympy/printing/latex.py",
+   "sympy/printing/mathml.py",
+   "sympy/printing/pretty/pretty.py",
+   "sympy/printing/str.py"
+  ]
+ },
+ {
+  "id": "4d8de57b9a",
+  "commit": "4d8de57b9a8198d60d8e206e68ebeee20bcb67da",
+  "src": [
+   "sympy/concrete/summations.py",
+   "sympy/core/containers.py",
+   "sympy/core/evalf.py",
+   "sympy/integrals/integrals.py",
+   "sympy/printing/str.py"
+  ]
+ },
+ {
+  "id": "10de4831b9",
+  "commit": "10de4831b99a71961f7297522c861498c3ca228a",
+  "src": [
+   "sympy/functions/elementary/complexes.py"
+  ]
+ },
+ {
+  "id": "bec4b06161",
+  "commit": "bec4b0616171133f88daba7e7484f4c9f6e52493",
+  "src": [
+   "sympy/core/ast_parser.py",
+   "sympy/core/sympify.py"
+  ]
+ },
+ {
+  "id": "5039dd09d6",
+  "commit": "5039dd09d6f626cca40b3aaa65a5e7dc3a8c05ba",
+  "src": [
+   "sympy/core/numbers.py"
+  ]
+ },
+ {
+  "id": "d57eca58f7",
+  "commit": "d57eca58f7b3c49a5e4b957e9d25e9d55a9337a8",
+  "src": [
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "0afaaf248e",
+  "commit": "0afaaf248ead47da2216cf7c6f07558d0aaf4585",
+  "src": [
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "3fc5bdd975",
+  "commit": "3fc5bdd97514c1f52f7ebcc5a6879d1a80f79623",
+  "src": [
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "b32feb7d8c",
+  "commit": "b32feb7d8c333c1d7ee846afe6822a50d646c836",
+  "src": [
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "215e5de2aa",
+  "commit": "215e5de2aa3f0794d7399496f315c2858c274411",
+  "src": [
+   "sympy/functions/special/bessel.py",
+   "sympy/functions/special/spherical_harmonics.py"
+  ]
+ },
+ {
+  "id": "07993e37d9",
+  "commit": "07993e37d981186be85f182c0a4d8c8e4f626fe8",
+  "src": [
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "5bf4c8240e",
+  "commit": "5bf4c8240ef90a80608d0abe7a9dca59d2e0295b",
+  "src": [
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "a46b6f1ce8",
+  "commit": "a46b6f1ce8c871625a2606566fc58ef741b89278",
+  "src": [
+   "sympy/functions/__init__.py",
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "5131dc9289",
+  "commit": "5131dc9289ea531fd28af734c71a1b682ed9f3e5",
+  "src": [
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "0c5c02c5c9",
+  "commit": "0c5c02c5c92dcd40f01db6594397814ae67b5036",
+  "src": [
+   "sympy/functions/__init__.py",
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "2a1ba632eb",
+  "commit": "2a1ba632ebae2ff49444a46445317c035cc0076c",
+  "src": [
+   "sympy/functions/special/spherical_harmonics.py"
+  ]
+ },
+ {
+  "id": "db0f025161",
+  "commit": "db0f02516137e0b0c763a18b658ad7373b50cef4",
+  "src": [
+   "sympy/functions/__init__.py",
+   "sympy/functions/special/bessel.py"
+  ]
+ },
+ {
+  "id": "0c85f5f979",
+  "commit": "0c85f5f9791a29cf2c86d8501d35097ccc1cd95d",
+  "src": [
+   "sympy/core/sympify.py"
+  ]
+ },
+ {
+  "id": "f1892b15bb",
+  "commit": "f1892b15bb439e7618dfe7d9a330c64391ba5ae0",
+  "src": [
+   "sympy/core/numbers.py",
+   "sympy/core/sympify.py"
+  ]
+ },
+ {
+  "id": "053a0450a5",
+  "commit": "053a0450a590598ff759654ea5a7b1a715ee1e6e",
+  "src": [
+   "sympy/core/numbers.py",
+   "sympy/core/sympify.py",
+   "sympy/simplify/simplify.py"
+  ]
+ },
+ {
+  "id": "176141fddd",
+  "commit": "176141fdddd559d44f2ce7b204e1354be64a2223",
+  "src": [
+   "sympy/core/add.py",
+   "sympy/core/expr.py",
+   "sympy/core/power.py",
+   "sympy/core/symbol.py",
+   "sympy/functions/elementary/complexes.py",
+   "sympy/functions/elementary/exponential.py",
+   "sympy/functions/elementary/hyperbolic.py",
+   "sympy/functions/elementary/trigonometric.py"
+  ]
+ },
+ {
+  "id": "8a800435bb",
+  "commit": "8a800435bb92f6c8efaa482c090ed7e55a096de5",
+  "src": [
+   "sympy/core/__init__.py",
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "54b1a43923",
+  "commit": "54b1a43923788bb669ff8c5cb5529705a9a0e23f",
+  "src": [
+   "sympy/functions/__init__.py"
+  ]
+ },
+ {
+  "id": "193852a5b2",
+  "commit": "193852a5b2c05bb9c3c3f50bf941ae63d3ca114e",
+  "src": [
+   "sympy/functions/__init__.py",
+   "sympy/functions/combinatorial/factorials.py"
+  ]
+ },
+ {
+  "id": "48fc630112",
+  "commit": "48fc630112b01a47045a9f6b3a5c1e5ee5a693d1",
+  "src": [
+   "sympy/core/function.py"
+  ]
+ },
+ {
+  "id": "29e16f2818",
+  "commit": "29e16f28184ee56c7e31d8ef27799d6b68833187",
+  "src": [
+   "sympy/concrete/summations.py",
+   "sympy/core/basic.py",
+   "sympy/core/sets.py",
+   "sympy/functions/elementary/piecewise.py",
+   "sympy/integrals/integrals.py",
+   "sympy/physics/secondquant.py",
+   "sympy/series/order.py"
+  ]
+ }
+]

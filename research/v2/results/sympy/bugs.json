@@ -1,0 +1,667 @@
+[
+ {
+  "id": "function:sympy/functions/special/zeta_functions.py:157",
+  "kind": "function",
+  "file": "sympy/functions/special/zeta_functions.py",
+  "line": 157,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/integers.py:635",
+  "kind": "function",
+  "file": "sympy/functions/elementary/integers.py",
+  "line": 635,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/function.py:629",
+  "kind": "function",
+  "file": "sympy/core/function.py",
+  "line": 629,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/intfunc.py:120",
+  "kind": "function",
+  "file": "sympy/core/intfunc.py",
+  "line": 120,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/relational.py:1962",
+  "kind": "function",
+  "file": "sympy/core/relational.py",
+  "line": 1962,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/trigonometric.py:520",
+  "kind": "function",
+  "file": "sympy/functions/elementary/trigonometric.py",
+  "line": 520,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/integers.py:266",
+  "kind": "function",
+  "file": "sympy/functions/elementary/integers.py",
+  "line": 266,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/numbers.py:1191",
+  "kind": "function",
+  "file": "sympy/core/numbers.py",
+  "line": 1191,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/exponential.py:1219",
+  "kind": "function",
+  "file": "sympy/functions/elementary/exponential.py",
+  "line": 1219,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/multidimensional.py:128",
+  "kind": "function",
+  "file": "sympy/core/multidimensional.py",
+  "line": 128,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/exponential.py:953",
+  "kind": "function",
+  "file": "sympy/functions/elementary/exponential.py",
+  "line": 953,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/miscellaneous.py:883",
+  "kind": "function",
+  "file": "sympy/functions/elementary/miscellaneous.py",
+  "line": 883,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/random.py:220",
+  "kind": "function",
+  "file": "sympy/core/random.py",
+  "line": 220,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/function.py:633",
+  "kind": "function",
+  "file": "sympy/core/function.py",
+  "line": 633,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/basic.py:1392",
+  "kind": "function",
+  "file": "sympy/core/basic.py",
+  "line": 1392,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/operations.py:263",
+  "kind": "function",
+  "file": "sympy/core/operations.py",
+  "line": 263,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/evalf.py:438",
+  "kind": "function",
+  "file": "sympy/core/evalf.py",
+  "line": 438,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/function.py:632",
+  "kind": "function",
+  "file": "sympy/core/function.py",
+  "line": 632,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/trigonometric.py:104",
+  "kind": "function",
+  "file": "sympy/functions/elementary/trigonometric.py",
+  "line": 104,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/relational.py:644",
+  "kind": "function",
+  "file": "sympy/core/relational.py",
+  "line": 644,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/trigonometric.py:3760",
+  "kind": "function",
+  "file": "sympy/functions/elementary/trigonometric.py",
+  "line": 3760,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/special/hyper.py:1175",
+  "kind": "function",
+  "file": "sympy/functions/special/hyper.py",
+  "line": 1175,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/mul.py:827",
+  "kind": "function",
+  "file": "sympy/core/mul.py",
+  "line": 827,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/special/singularity_functions.py:105",
+  "kind": "function",
+  "file": "sympy/functions/special/singularity_functions.py",
+  "line": 105,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/hyperbolic.py:788",
+  "kind": "function",
+  "file": "sympy/functions/elementary/hyperbolic.py",
+  "line": 788,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/function.py:1568",
+  "kind": "function",
+  "file": "sympy/core/function.py",
+  "line": 1568,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/numbers.py:985",
+  "kind": "function",
+  "file": "sympy/core/numbers.py",
+  "line": 985,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/combinatorial/factorials.py:969",
+  "kind": "function",
+  "file": "sympy/functions/combinatorial/factorials.py",
+  "line": 969,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/trigonometric.py:1453",
+  "kind": "function",
+  "file": "sympy/functions/elementary/trigonometric.py",
+  "line": 1453,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/hyperbolic.py:979",
+  "kind": "function",
+  "file": "sympy/functions/elementary/hyperbolic.py",
+  "line": 979,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/containers.py:262",
+  "kind": "function",
+  "file": "sympy/core/containers.py",
+  "line": 262,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/integers.py:558",
+  "kind": "function",
+  "file": "sympy/functions/elementary/integers.py",
+  "line": 558,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/expr.py:3541",
+  "kind": "function",
+  "file": "sympy/core/expr.py",
+  "line": 3541,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/integers.py:269",
+  "kind": "function",
+  "file": "sympy/functions/elementary/integers.py",
+  "line": 269,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/hyperbolic.py:2073",
+  "kind": "function",
+  "file": "sympy/functions/elementary/hyperbolic.py",
+  "line": 2073,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/elementary/miscellaneous.py:561",
+  "kind": "function",
+  "file": "sympy/functions/elementary/miscellaneous.py",
+  "line": 561,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/mul.py:2051",
+  "kind": "function",
+  "file": "sympy/core/mul.py",
+  "line": 2051,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/combinatorial/numbers.py:131",
+  "kind": "function",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 131,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/core/operations.py:645",
+  "kind": "function",
+  "file": "sympy/core/operations.py",
+  "line": 645,
+  "op": "flip"
+ },
+ {
+  "id": "function:sympy/functions/combinatorial/numbers.py:3053",
+  "kind": "function",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 3053,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/functions/combinatorial/numbers.py:1821",
+  "kind": "class",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 1821,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/symbol.py:511",
+  "kind": "class",
+  "file": "sympy/core/symbol.py",
+  "line": 511,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:3568",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 3568,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:1290",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 1290,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/mul.py:31",
+  "kind": "class",
+  "file": "sympy/core/mul.py",
+  "line": 31,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:3877",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 3877,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:4127",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 4127,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:3217",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 3217,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:3950",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 3950,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/functions/combinatorial/numbers.py:2043",
+  "kind": "class",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 2043,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:2826",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 2826,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:1297",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 1297,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/functions/special/beta_functions.py:243",
+  "kind": "class",
+  "file": "sympy/functions/special/beta_functions.py",
+  "line": 243,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:3569",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 3569,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/functions/special/error_functions.py:559",
+  "kind": "class",
+  "file": "sympy/functions/special/error_functions.py",
+  "line": 559,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/basic.py:257",
+  "kind": "class",
+  "file": "sympy/core/basic.py",
+  "line": 257,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:3520",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 3520,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:3216",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 3216,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:3517",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 3517,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:3060",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 3060,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/functions/combinatorial/numbers.py:1983",
+  "kind": "class",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 1983,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:343",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 343,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/function.py:327",
+  "kind": "class",
+  "file": "sympy/core/function.py",
+  "line": 327,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/functions/special/error_functions.py:129",
+  "kind": "class",
+  "file": "sympy/functions/special/error_functions.py",
+  "line": 129,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/functions/elementary/complexes.py:525",
+  "kind": "class",
+  "file": "sympy/functions/elementary/complexes.py",
+  "line": 525,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/functions/elementary/complexes.py:203",
+  "kind": "class",
+  "file": "sympy/functions/elementary/complexes.py",
+  "line": 203,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:775",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 775,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/numbers.py:4017",
+  "kind": "class",
+  "file": "sympy/core/numbers.py",
+  "line": 4017,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/functions/combinatorial/numbers.py:1869",
+  "kind": "class",
+  "file": "sympy/functions/combinatorial/numbers.py",
+  "line": 1869,
+  "op": "flip"
+ },
+ {
+  "id": "class:sympy/core/mul.py:35",
+  "kind": "class",
+  "file": "sympy/core/mul.py",
+  "line": 35,
+  "op": "flip"
+ },
+ {
+  "id": "module:sympy/core/relational.py:1580",
+  "kind": "module",
+  "file": "sympy/core/relational.py",
+  "line": 1580,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/relational.py:1586",
+  "kind": "module",
+  "file": "sympy/core/relational.py",
+  "line": 1586,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1497",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1497,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/relational.py:1588",
+  "kind": "module",
+  "file": "sympy/core/relational.py",
+  "line": 1588,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1477",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1477,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1488",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1488,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1501",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1501,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1487",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1487,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1473",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1473,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1504",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1504,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/relational.py:1576",
+  "kind": "module",
+  "file": "sympy/core/relational.py",
+  "line": 1576,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1485",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1485,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1481",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1481,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1480",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1480,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/relational.py:1589",
+  "kind": "module",
+  "file": "sympy/core/relational.py",
+  "line": 1589,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1511",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1511,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1509",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1509,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1483",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1483,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1507",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1507,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1506",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1506,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1484",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1484,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1513",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1513,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1519",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1519,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1479",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1479,
+  "op": "delete"
+ },
+ {
+  "id": "module:sympy/core/assumptions_generated.py:1522",
+  "kind": "module",
+  "file": "sympy/core/assumptions_generated.py",
+  "line": 1522,
+  "op": "delete"
+ }
+]

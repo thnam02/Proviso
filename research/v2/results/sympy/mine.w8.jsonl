@@ -1,0 +1,22 @@
+{"id": "94f14043f5", "commit": "94f14043f5195c6c58d2c21dcc2beccd9d476aa4", "src": ["sympy/functions/elementary/hyperbolic.py", "sympy/functions/elementary/trigonometric.py"], "failing": ["sympy/functions/elementary/tests/test_hyperbolic.py::test_acoth", "sympy/functions/elementary/tests/test_trigonometric.py::test_evenodd_rewrite"], "n_tests": 581}
+{"id": "5f8bf9bae0", "commit": "5f8bf9bae0df5e425da0c402fbf95dea75ae7dca", "src": ["sympy/core/power.py"], "failing": [], "n_tests": 551}
+{"id": "bfb4fe26de", "commit": "bfb4fe26def3c929ee58f5e637240a57c107cf75", "src": ["sympy/functions/elementary/trigonometric.py"], "failing": [], "n_tests": 0}
+{"id": "04aa71c927", "commit": "04aa71c927650c752038408513c6cd6b53abfc3b", "src": ["sympy/core/evalf.py"], "failing": [], "n_tests": 0}
+{"id": "19732b06e1", "commit": "19732b06e1d449c9e9ec96b3a5bfab574108a976", "src": ["sympy/core/exprtools.py", "sympy/integrals/meijerint.py", "sympy/simplify/simplify.py"], "failing": [], "n_tests": 0}
+{"id": "8e14e464b8", "commit": "8e14e464b8f5f8e1b28a75c6f06f4f33a40a6bf8", "src": ["sympy/printing/latex.py", "sympy/printing/pretty/pretty.py", "sympy/sets/__init__.py", "sympy/sets/fancysets.py"], "failing": [], "n_tests": 0}
+{"id": "a58617ff20", "commit": "a58617ff2079b5c159bf12eb3bcc27e3f55a0e2c", "src": ["sympy/core/basic.py"], "failing": [], "n_tests": 0}
+{"id": "df25cee0dd", "commit": "df25cee0ddd6843c283db36dd7eca4871b8bf1fc", "src": ["sympy/core/sets.py"], "failing": [], "n_tests": 0}
+{"id": "f5205270e9", "commit": "f5205270e9b1e31420de466ab2a1124f7ad4e65d", "src": ["sympy/core/sets.py", "sympy/solvers/inequalities.py"], "failing": [], "n_tests": 0}
+{"id": "c82aab3958", "commit": "c82aab3958c7b2cac143db99164fff09825551a2", "src": ["sympy/core/compatibility.py", "sympy/utilities/iterables.py"], "failing": [], "n_tests": 0}
+{"id": "b361ecdaa1", "commit": "b361ecdaa156e4531d36f853535c23c516d281b2", "src": ["sympy/core/mul.py", "sympy/polys/polyroots.py"], "failing": [], "n_tests": 0}
+{"id": "35e3525796", "commit": "35e3525796a22d9058a25d5baefc3d916e95f0a3", "src": ["sympy/core/function.py"], "failing": [], "n_tests": 0}
+{"id": "befe8ddf2a", "commit": "befe8ddf2af5750ba3c02389b8290acce5e39dbf", "src": ["sympy/functions/elementary/trigonometric.py"], "failing": [], "n_tests": 0}
+{"id": "c55cd978dc", "commit": "c55cd978dc15acf5df79646d9b57cf8738e29886", "src": ["sympy/core/power.py"], "failing": [], "n_tests": 0}
+{"id": "65d8644d1b", "commit": "65d8644d1b390add012144016c0669ce01035239", "src": ["sympy/core/add.py", "sympy/core/expr.py", "sympy/core/mul.py", "sympy/core/operations.py", "sympy/core/power.py", "sympy/core/singleton.py", "sympy/printing/latex.py", "sympy/solvers/ode.py"], "failing": [], "n_tests": 0}
+{"id": "6780bd11d5", "commit": "6780bd11d54f6050415c9c2bf04ea445bf1ed76e", "src": ["sympy/core/exprtools.py", "sympy/polys/domains/modularinteger.py", "sympy/polys/groebnertools.py", "sympy/polys/polytools.py", "sympy/polys/rootisolation.py"], "failing": [], "n_tests": 0}
+{"id": "785f3468d9", "commit": "785f3468d9c83bd219041c57b0cff19e03900b77", "src": ["sympy/core/add.py"], "failing": [], "n_tests": 0}
+{"id": "c7bd05952c", "commit": "c7bd05952c187be583732fa31418207f13cd7af7", "src": ["sympy/core/numbers.py"], "failing": [], "n_tests": 0}
+{"id": "ab6e73215f", "commit": "ab6e73215fca24b3f033eb3d8600f63c3eaf37df", "src": ["sympy/core/basic.py", "sympy/solvers/recurr.py"], "failing": [], "n_tests": 0}
+{"id": "7458c3ff17", "commit": "7458c3ff17d184fc9a0e9e131fb0999f47154233", "src": ["sympy/core/mul.py", "sympy/simplify/__init__.py", "sympy/simplify/simplify.py", "sympy/solvers/ode.py"], "failing": [], "n_tests": 0}
+{"id": "5039dd09d6", "commit": "5039dd09d6f626cca40b3aaa65a5e7dc3a8c05ba", "src": ["sympy/core/numbers.py"], "failing": [], "n_tests": 0}
+{"id": "2a1ba632eb", "commit": "2a1ba632ebae2ff49444a46445317c035cc0076c", "src": ["sympy/functions/special/spherical_harmonics.py"], "failing": [], "n_tests": 0}
