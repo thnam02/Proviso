@@ -13,6 +13,8 @@
 | func_file | 4 of 61 | 22 | 80.7% (78.8%) |
 | proviso | 3 of 61 | 14 | 87.2% (100.0%) |
 | namerts | 26 of 61 | 2875 | 29.5% (3.1%) |
+| tdad | 61 of 61 | 8241 | 0.2% (0.0%) |
+| tdad_nocap | 34 of 61 | 5439 | 83.7% (87.1%) |
 
 End to end (plain s): full suite median 24.2; Proviso median 26.1, mean 22.5; faster on 38 of 94; selection median 1.88 s
 
@@ -29,5 +31,7 @@ End to end (plain s): full suite median 24.2; Proviso median 26.1, mean 22.5; fa
 | func_file | 1 of 10 | 1 | 86.2% (94.7%) |
 | proviso | 0 of 10 | 0 | 92.3% (100.0%) |
 | namerts | 3 of 10 | 8 | 36.8% (6.7%) |
+| tdad | 10 of 10 | 27 | 0.1% (0.0%) |
+| tdad_nocap | 3 of 10 | 6 | 74.4% (84.6%) |
 
 End to end (plain s): full suite median 24.5; Proviso median 25.9, mean 22.4; faster on 4 of 22; selection median 1.88 s
