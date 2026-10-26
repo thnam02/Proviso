@@ -548,7 +548,91 @@ def realeval_worker(i, n):
             reset(tree)
 
 
+# ---------------------------------------------------------------------------------------------------- flaky tests
+
+def _rerun_targets(names):
+    """pytest targets for test ids: an id as is; a file-level entry (collection error, or a data-file test whose
+    id ends in '::') as its file."""
+    out = []
+    for n in names:
+        f, _, rest = n.partition("::")
+        t = n if rest else f
+        if t not in out:
+            out.append(t)
+    return out
+
+
+def deflake_worker(i, n):
+    """Re-run each change's failing tests once more on the changed tree; a test counts as broken by the change only
+    if it fails again. Tests that pass on the re-run are flaky (e.g. two parallel runs racing on a fixed /tmp path)
+    and are dropped from scoring. Planted bugs: rows of 'truth'; real commits: rows of 'mine'."""
+    done = set(merged("deflake"))
+    tree = make_tree(f"w{i}", CFG["commit"])
+    jobs = [("truth", r) for r in merged("truth").values()] + [("mine", r) for r in merged("mine").values()]
+    for stage, r in [j for j in jobs if j[1].get("failing") and f"{j[0]}:{j[1]['id']}" not in done][i::n]:
+        key = f"{stage}:{r['id']}"
+        try:
+            if stage == "truth":
+                apply_bug(tree, r)
+            else:
+                tree = make_tree(f"w{i}", r["commit"] + "^")
+                apply_commit_src(tree, r)
+            out = run_tests(tree, os.path.join(WORK, f"deflake_w{i}.json"), _rerun_targets(r["failing"]))
+            still = failing(out)
+            # a file-level entry is confirmed if its file still fails to collect or any of its tests fail
+            conf = sorted(t for t in r["failing"] if t in still or
+                          ("::" not in t or t.endswith("::")) and any(x.split("::", 1)[0] == t.split("::", 1)[0]
+                                                                      for x in still))
+            append("deflake", i, {"id": key, "confirmed": conf, "flaky": sorted(set(r["failing"]) - set(conf))})
+        except Exception as e:  # noqa: BLE001
+            print(key, "ERROR", repr(e)[:300], flush=True)
+        finally:
+            reset(tree)
+
+
+def deflake():
+    jobs = [r for st in ("truth", "mine") for r in merged(st).values() if r.get("failing")]
+    parallel("deflake", jobs)
+    rows = merged("deflake")
+    fl = sorted({t for r in rows.values() for t in r["flaky"]})
+    log("deflake:", len(rows), "changes re-checked;", sum(bool(r["flaky"]) for r in rows.values()),
+        "had flaky failures;", len(fl), "distinct flaky tests", fl[:10])
+
+
+def _confirmed(rows, stage):
+    """Score only confirmed failures: truth count and missed lists restricted to the tests that failed again."""
+    dfl = merged("deflake")
+    if not dfl:
+        return rows
+    src = "truth" if stage == "select" else "mine"
+    out = []
+    for r in rows:
+        d = dfl.get(f"{src}:{r['id']}")
+        if d is None or not d["flaky"]:
+            out.append(r)
+            continue
+        conf = set(d["confirmed"])
+        sels = {k: {**v, "missed": [t for t in v["missed"] if t in conf]} for k, v in r["selectors"].items()}
+        out.append({**r, "truth": len(conf), "selectors": sels, "flaky_dropped": len(d["flaky"])})
+    return out
+
+
 # ---------------------------------------------------------------------------------------------------- repair
+
+def rescore():
+    """Re-record the coverage maps (base and each real commit's parent) with the current recorder and recompute the
+    selection rows; the ground truth (truth, mine) is kept. Used for pygments after the recorder learned to record
+    tests collected from data files (its first run left 1,504 such tests out of every map). Resumable: the old maps and
+    rows are deleted once (marker file), then select and realeval continue where they stop."""
+    marker = os.path.join(WORK, "rescore.started")
+    if not os.path.exists(marker):
+        for p in [os.path.join(WORK, "covmap.json"), *glob.glob(os.path.join(WORK, "real", "*", "covmap.json")),
+                  *glob.glob(os.path.join(RES, "select.w*.jsonl")), *glob.glob(os.path.join(RES, "realeval.w*.jsonl"))]:
+            os.remove(p)
+        open(marker, "w").write(time.strftime("%F %T"))
+        log("rescore: old coverage maps and selection rows removed")
+    STAGES["select"]()
+    STAGES["realeval"]()
 
 def retestmon():
     """Recompute only pytest-testmon's rows (planted and real) with the current testmon_select, from the databases
@@ -636,13 +720,15 @@ def tdad():
 def report():
     lines = [f"# {REPO} ({CFG['commit'][:10]}; targets {' '.join(CFG['targets'])})", ""]
     for stage, title in (("select", "Planted bugs"), ("realeval", "Real commits")):
-        rows = list(merged(stage).values())
+        rows = _confirmed(list(merged(stage).values()), stage)
         if not rows:
             continue
         brk = [r for r in rows if r["truth"]]
         order = SELECTORS + ["namerts", "tdad", "tdad_nocap"]
         names = sorted({k for r in rows for k in r["selectors"]}, key=lambda k: order.index(k) if k in order else 99)
-        lines += [f"## {title}: {len(rows)} changes, {len(brk)} break tests ({sum(r['truth'] for r in brk)} failing tests)",
+        nfl = sum(r.get("flaky_dropped", 0) for r in rows)
+        lines += [f"## {title}: {len(rows)} changes, {len(brk)} break tests ({sum(r['truth'] for r in brk)} failing tests)"
+                  + (f"; {nfl} flaky failures dropped (passed when re-run)" if nfl else ""),
                   "", "| selector | changes with a missed failure | failing tests missed | test time selected, mean (median) |",
                   "|---|---|---|---|"]
         for k in names:
@@ -666,8 +752,9 @@ STAGES = {"prepare": prepare, "baseline": baseline, "covmap": covmap, "testmon":
           "bugs": bugs, "truth": lambda: (baseline(), parallel("truth", bugs())),
           "select": lambda: (baseline(), covmap(), testmon(), nrinit(), parallel("select", bugs(), NR_WORKERS)),
           "mine": lambda: parallel("mine", commits()), "realeval": lambda: parallel("realeval", real_set(), NR_WORKERS),
-          "report": report, "retestmon": retestmon, "tdad": tdad}
-WORKER = {"truth": truth_worker, "select": select_worker, "mine": mine_worker, "realeval": realeval_worker}
+          "deflake": deflake, "report": report, "retestmon": retestmon, "tdad": tdad, "rescore": lambda: rescore()}
+WORKER = {"truth": truth_worker, "select": select_worker, "mine": mine_worker, "realeval": realeval_worker,
+          "deflake": deflake_worker}
 
 if __name__ == "__main__":
     if sys.argv[1] == "report-all":
@@ -680,6 +767,6 @@ if __name__ == "__main__":
     if sys.argv[2] == "worker":
         WORKER[sys.argv[3]](int(sys.argv[4]), int(sys.argv[5]))
     else:
-        for s in ([k for k in STAGES if k not in ("retestmon", "tdad")] if sys.argv[2] == "all" else sys.argv[2:]):
+        for s in ([k for k in STAGES if k not in ("retestmon", "tdad", "rescore")] if sys.argv[2] == "all" else sys.argv[2:]):
             log("==", s)
             STAGES[s]()

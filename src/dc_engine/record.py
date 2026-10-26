@@ -28,7 +28,9 @@ def collect_files(root: str, python: str, targets: list[str], env: dict) -> list
     files = []
     for line in r.stdout.splitlines():
         f = line.split("::", 1)[0].split(":", 1)[0].strip()
-        if f.endswith(".py") and os.path.isfile(os.path.join(root, f)) and f not in files:
+        # any file pytest collects tests from: test modules, and data files that a conftest turns into tests
+        # (e.g. golden-output files); each gets its own interpreter like a test module
+        if f and os.path.isfile(os.path.join(root, f)) and f not in files:
             files.append(f)
     return files
 

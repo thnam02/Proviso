@@ -574,7 +574,9 @@ def selection(root: str, covmap: dict, python: str | None = None) -> tuple[list[
                 sel.append(node)
     # tests the agent added or edited always run
     touched_tests = [l[3:].strip() for l in status.splitlines() if _is_test_path(l[3:].strip())]
-    extra = sorted({t for t in touched_tests if t.endswith(".py")})
+    # test modules, and data files that are tests themselves (a test id in the map starts with the file)
+    test_files = {n.split("::", 1)[0] for n in tests_of(covmap)}
+    extra = sorted({t for t in touched_tests if t.endswith(".py") or t in test_files})
     why["agent_tests"] = extra
     _flush_file_names()
     return sorted(set(sel)) + extra, why

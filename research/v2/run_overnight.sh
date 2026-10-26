@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Overnight run: the remaining repositories, then the repair and baseline stages for every repository.
 #   bash research/v2/run_overnight.sh
-# Order: sympy, pygments (held out), datasette (held out, an application) -> each pushed when done;
-#        then testmon rows recomputed for sqlglot; then TDAD's rows for all five repositories; then report-all.
+# Order: sympy, datasette (held out, an application) -> each pushed when done; pygments re-scored (recorder now
+#        records data-file tests); flaky-test check for sqlglot and sqlalchemy; TDAD rows; then report-all.
 # Resumable: run it again and finished work is skipped.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -44,20 +44,20 @@ push() {  # push research/v2/results with a message
   else tar -czf "$HOME/proviso-v2-results.tar.gz" research/v2/results; echo "== push failed; results in ~/proviso-v2-results.tar.gz" | tee -a "$LOG"; fi
 }
 
-# 1. remaining repositories (each pushed by run_all.sh when it finishes)
-bash research/v2/run_all.sh sympy pygments datasette
+# 1. remaining repositories (each pushed by run_all.sh when it finishes; "all" includes the flaky-test check)
+bash research/v2/run_all.sh sympy datasette
 
-# 2. testmon rows for sqlglot (its first run recorded testmon wrongly)
-echo "== sqlglot: retestmon ($(date +%T))" | tee -a "$LOG"
-python research/v2/pipeline.py sqlglot retestmon report 2>&1 | tee -a "$LOG" && push "v2 evaluation: sqlglot testmon rows recomputed"
-
-# 3. TDAD baseline rows for every repository (static: no tests are run)
-for r in sqlglot sqlalchemy sympy pygments datasette; do
-  if [ -d "research/v2/results/$r" ]; then
-    echo "== $r: TDAD rows ($(date +%T))" | tee -a "$LOG"
-    python research/v2/pipeline.py "$r" tdad report 2>&1 | tee -a "$LOG" && push "v2 evaluation: $r TDAD baseline rows"
-  fi
-done
+stage() {  # stage REPO STAGES... -> run, log, push
+  local r=$1; shift
+  echo "== $r: $* ($(date +%T))" | tee -a "$LOG"
+  python research/v2/pipeline.py "$r" "$@" 2>&1 | tee -a "$LOG" && push "v2 evaluation: $r $*"
+}
+# 2. pygments: coverage maps re-recorded with tests collected from data files, selection rows recomputed
+[ -d research/v2/results/pygments ] && stage pygments rescore tdad deflake report
+# 3. finished repositories: flaky-test check, then the report
+for r in sqlglot sqlalchemy; do [ -d "research/v2/results/$r" ] && stage "$r" deflake report; done
+# 4. TDAD's rows (static: no tests are run) for the repositories of step 1
+for r in sympy datasette; do [ -d "research/v2/results/$r" ] && stage "$r" tdad report; done
 
 python research/v2/pipeline.py report-all | tee "$PROVISO_WORK/report-all.md"
 cp "$PROVISO_WORK/report-all.md" research/v2/results/report-all.md 2>/dev/null && push "v2 evaluation: combined report"
