@@ -1,0 +1,23 @@
+{"id": "95dc7f9070", "commit": "95dc7f90701e56fc1ad10f818cead19bb3a1ca2f", "src": ["datasette/database.py", "datasette/utils/__init__.py"], "failing": [], "n_tests": 2849}
+{"id": "287e8ba3b2", "commit": "287e8ba3b298ab38585e98d08f755c75db439884", "src": ["datasette/telemetry_registry.py"], "failing": [], "n_tests": 2826}
+{"id": "d2098e9f84", "commit": "d2098e9f84f3e7cefcbbe212df27c82e57ed7815", "src": ["datasette/facets.py"], "failing": [], "n_tests": 2679}
+{"id": "cca08d2886", "commit": "cca08d2886404afcdf98a8428c813de20ca85f58", "src": ["datasette/app.py", "datasette/hookspecs.py"], "failing": ["tests/test_docs.py::test_plugin_hooks_are_documented", "tests/test_plugins.py::test_plugin_hooks_have_tests[shutdown]"], "n_tests": 2558}
+{"id": "506c4bb522", "commit": "506c4bb522e857501ffaf9be68305648c9a39255", "src": ["datasette/app.py", "datasette/default_permissions/config.py", "datasette/default_permissions/restrictions.py", "datasette/permissions.py", "datasette/resources.py", "datasette/utils/actions_sql.py"], "failing": [], "n_tests": 0}
+{"id": "6aa58bf4e5", "commit": "6aa58bf4e5e9c1e0c374eb8a28497dcfe9a9b868", "src": ["datasette/filters.py"], "failing": [], "n_tests": 0}
+{"id": "d06737b6f4", "commit": "d06737b6f4029631b4f0b09c4bd54f0a28aa7366", "src": ["datasette/utils/sql_analysis.py"], "failing": [], "n_tests": 0}
+{"id": "7403ae68bb", "commit": "7403ae68bb0e1c39f2ff1927953d2775b932b9d3", "src": ["datasette/database.py"], "failing": [], "n_tests": 0}
+{"id": "10088dfa1d", "commit": "10088dfa1dd7ab0075f97e380121dff4f6a5222c", "src": ["datasette/database.py", "datasette/views/database.py"], "failing": [], "n_tests": 0}
+{"id": "753fa3b316", "commit": "753fa3b3168878c497777488481a88c9efa637a2", "src": ["datasette/version.py"], "failing": [], "n_tests": 0}
+{"id": "993169ae49", "commit": "993169ae496aa0fa30271b6cb4dfc50202f6e7c1", "src": ["datasette/version.py"], "failing": [], "n_tests": 0}
+{"id": "d657fb4315", "commit": "d657fb4315e16acdbcf70640c27d21849f93cffa", "src": ["datasette/utils/__init__.py", "datasette/views/base.py", "datasette/views/database.py", "datasette/views/table.py"], "failing": [], "n_tests": 0}
+{"id": "54b272baf6", "commit": "54b272baf61cb014e6d262fea1b01dc84981c1d0", "src": ["datasette/app.py"], "failing": [], "n_tests": 0}
+{"id": "73f338b9f3", "commit": "73f338b9f3d510dc8fa60f6697b276cb121a0ec5", "src": ["datasette/views/special.py"], "failing": [], "n_tests": 0}
+{"id": "c673ee9819", "commit": "c673ee981900284df078e5b6e933ef102e8c1008", "src": ["datasette/permissions.py"], "failing": [], "n_tests": 0}
+{"id": "8f0d60236f", "commit": "8f0d60236f844a6d12bd1439f57b1b3d65fcad36", "src": ["datasette/version.py"], "failing": [], "n_tests": 0}
+{"id": "7988a179fe", "commit": "7988a179fe317cdb3dfa5c13d879d192ae36898d", "src": ["datasette/app.py"], "failing": [], "n_tests": 0}
+{"id": "c6c2a238c3", "commit": "c6c2a238c3e890384eef6bf9bca062fd784d9157", "src": ["datasette/utils/internal_db.py"], "failing": [], "n_tests": 0}
+{"id": "9f74dc22a8", "commit": "9f74dc22a8587b6322c4aa2747894e408ab58a9c", "src": ["datasette/cli.py"], "failing": [], "n_tests": 0}
+{"id": "e5f392ae7a", "commit": "e5f392ae7a3aad7f778e7d6be7e06b1ad0b84878", "src": ["datasette/app.py"], "failing": [], "n_tests": 0}
+{"id": "5c537e0a3e", "commit": "5c537e0a3e8662bca7f28ab389b2375b14310cd7", "src": ["datasette/app.py", "datasette/cli.py", "datasette/default_permissions.py", "datasette/events.py", "datasette/filters.py", "datasette/permissions.py", "datasette/plugins.py", "datasette/renderer.py", "datasette/utils/asgi.py", "datasette/views/database.py", "datasette/views/index.py", "datasette/views/row.py", "datasette/views/table.py"], "failing": [], "n_tests": 0}
+{"id": "deb0b87e1b", "commit": "deb0b87e1b64eef3da707a19ac60652e12cdbf07", "src": ["datasette/cli.py"], "failing": [], "n_tests": 0}
+{"id": "fabcfd68ad", "commit": "fabcfd68add17a441418582a6486c73d1af439d3", "src": ["datasette/app.py", "datasette/views/database.py", "datasette/views/index.py", "datasette/views/special.py"], "failing": [], "n_tests": 0}

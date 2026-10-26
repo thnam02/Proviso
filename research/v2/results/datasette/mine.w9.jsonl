@@ -1,0 +1,22 @@
+{"id": "aa8c2e36f7", "commit": "aa8c2e36f73ba65167cae9b6246af0a4addf24b3", "src": ["datasette/version.py"], "failing": [], "n_tests": 2840}
+{"id": "daf1989ebe", "commit": "daf1989ebe950eaa9c172763a489a337ced6c5fb", "src": ["datasette/app.py", "datasette/cli.py", "datasette/database.py", "datasette/telemetry.py", "datasette/telemetry_registry.py"], "failing": [], "n_tests": 2699}
+{"id": "82ed8d47f9", "commit": "82ed8d47f9c45c3ca3a28f58c66efdcf0e3640fd", "src": ["datasette/filters.py"], "failing": [], "n_tests": 2604}
+{"id": "e036907fc3", "commit": "e036907fc38f1040bb5f968278a330b608f20ded", "src": ["datasette/utils/sqlite.py", "datasette/views/row.py", "datasette/views/table.py", "datasette/views/table_create_alter.py"], "failing": [], "n_tests": 0}
+{"id": "d43a04eb54", "commit": "d43a04eb54106e40a5b65cf786631284c0e7d6c3", "src": ["datasette/views/row.py"], "failing": [], "n_tests": 0}
+{"id": "c01e95f3bd", "commit": "c01e95f3bde22e43eb0cc293caff0757e61b5f90", "src": ["datasette/views/table_create_alter.py"], "failing": [], "n_tests": 0}
+{"id": "577aeb73f0", "commit": "577aeb73f06ec48df630e75af47713bf029fc0c8", "src": ["datasette/filters.py"], "failing": [], "n_tests": 0}
+{"id": "8b7c942d5e", "commit": "8b7c942d5e5ada887aa89c4d58567af39d5a3e07", "src": ["datasette/utils/actions_sql.py"], "failing": [], "n_tests": 0}
+{"id": "58c07cc264", "commit": "58c07cc26439ebc1042083e6eaf3525c52d4f08a", "src": ["datasette/__init__.py", "datasette/app.py", "datasette/utils/asgi.py", "datasette/views/row.py", "datasette/views/table.py", "datasette/views/table_create_alter.py"], "failing": [], "n_tests": 0}
+{"id": "49362a9b20", "commit": "49362a9b20b541c833ac79590829665c4826ace2", "src": ["datasette/utils/asgi.py", "datasette/views/database.py", "datasette/views/row.py", "datasette/views/table.py"], "failing": [], "n_tests": 0}
+{"id": "6eaa9e3199", "commit": "6eaa9e31993d1b35a7252246aab31837a365ae56", "src": ["datasette/app.py", "datasette/default_query_actions.py", "datasette/plugins.py", "datasette/views/query_helpers.py", "datasette/views/stored_queries.py"], "failing": [], "n_tests": 0}
+{"id": "6aaed2d9b5", "commit": "6aaed2d9b5996151014f45cc7257a6b2c2c434b8", "src": ["datasette/views/special.py"], "failing": [], "n_tests": 0}
+{"id": "ade0ef8a60", "commit": "ade0ef8a60bad2a3e659d1cf1581bfe1fa96e289", "src": ["datasette/database.py"], "failing": [], "n_tests": 0}
+{"id": "fc1794719a", "commit": "fc1794719a99812103aa27ad5bf46b4449828642", "src": ["datasette/app.py", "datasette/database.py"], "failing": [], "n_tests": 0}
+{"id": "e800312b54", "commit": "e800312b547bbaafa7a6f9aa62bcb69091bc3a77", "src": ["datasette/permissions.py", "datasette/resources.py", "datasette/utils/actions_sql.py"], "failing": [], "n_tests": 0}
+{"id": "5873578d49", "commit": "5873578d49a894e358f8480fee27e17e37f6c97e", "src": ["datasette/version.py"], "failing": [], "n_tests": 0}
+{"id": "3b4c7e1abe", "commit": "3b4c7e1abed15c8343a46ff9bc0a8171511a3624", "src": ["datasette/views/row.py"], "failing": [], "n_tests": 0}
+{"id": "257e1c1b1b", "commit": "257e1c1b1b432e82b3d58e9579a2b5fd57f6a46a", "src": ["datasette/version.py"], "failing": [], "n_tests": 0}
+{"id": "e37aa37edc", "commit": "e37aa37edc116156595c25d879d8c37d7125e1ba", "src": ["datasette/default_permissions.py"], "failing": [], "n_tests": 0}
+{"id": "1289eb0589", "commit": "1289eb05894eaed2d0e868e6901231c2683989d2", "src": ["datasette/database.py"], "failing": [], "n_tests": 0}
+{"id": "6854270da3", "commit": "6854270da3af46901fd5056521d21cd382a0a345", "src": ["datasette/default_permissions.py"], "failing": [], "n_tests": 0}
+{"id": "10ea23a59c", "commit": "10ea23a59c9221c439b8a3bd6c979c885954c14e", "src": ["datasette/app.py", "datasette/views/special.py"], "failing": [], "n_tests": 0}
