@@ -27,3 +27,17 @@ htmlcov/
 
 # Local path shim (not the Python package in src/dc_engine)
 /dc-engine
+# Eval harness outputs. Keep tasks/, fixtures/, and prices.json.
+eval/runs/
+eval/runs_archive/
+eval/cache/
+eval/report.md
+eval/results.jsonl
+eval/overhead.md
+eval/overhead.json
+eval/tool_catalog.json
+# Agent study: runs, repository caches and per-task assets are rebuilt on the evaluation machine
+research/agent/eval/runs/
+research/agent/eval/runs_archive/
+research/agent/eval/cache/
+research/agent/eval/impact/

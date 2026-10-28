@@ -841,6 +841,15 @@ def impact_report(root: str, covmap: dict, why: dict, selected: list[str] | None
     return (["Your change affects:"] + lines) if lines else []
 
 
+def _report_enabled(root: str) -> bool:
+    """The blast-radius report is on unless .dc-engine/proviso.json sets "report": false (an experiment switch)."""
+    try:
+        with open(os.path.join(root, ".dc-engine", "proviso.json"), encoding="utf-8") as fh:
+            return bool(json.load(fh).get("report", True))
+    except (OSError, ValueError, AttributeError):
+        return True
+
+
 def run_selected(root: str, python: str, targets: list[str] | None = None, maxfail: int | None = None) -> str:
     """Run what the agent asked for (targets: directories relative to the repository root; [] = the default suite),
     restricted to the tests the change can affect. Tests the coverage map does not know always run."""
@@ -881,7 +890,8 @@ def run_selected(root: str, python: str, targets: list[str] | None = None, maxfa
         lines = [f"[Proviso] Ran all {len(res)} tests in {where} ({why.get('reason', 'change could not be placed')}) "
                  f"in {secs:.0f}s."]
     try:
-        lines += impact_report(root, covmap, why, [n for n in res] if sel is not None else None)
+        if _report_enabled(root):
+            lines += impact_report(root, covmap, why, [n for n in res] if sel is not None else None)
     except Exception:  # noqa: BLE001  (the report is informational; never let it break a test run)
         pass
     if new:
