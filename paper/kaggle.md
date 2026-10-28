@@ -1,160 +1,189 @@
 # Proviso: Safe, Fast Test Feedback for Coding Agents
 
-### Test selection that sees import-time state, and a benchmark of 75 test-breaking changes
+### Test selection that follows Python's data-driven dispatch, evaluated on 650 changes across five repositories
 
 ## Abstract
 
-Coding agents check every patch by running tests. On everyday hardware, rerunning a full suite after each edit is slow, and the usual shortcut, running the test file named after the edited module, misses failures. We present Proviso, a test-selection tool that plugs into an agent's shell. It records which functions each test runs and, unlike coverage-based selectors, also compares the values a package computes while it is imported (dispatch tables, keyword maps, class attributes), which no test executes but many tests read. On 75 changes that break tests in sqlglot and sympy (16 real commits, 59 planted bugs; 1,424 failing tests), Proviso selects every failing test. NameRTS, a recent name-based selector, misses failures in 24 changes, and pytest-testmon in 11. Measured end to end, with Proviso's own selection time included, a typical test run on sqlglot drops from 46 s to 7.5 s (median; faster on 48 of 54 real commits, never more than 2.5 s slower). On sympy, whose changes reach most tests, Proviso is safe but saves little time. We release the tool, the benchmark with ground truth and per-test times, and our setup of NameRTS (verified against its published selections) and pytest-testmon.
+Coding agents check every edit by running tests; on everyday hardware a full suite takes minutes, and a missed failure means the agent ships a regression it believes is correct. Proviso is a test selector for Python that plugs into an agent's shell. Besides recording the functions each test executes, it compares the values a package builds at import time (dispatch tables, keyword maps, class attributes) before and after a change, since many tests read them without executing the code that built them. We evaluate it on five repositories (two held out) with 469 planted bugs and 181 real commits, against the tests that actually fail.
+- **Safety.** Proviso misses a failing test in 8 of 283 test-breaking planted bugs (3%) and in 2 of 76 test-breaking commits (3%). pytest-testmon misses in 17% and 24%, and NameRTS, a recent name-based selector, in 44% and 61%. TDAD, a 2026 selector built for agents, misses in 95–97%.
+- **Speed.** With selection time included, a typical test run drops from 27 s to 2 s on sqlglot and from 8 s to 1 s on pygments (median). On tightly coupled code (SQLAlchemy, datasette) Proviso stays safe by running most tests.
+
+We release the tool, the benchmark with ground truth, and validated setups of every baseline.
 
 ## 1. Introduction
 
-An agent that fixes a bug edits code, runs the tests, reads the failures, and edits again. The test run sits inside the loop: a fix that takes ten iterations pays for ten test runs. On the consumer hardware the Gemma 4 Developer Agent Competition targets, a full suite can take minutes each time.
+An agent that fixes a bug edits code, runs tests, reads failures and edits again. Agents average 8.8 test executions per SWE-bench task [Lin et al. 2026], and on the consumer hardware this competition targets, each full-suite run can take minutes. The same study finds that banning execution cuts tokens by 56–62% with little loss in resolved tasks: execution is expensive enough that agents may be better off without it. Regression test selection (RTS) offers a middle way, running only the tests a change can affect. But it is only useful to an agent if it is safe, because a missed failure turns into a shipped regression.
 
-Agents cope by running fewer tests, usually the file named after the module they edited (`tests/test_parser.py` for `parser.py`). This is cheap and unsafe: on our benchmark, choosing tests by name misses failures in 50 of 75 changes that break tests (Section 4). A missed failure is the expensive error for an agent, because it submits a patch it believes is correct.
+Existing Python selectors have a shared blind spot: **much of a Python library's behaviour is reached through data, not through names or executed lines.**
+- sqlglot finds its SQL generator methods at runtime: it lists the class's attributes and maps a name like `datediff_sql` to an expression type.
+- SQLAlchemy keeps its SQL operators in a module-level table (`operators.gt: " > "`).
+- pygments keeps each language's rules in a class-level table.
 
-Regression test selection (RTS) is the standard answer: run only the tests whose dependencies changed. Dynamic RTS tools record what each test executes and select tests that executed changed code (Ekstazi for Java; pytest-testmon for Python). Static tools follow imports or names (NameRTS). Both have a blind spot in Python. Much of a Python library's behaviour lives in values computed once, while the package is imported: dispatch tables, keyword maps, registries, class attributes built from other classes. sqlglot, a SQL parser, reaches most of its parser methods through tables such as
+Such tables are built at import, before any test runs. A tool that records what a test executes (pytest-testmon) does not see the test read the table. A tool that follows names through the code (NameRTS) finds no name connecting the test to `datediff_sql`, because that name is assembled from a string. In our runs NameRTS selects zero tests for a flipped comparison inside `datediff_sql`.
 
-```python
-FUNCTION_PARSERS = {"JSON_TABLE": lambda self: self._parse_json_table(), ...}
-```
-
-A test that parses `JSON_TABLE` never executes the line that builds this table; it runs at import, before any test. A tool that records executed lines therefore sees no link between the test and the table. A name-based tool sees the test mention no parser method. Edit the table and both tools skip the tests that break.
-
-Proviso closes this gap with one idea: instead of asking which tests executed a changed line, ask which values the change altered, by importing the package before and after and comparing everything it computed. Tests that read an altered value are selected; edits inside function bodies use ordinary per-test function coverage.
+Proviso closes this gap with one idea, plus two safeguards:
+1. **Compare values, not just executed lines.** Proviso imports the package before and after a change and compares everything it computed. Tests that read a changed value are selected. Edits inside function bodies use ordinary per-test function coverage.
+2. **Credit shared setup** (pytest fixtures) to every test that uses it, not only the first one that ran it.
+3. **Record each test file in a fresh process,** so a cache filled by one test cannot hide another test's dependency.
 
 **Contributions.**
-1. **A tool.** Proviso combines per-test function coverage with an import-time state comparison and drops into an agent's shell by rewriting broad `pytest` commands. Selection takes about 2 s per run after a one-off setup.
-2. **A benchmark.** 75 test-breaking changes with ground-truth failing tests, 67 further real changes for selection size, per-test times, and a setup of NameRTS (verified against its published selections) and pytest-testmon.
-3. **Findings.** Function coverage alone misses failures in 51 of 75 changes; adding the import-time comparison misses none while selecting less than file-level fallbacks. End to end, it cuts a typical sqlglot test run by 86% (median). Where it selects almost everything, block-level and name-based tools do too. On sympy, where most changes reach most tests, it saves little.
+1. **A tool.** Proviso selects tests in about 1–2 s per run, rewrites an agent's broad `pytest` commands, and reports to the agent what its change touched.
+2. **A benchmark.** 650 changes across five repositories with failing-test ground truth, plus a pipeline that scores any selector. It includes validated setups of eight baselines, among them NameRTS (reproduced on its own benchmark) and TDAD.
+3. **Findings.** Data-driven dispatch defeats name- and coverage-based selection; comparing import-time values fixes it, at a cost set by how tightly the code is coupled.
 
 ## 2. Method
 
-Proviso works in two phases: once per base commit (the commit the agent starts from) it records a coverage map and an import-time snapshot; on every test run it selects tests for the agent's current changes.
+Proviso works in two phases. Once per base commit, it records a dependency map and an import-time snapshot. Then, on every test run, it selects tests for the agent's current changes.
 
-### 2.1 Once per session: coverage map and base snapshot
+### 2.1 Once per base commit: the dependency map
 
-**Coverage map.** The suite runs once with a pytest plugin that records, per test, the package functions it calls, the package classes whose methods ran on an instance (with the instance type's whole method resolution order, since a subclass reads inherited tables), whether it started a subprocess (then it always runs), and its duration. Functions that run outside any test, during imports or collection, go to a global set; editing one selects the full suite. For packages that memoise results across tests (sympy's `@cacheit`), the cache is cleared before each test so each test records what it really depends on.
+The suite runs once under a pytest plugin built on Python 3.12's low-overhead monitoring API (PEP 669). For each test it records four kinds of dependency.
 
-The recorder uses Python 3.12's low-overhead monitoring API (PEP 669). A plain function is reported once per test and then switched off until the next test; only package methods stay on, to see the classes they run on. On sqlglot's 1,104 tests this records an identical map to a `sys.setprofile` recorder at 44% less overhead (recording run 147 s against 217 s; plain run 58 s).
+- **Functions executed.** The package functions the test calls, and the package classes whose methods ran on an instance (with the whole method resolution order, since subclasses read inherited tables).
+- **Fixtures.** Each pytest fixture instance the test used, with the code that fixture ran during setup and teardown. A session-scoped fixture runs once, but every test that uses it depends on it.
+- **Test-module import.** Code that runs while a test module is imported (e.g. a module-level `parse("…")`) is credited to that module's tests.
+- **Isolation.** Each test file is recorded in its own interpreter. Memoised results from one file therefore cannot hide another file's dependencies, and the per-file maps are merged.
 
-**Import-time snapshot.** A subprocess imports every package module and fingerprints every module-level name and class attribute: recursively for containers and objects, by qualified name for functions and classes, by bytecode and captured values for lambdas and closures built at import. Sources of noise are removed: random generators get fixed seeds, memory addresses are stripped, cached hashes are ignored, and values whose order depends on memory layout (a tuple built from a set of classes) are detected by importing the base twice more with the heap shifted, and compared without order.
+Functions that run while the package itself is imported go to a global set. Editing one triggers the snapshot comparison below.
+
+**Import-time snapshot.** A subprocess imports every package module and fingerprints every module-level name and class attribute: recursively for containers and objects, by qualified name for functions and classes, by bytecode and captured values for lambdas and closures. Seeds are fixed, addresses stripped, and values whose order depends on memory layout are compared without order.
 
 ### 2.2 Every run: select
 
-From `git diff` against the base, each changed line is assigned to the innermost function containing it, or else to module or class level.
+Each changed line in `git diff` is assigned to its innermost function, or else to class or module level. A test is selected if any of the following holds:
+- it executed an edited function, directly or through a fixture or its module's import;
+- it reads an **import-time value that actually changed.** For class- or module-level edits, and edits to functions run at import, Proviso snapshots the working tree and compares it with the base. If nothing changed (a comment, an unused constant), nothing more is selected. Otherwise the readers of each changed value are the functions whose source names it, plus their callers, since a reader's result is often cached. A changed class attribute counts only for tests using that class or a subclass;
+- it uses a class whose definition changed.
 
-- **Function edits** select the tests whose coverage includes the function.
-- **Module- and class-level edits**, and edits to functions that run at import, trigger a new snapshot of the working tree, which is compared with the base snapshot. If nothing changed (a comment, an unused constant), nothing more is selected. Otherwise Proviso finds the readers of each changed value: functions whose source mentions its name, plus their callers, because a reader's result is often computed once and cached, after which only its caller runs. A changed class attribute counts only in tests that use that class or a subclass. Tests that call a reader, or whose own source names the value, are selected.
-- **Structural changes** a value comparison cannot see are handled conservatively: a class whose bases change, or that gains an attribute matching a computed lookup in the code (`getattr(self, f"{key}_sql")`), is treated as edited; a new source file selects everything.
-
-If the edited functions alone already reach 90% of the suite's test time, the selection can only grow, so Proviso runs the full suite at once and skips the snapshot. Tests the agent added or edited always run.
+**Safety rules**, always erring towards running more:
+- a new source file selects everything;
+- tests the agent added or edited always run;
+- if edited functions alone already reach 90% of the suite's test time, the full suite runs at once and the snapshot is skipped.
 
 ### 2.3 In the agent
 
-Proviso installs as a pre-tool hook. A broad test command from the agent (`pytest`, `pytest tests/`) is rewritten into a Proviso run, keeping `-x` if given; narrow commands are left alone. Per-commit caches keep each selection to the cost of one snapshot of the working tree.
+Proviso installs as a pre-tool hook. A broad test command (`pytest`, `pytest tests/`) is rewritten into a Proviso run; narrow commands are left alone. Alongside the results, the agent receives a short **blast-radius report**: the functions it edited, the import-time values that changed (grouped by class, with the classes that inherit them), and the affected tests per file.
 
 ## 3. Benchmark
 
-**Repositories.** sqlglot (a SQL parser and transpiler for 30+ dialects with deep class inheritance; 1,104 tests) and sympy (symbolic mathematics with memoisation and generated rule tables; the `sympy/functions` tests for planted bugs, each task's subpackage tests for real fixes).
+**Repositories.** Three were used during development, and two were held out: pinned before any run, with no change to Proviso's selection logic after their results.
+
+| Repository | Kind | Tests | Role |
+|---|---|---|---|
+| sqlglot | SQL parser and transpiler | 1,166 | development |
+| sympy (`sympy/functions`) | symbolic mathematics | 581 | development |
+| SQLAlchemy (`test/base`, `test/sql`) | database toolkit | 9,761 | development |
+| pygments | syntax highlighter; most tests are data files | 5,339 | held out |
+| datasette | web application on SQLite | 2,853 | held out |
 
 **Changes.**
-- *Real sqlglot commits (54).* Each commit's source changes are applied to its parent, and the parent's tests are run. Tests that fail there are the ground truth, typically the old versions of tests the commit had to update. 16 commits break tests (39 failing tests).
-- *Real sympy fixes (13).* None breaks an existing test; they measure selection size.
-- *Planted bugs (125).* Single-line bugs: flipped comparisons and booleans in functions, deleted table entries and flipped flags at class and module level, inherited methods overridden with a flipped condition. 96 in sqlglot at two commits (42 break tests, 593 failing tests); 29 in sympy (17 break tests, 792 failing tests). Ground truth is the full suite on the bugged tree.
+- **Planted bugs**: 95 per repository, sampled with a fixed seed. They are single-line changes: flipped comparisons and booleans in function bodies (40), deleted table entries and flipped flags at class level (30) and at module level (25). Ground truth is the full suite run on the bugged tree.
+- **Real commits.** Each commit's source changes are applied to its parent, and the parent's tests are run. A commit counts only if the parent's suite runs in our environment: older history stops running past a point, because of Python and dependency versions.
 
-In total, 75 changes break tests, with 1,424 failing tests. For every change we store the ground truth and per-test times, and the benchmark scores any selector given as a function from a changed tree to a set of tests.
+In total: 469 planted bugs, of which 283 break tests (24,543 failing tests), and 181 real commits, of which 76 break tests (135 failing tests).
+
+**Ground-truth hygiene.**
+- A failure counts only if it recurs when the failing tests' files are re-run. This dropped up to 9 flaky failures per repository, e.g. a pygments test that writes a fixed `/tmp` path and races with parallel runs.
+- A bug after which the suite cannot start counts as breaking every test.
+- Bugs on which the suite hangs (4, all in sympy) are left out.
+- Tests created by the change itself cannot be selected by anyone, so they are excluded.
 
 **Baselines.**
-- *Name-matched test files*: `test_<module>.py`, what agents and developers pick by hand.
-- *Static import graph*: test files whose transitive imports include a changed module.
-- *File-level coverage*: tests that executed a line of a changed file (Ekstazi-style).
-- *pytest-testmon 2.2.0*: block-level dynamic RTS for Python, its own selection.
-- *NameRTS*: static selection by name reachability (Wang, Pradel and Liu, 2026), from its replication package with dependencies pinned to its environment. Our setup reproduces its published selections on the first six evaluated commits of its dataset exactly.
+- *Name-matched tests*: tests named after the changed code, what agents pick by hand.
+- *Static imports*: test files whose transitive imports include a changed module.
+- *File coverage*: tests that executed a changed file (Ekstazi-style).
+- *pytest-testmon 2.2.0*: block-level dynamic RTS, its own selection. It crashes on test files without an extension (33 in pygments), so we exclude those files from its runs and count their tests as always selected.
+- *NameRTS* [Wang et al. 2026]: name-based reachability, run unmodified. Through our setup it reproduces its published loguru selections on 16 of 17 commits (mean Jaccard 0.996).
+- *TDAD* [Alonso et al. 2026]: graph-based impact analysis for agents, at its default 50-test cap and uncapped.
+- *Function coverage*: tests that executed an edited function. This is Proviso without its other channels, an ablation.
 
-sympy's configuration passes `-m`, which silently turns testmon's selection off; we drop the same slow tests at collection instead. NameRTS selects test files; a selected file counts as all its tests.
-
-**Metrics.** A change has a *miss* if any failing test (or a test module that fails to load) is not selected. *Time share*: selected test time over the suite's, from per-test times recorded with coverage on. *Run time*: what the agent waits for one test command, in plain (untraced) seconds from separate runs without coverage: the full suite, against Proviso's selection time (measured, warm caches) plus its selected tests.
+**Metrics.**
+- A change has a **miss** if any failing test is not selected.
+- **Time share** is selected test time over the suite's.
+- **End-to-end time** is what one test command costs the agent, in plain seconds: Proviso's selection time plus its selected tests, against the full suite.
 
 ## 4. Results
 
 ### 4.1 Safety
 
-| Selector | Changes with a missed failure (of 75) | Failing tests missed (of 1,424) |
-|---|---|---|
-| Name-matched test files | 50 | 1,352 |
-| Proviso, functions only (ablation) | 51 | 927 |
-| NameRTS | 24 | 69 |
-| pytest-testmon | 11 | 235 |
-| Static import graph | 10 | 15 |
-| File-level coverage | 10 | 164 |
-| Proviso, file fallback (ablation) | 10 | 168 |
-| **Proviso** | **0** | **0** |
-
-Proviso is the only selector without a miss. The others' misses trace back to import-time state:
-
-- **Data changes.** Real commit `efbc5e220c` only adds entries to `Postgres.TIME_MAPPING`, a class-level table. No test executes a line of that file while running, so testmon selects one test and misses both failures. Proviso finds the changed table, in Postgres and through inheritance in Redshift, Materialize and RisingWave, and selects the 56 tests that read it.
-- **Code run while test modules import.** A flipped condition in `Parser._parse_with` breaks 37 test modules that parse SQL at import; testmon misses all 37, Proviso selects the full suite.
-- **String-keyed dispatch.** NameRTS is nearly always safe on real commits (1 miss in 16 here; 2 in 500 in its own evaluation) and on sympy (0 of 17), but misses failures in 23 of 42 breaking sqlglot planted bugs: tests reach parser methods through tables keyed by SQL keywords and name no method, a pattern its evaluation does not cover.
-- **Generated rule tables.** Most of testmon's sympy misses are edits to `assumptions_generated.py`, read only at import.
-
-The ablations isolate the idea. Function coverage alone misses failures in 51 of 75 changes. Falling back to every test of the edited file still misses 10 and selects 60% of test time on real sqlglot commits. The import-time comparison closes all remaining misses and selects 27%.
-
-### 4.2 Test time
-
-Share of the suite's test time selected (mean, median in brackets):
-
-| Changes | Proviso | NameRTS | pytest-testmon |
+| Selector | Planted bugs with a miss (of 283) | Real commits with a miss (of 76) | Test time run (mean) |
 |---|---|---|---|
-| 54 real sqlglot commits | **27% (10%)** | 75% (99%) | 61% (99.6%) |
-| 13 real sympy fixes | **34% (13%)** | 57% (62%) | 40% (19%) |
-| 96 planted bugs, sqlglot | 20% (4%) | 36% (1%) | 18% (2%) |
-| 29 planted bugs, sympy | 56% (93%) | 58% (100%) | 36% (4%) |
+| Name-matched tests | 243 (86%) | 53 (70%) | 3% |
+| TDAD (default cap)¹ | 229 of 236 (97%) | 71 of 75 (95%) | 1% |
+| TDAD (uncapped)¹ | 159 of 236 (67%) | 51 of 75 (68%) | 48% |
+| Function coverage (ablation) | 159 (56%) | 39 (51%) | 23% |
+| NameRTS | 125 (44%) | 46 (61%) | 39% |
+| File coverage | 60 (21%) | 6 (8%) | 41% |
+| pytest-testmon² | 46 of 273 (17%) | 18 (24%) | 56% |
+| Static imports | 37 (13%) | 12 (16%) | 83% |
+| **Proviso** | **8 (3%)** | **2 (3%)** | **52%** |
 
-On real commits Proviso selects the least of the three. Where the others select less, on planted bugs, they miss failures: testmon selects 36% of sympy test time but misses failures in 5 of 17 breaking bugs. sympy is Proviso's weakest case. Its large functions and widely read rule tables make many changes reach most tests, so Proviso's advantage there is safety, not size.
+¹ TDAD's test linking ran out of memory on sympy (over 23 GB). ² testmon could not collect tests on 10 planted bugs that break the package's import.
 
-### 4.3 Run time, end to end
+Among selectors that skip part of the suite, Proviso misses the fewest failures in every repository (datasette's four breaking commits are a tie). Static imports matches it on sympy and SQLAlchemy only by running all of their tests. On the held-out repositories, Proviso misses in 2 of 116 breaking planted bugs, against 29 for testmon and 67 for NameRTS.
 
-What one test command costs the agent, in plain seconds, with Proviso's selection time included (median / mean):
+**Why the others miss.**
+- **Names built at runtime.** sqlglot dispatches to `<expression>_sql` methods found by listing class attributes. For a flipped comparison in `datediff_sql`, NameRTS detects the changed element, marks all 57 test files as affected at file level, then selects none after name propagation. Disabling both of its pruning heuristics changes nothing. Most of its misses in sqlglot and SQLAlchemy are such dispatch targets, or entries in dispatch and operator tables.
+- **NameRTS's own ground truth.** Its 99.6% safety in its own evaluation is measured against tests that execute a modified function. A table entry or class flag modifies no function, yet tests fail.
+- **Lazily loaded data.** pygments keeps each lexer's rules in a class-level table, loaded the first time the lexer is requested. testmon misses failures in 26 of 56 breaking planted bugs there.
+- **Incomplete coverage records.** On datasette, testmon's per-test records link project code to only about 250 of 2,939 tests. testmon compensates by re-running most tests; selection built directly on those records misses every planted bug.
+- **Function coverage alone** (Proviso's ablation) misses in 56% of planted bugs; the other channels close most of the gap.
 
-| Changes | Full suite | Proviso | Proviso faster on | Median saving |
+**Why Proviso misses.** Pure-data classes no method of which runs (sympy, 2 bugs; a lazily loaded pygments lexer, 1 commit); caching inside a test file (SQLAlchemy, 3 bugs, 14 tests); shared application setup and tests that inspect code structure (datasette, 2 bugs, 1 commit); one test of 143 failures (sympy).
+
+### 4.2 Test time and end-to-end run time
+
+Median plain seconds per test command, selection included:
+
+| Repository | Planted: full suite → Proviso | Real commits: full → Proviso | Proviso faster on | Selection time (median) |
 |---|---|---|---|---|
-| 54 real sqlglot commits | 46.1 / 59.3 | **7.5 / 18.8** | 48 of 54 | 86% |
-| 42 breaking planted bugs, sqlglot | 42.1 / 42.1 | **4.2 / 11.5** | 34 of 42 | 90% |
-| 17 breaking planted bugs, sympy | 103.3 / 103.3 | 99.8 / 56.2 | 9 of 17 | 3% |
+| sqlglot | 27.4 → **2.1** | 31.2 → **4.0** | 123 of 147 | 0.9–1.1 s |
+| pygments (held out) | 7.9 → **1.1** | 9.5 → **1.5** | 118 of 148 | 1.0–1.2 s |
+| sympy | 58.0 → 47.0 | 60.5 → **5.3** | 70 of 112 | 0.1–2.3 s |
+| datasette (held out) | 63.2 → 63.2 | 64.3 → 53.2 | 70 of 119 | 0.2–1.0 s |
+| SQLAlchemy | 24.2 → 26.1 | 24.5 → 25.9 | 45 of 124 | 1.9 s |
 
-On sqlglot most changes reach a small part of the suite. Where Proviso is slower, it selects 95% or more of the suite and loses at most 2.5 s to selection. On the 11 real commits where it selects 95% or more, testmon, file-level coverage and NameRTS select 97–100% too: these changes edit the tokenizer or core parse routines that nearly every test runs, so the size of the selection reflects the change, not imprecision. On sympy the median breaking change selects 95% of test time, so the median saving is small (3%); the mean saving (56.2 s against 103.3 s) comes from the changes with small selections.
+On loosely coupled libraries Proviso cuts a typical run by 84–92%. On tightly coupled code it is safe but saves little.
+- In SQLAlchemy, a shared compiler and connection layer reaches most tests.
+- In datasette, most tests send HTTP requests through the whole application.
 
-### 4.4 Overhead
+Where Proviso is slower, it selects almost the whole suite and loses at most its selection time (about 2 s).
 
-- **Recording the coverage map:** once per base commit; 147 s on sqlglot against a 58 s plain run (2.5×).
-- **First selection of a session:** 10.4 s median on sqlglot (three base snapshots, source indexes).
-- **Every later selection:** 2.1 s median on sqlglot (at most 2.6 s) when import-time state is compared (38 of 54 real commits), under 0.5 s otherwise; 2.2 s on sympy.
+**What this means for an agent.** At 8.8 test runs per task, the median savings correspond to about 4 minutes per task on sqlglot, 70 s on pygments and 8 minutes on sympy's real commits. This is an estimate: it assumes broad test commands, the ones Proviso intercepts.
 
-On sqlglot, the extra cost of recording plus the first selection (about 100 s) is recovered after three test runs at the median saving of 38 s per run. Two engineering steps took the per-run cost from 20 s to 2 s: caching per-commit source indexes, and fingerprinting each object once per snapshot (sympy reaches the same tables from thousands of attributes; its snapshot fell from 10.6 s to 1.9 s). On all 179 benchmark changes, the memoised snapshot finds the same changed values as the original on 178, and the same selection on all.
+### 4.3 Overhead
+
+Recording the dependency map runs the suite once per base commit, with one interpreter per test file. The first selection of a session also builds the base snapshot; later selections take the medians above.
 
 ## 5. Limitations and threats to validity
 
-- **Two repositories, both Python.** sqlglot is also where Proviso was developed, which favours it. sympy was not, and is its weakest case on selection size.
-- **Granularity.** NameRTS and file-level coverage select files, testmon selects tests through blocks, Proviso selects tests. Finer granularity helps Proviso on test time, not on safety.
-- **Planted bugs are single-line.** Real-change safety rests on 16 sqlglot commits with 39 failing tests.
-- **State outside the snapshot.** State created lazily after import is covered only through coverage of the code that creates it; files and network are not compared.
-- **Timing** comes from one 2-core machine.
-- **No agent study yet.** We measure the test loop, not end-to-end agent success. An agent study with a local model (Gemma 4) is future work.
+- **Development repositories favour Proviso.** It was refined on sqlglot, sympy and SQLAlchemy. The held-out repositories guard against this, with one disclosure: after the first pygments run, we fixed the recorder to record tests collected from data files. It had recorded none of pygments' 1,508 such tests. The selection logic was unchanged, and datasette saw no change at all.
+- **Planted bugs are single-line.** Real-commit evidence is thin for sympy (1 breaking commit) and datasette (4).
+- **Remaining blind spots:** pure-data classes loaded lazily after import, tests that inspect code structure, and state in files or the network.
+- **Speed depends on coupling.** We report SQLAlchemy and datasette as they are.
+- **No live agent study.** The agent-level estimate combines published execution counts with our measured times.
+- **Timing:** one 12-core machine.
 
 ## 6. Related work
 
-- **Dynamic RTS.** Ekstazi (Gligoric et al., 2015) selects tests by the files they touched; pytest-testmon brings block-level coverage to Python. Both record what tests execute, so values computed at import are invisible to them.
-- **Static RTS.** STARTS (Legunsen et al., 2017) and import-graph tools follow class or module dependencies; NameRTS (Wang, Pradel and Liu, 2026) follows names and records `getattr` and dynamic imports at run time; it was safe on 498 of 500 real commits in its evaluation, which compared it with file-level tools but not with testmon. Dispatch through string-keyed tables is outside its name model.
-- **Agents and tests.** SWE-bench (Jimenez et al., 2024) judges agent patches by tests; while working, agents rely on the tests they choose to run, which is where selection fits.
+- **Dynamic RTS.** Ekstazi [Gligoric et al. 2015] selects tests by the files they touched. pytest-testmon and pytest-rts bring coverage-based selection to Python. A coverage-based Python tool missed 16–24% of mutants at line level [Kauhanen et al. 2021]. All of these record what tests execute, so values computed at import are invisible to them.
+- **Static and Python-specific RTS.** STARTS [Legunsen et al. 2017] follows class dependencies. NameRTS [Wang et al. 2026] propagates names, isolates test files and treats import-time functions as reachable by all tests; Proviso shares the isolation but records execution and compares import-time *values*.
+- **Shared state.** PolDet [Gyori et al. 2015] diffs the heap reachable from static fields to detect tests that pollute state. Proviso diffs import-time state across versions to select tests. Dependent tests affect RTS too [Lam et al. 2020].
+- **Agents and tests.** TDAD [Alonso et al. 2026] gives agents a static test map; TestPrune [2025] picks regression tests from the issue before a patch exists; Lin et al. [2026] measure what execution costs agents. Proviso targets safe, cheap feedback after each edit.
 
 ## 7. Conclusion
 
-A Python package's import-time state is a large, invisible dependency of its tests. Comparing it before and after a change gives test selection that missed no failure on 75 test-breaking changes, where every existing selector missed some, while cutting a typical sqlglot test run from 46 s to 7.5 s with selection included. Where a change reaches most of the suite, as in sympy, Proviso stays safe but saves little time. Proviso and the benchmark are open source: ⟦repo link⟧.
+Python libraries reach much of their behaviour through data built at import: dispatch tables, operator maps, rule tables, names assembled from strings. Name-based and coverage-based selectors cannot follow it. Comparing import-time values, crediting fixtures and isolating caches gives a selector that missed a failing test in 3% of test-breaking changes across five repositories, against 17% to 97% for existing tools. It cuts typical test runs by 84–92% on loosely coupled code, and stays safe, though slower, where everything is connected. For agents on everyday hardware, that makes running the right tests cheap enough to do after every edit. Code, benchmark and baseline setups: https://github.com/thnam02/Proviso
 
 ## References
 
+- Alonso, P., Yovine, S., Braberman, V. (2026). TDAD: Test-Driven Agentic Development. arXiv:2603.17973.
 - Gligoric, M., Eloussi, L., Marinov, D. (2015). Practical regression test selection with dynamic file dependencies. ISSTA.
-- Jimenez, C. E., et al. (2024). SWE-bench: Can language models resolve real-world GitHub issues? ICLR.
+- Gyori, A., Shi, A., Hariri, F., Marinov, D. (2015). Reliable testing: detecting state-polluting tests to prevent test dependency. ISSTA.
+- Kauhanen, E., Nurminen, J. K., Mikkonen, T., Pashkovskiy, M. (2021). Regression test selection tool for Python in continuous integration process. SANER (VST workshop).
+- Lam, W., Shi, A., Oei, R., Zhang, S., Ernst, M. D., Xie, T. (2020). Dependent-test-aware regression testing techniques. ISSTA.
 - Legunsen, O., Shi, A., Marinov, D. (2017). STARTS: STAtic regression test selection. ASE (tool demo).
-- Wang, Y., Pradel, M., Liu, Z. (2026). Names Are All You Need: Effective and Safe Regression Test Selection for Python. arXiv:2605.25356.
+- Lin, Z., et al. (2026). To Run or Not to Run: Analyzing the cost-effectiveness of code execution in LLM-based program repair. ISSTA. arXiv:2606.26978.
+- TestPrune: Can old tests do new tricks for resolving SWE issues? (2025). arXiv:2510.18270.
+- Wang, Y., Pradel, M., Liu, Z. (2026). Names are all you need: effective and safe regression test selection for Python. TOSEM. arXiv:2605.25356.
 - pytest-testmon. https://testmon.org
