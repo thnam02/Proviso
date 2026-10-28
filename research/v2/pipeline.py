@@ -382,6 +382,9 @@ def bugs():
 
 def parallel(stage, items, workers=None):
     n = max(1, min(workers or WORKERS, len(items)))
+    for i in range(n):   # logs are appended across runs: mark where this run starts
+        with open(os.path.join(WORK, f"{stage}.w{i}.log"), "a") as fh:
+            fh.write(f"\n===== {stage} worker {i}/{n} started {time.strftime('%F %T')} =====\n")
     procs = [subprocess.Popen([PY, os.path.abspath(__file__), REPO, "worker", stage, str(i), str(n)],
                               stdout=open(os.path.join(WORK, f"{stage}.w{i}.log"), "a"), stderr=subprocess.STDOUT)
              for i in range(n)]
