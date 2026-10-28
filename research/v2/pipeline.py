@@ -61,14 +61,23 @@ REPOS = {
     # held out: pinned before any run (2026-10-25); nothing about it was inspected while building v2
     "pygments": dict(url="https://github.com/pygments/pygments.git", commit="156d85fdd18d34427fe893527e71da91dcfb0eb5",
                      pkg="pygments", targets=["tests"], mutate=None, test_dirs="tests", pythonpath=[],
-                     pytest_args=[], before_test="", nr_repo="pygments", pip=[]),
+                     pytest_args=[], before_test="", nr_repo="pygments", pip=[],
+                     # pytest-testmon 2.2.0 crashes (INTERNALERROR, IndexError in source_tree.get_file) on a collected
+                     # test file without an extension (33 example files, 33 of 5,339 tests): those files are left out
+                     # of testmon's runs and their tests count as always selected by testmon and file_coverage
+                     testmon_ignore_noext=True),
     # held out (an application, not a library): pinned 2026-10-26 before any run; only its packaging file was read
     "datasette": dict(url="https://github.com/simonw/datasette.git", commit="a8e13cc489b41f2f9a5aa691f5eb1bedf99a0e0b",
                       pkg="datasette", targets=["tests"], mutate=None, test_dirs="tests", pythonpath=[],
                       pytest_args=[], before_test="", nr_repo="datasette", pip=[],
                       # its tests hang under an address-space cap (async server, threads reserve address space):
                       # no cap for this repository; the per-run timeout still guards against runaway bugs
-                      mem_limit_gb=0),
+                      mem_limit_gb=0,
+                      # testmon's per-test records attribute project code to only ~250 of 2,939 tests here (the most
+                      # recorded file is linked to 248 tests); testmon itself compensates by re-running most tests,
+                      # but file_coverage, which reads those records directly, is not meaningful
+                      file_coverage_na="testmon's per-test coverage records link project code to only about 250 of "
+                                       "2,939 tests on datasette, so file-level selection from them is not meaningful"),
 }
 PER_KIND = {"function": 2, "class": 2, "module": 2} if SMOKE else {"function": 40, "class": 30, "module": 25}
 SCAN_COMMITS = 6 if SMOKE else 250
@@ -238,6 +247,21 @@ def covmap(tree=None, out=None, workers=None):
     return jload(out)
 
 
+def _noext_test_files(tree):
+    """Files without an extension under the test targets (see testmon_ignore_noext)."""
+    if not CFG.get("testmon_ignore_noext"):
+        return []
+    out = []
+    for t in CFG["targets"]:
+        for d, _, fs in os.walk(os.path.join(tree, t)):
+            out += [os.path.relpath(os.path.join(d, f), tree) for f in fs if "." not in f]
+    return sorted(out)
+
+
+def _testmon_args(tree):
+    return [f"--ignore={f}" for f in _noext_test_files(tree)]
+
+
 def _testmon_ok(db):
     """A usable testmon database: it has recorded test executions (an interrupted or failed run leaves an empty
     file, which was then reused)."""
@@ -262,7 +286,8 @@ def testmon(tree=None, db=None):
         reset(tree)
         t = time.time()
         r = subprocess.run([PY, "-m", "pytest", "--testmon", "-p", "no:randomly", "--tb=no", "-q",
-                            "--continue-on-collection-errors", *CFG["pytest_args"], *CFG["targets"]], cwd=tree,
+                            "--continue-on-collection-errors", *_testmon_args(tree), *CFG["pytest_args"],
+                            *CFG["targets"]], cwd=tree,
                            env=env(tree, [PLUG]), capture_output=True, text=True, timeout=7200)
         shutil.rmtree(os.path.join(tree, ".pytest_cache"), ignore_errors=True)
         made = os.path.join(tree, ".testmondata")
@@ -287,7 +312,8 @@ def testmon_select(tree, db):
     if os.path.exists(out):
         os.remove(out)
     r = subprocess.run([PY, "-m", "pytest", "--co", "--testmon", "-q", "-p", "no:randomly", "-p", "collected",
-                        "--continue-on-collection-errors", *CFG["pytest_args"], *CFG["targets"]], cwd=tree,
+                        "--continue-on-collection-errors", *_testmon_args(tree), *CFG["pytest_args"],
+                        *CFG["targets"]], cwd=tree,
                        env=env(tree, [PLUG], COLLECTED_OUT=out), capture_output=True, text=True, timeout=3600)
     os.remove(os.path.join(tree, ".testmondata"))
     shutil.rmtree(os.path.join(tree, ".pytest_cache"), ignore_errors=True)
@@ -488,13 +514,18 @@ def score_all(tree, cov, universe, truth, plain, db, nr_cache, nr_tree):
     sel_s = time.time() - t
     ctx["proviso_selected"] = psel
     rows = {}
+    always = {n for n in universe if n.split("::", 1)[0] in set(_noext_test_files(tree))}
     for name in SELECTORS:
         if not db and name in ("testmon", "file_coverage"):
+            continue
+        if name == "file_coverage" and CFG.get("file_coverage_na"):
             continue
         if name == "testmon" and tm_err:
             rows[name] = {"error": tm_err}
             continue
         s = SEL.SELECTORS[name](ch, universe, cov=cov, **ctx) & universe
+        if name in ("testmon", "file_coverage"):
+            s |= always
         rows[name] = {"selected": len(s), "time_share": round(T(s) / tot, 4), "missed": SEL.missed(truth, s)}
     rows["proviso"].update(selection_s=round(sel_s, 2), reason=why.get("reason"))
     if nr_cache:
@@ -786,14 +817,18 @@ def retestmon():
                         continue
                     tot = sum(pl.get(n, 0) for n in universe) or 1e-9
                     share = lambda ss: round(sum(pl.get(n, 0) for n in ss) / tot, 4)
+                    always = {n for n in universe if n.split("::", 1)[0] in set(_noext_test_files(tree))}
                     try:
-                        s_ = set(testmon_select(tree, db)) & universe
+                        s_ = (set(testmon_select(tree, db)) & universe) | always
                         row["selectors"]["testmon"] = {"selected": len(s_), "missed": SEL.missed(fails, s_),
                                                        "time_share": share(s_)}
                     except Exception as e:  # noqa: BLE001
                         row["selectors"]["testmon"] = {"error": repr(e)[:300]}
-                    s_ = SEL.SELECTORS["file_coverage"](SEL.Change(tree, [CFG["pkg"]]), universe, testmon_db=db) \
-                        & universe
+                    if CFG.get("file_coverage_na"):
+                        row["selectors"].pop("file_coverage", None)
+                        continue
+                    s_ = (SEL.SELECTORS["file_coverage"](SEL.Change(tree, [CFG["pkg"]]), universe, testmon_db=db)
+                          & universe) | always
                     row["selectors"]["file_coverage"] = {"selected": len(s_), "missed": SEL.missed(fails, s_),
                                                          "time_share": share(s_)}
                 finally:
@@ -867,6 +902,9 @@ def report():
             ids = {r["id"] for r in real_set()}
             rows = [r for r in rows if r["id"] in ids]
         rows = _confirmed(rows, stage)
+        if CFG.get("file_coverage_na"):
+            rows = [{**r, "selectors": {k: v for k, v in r["selectors"].items() if k != "file_coverage"}}
+                    for r in rows]
         if not rows:
             continue
         brk = [r for r in rows if r["truth"]]
@@ -906,6 +944,11 @@ def report():
                   f"{st.median(r['selectors']['proviso']['selection_s'] for r in pv):.2f} s", ""]
     if REPO in TDAD_SKIP:
         lines += [f"TDAD: {TDAD_SKIP[REPO]}", ""]
+    if CFG.get("file_coverage_na"):
+        lines += [f"file_coverage: not reported here: {CFG['file_coverage_na']}", ""]
+    if CFG.get("testmon_ignore_noext"):
+        lines += ["testmon: run without the test files that have no extension (pytest-testmon crashes on them); their "
+                  "tests count as always selected by testmon and file_coverage", ""]
     open(os.path.join(RES, "report.md"), "w").write("\n".join(lines))
     print("\n".join(lines))
 
