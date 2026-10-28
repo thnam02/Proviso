@@ -1,0 +1,8 @@
+{"id": "truth:class:sqlglot/generators/bigquery.py:443", "confirmed": ["tests/dialects/test_bigquery.py::TestBigQuery::test_bignumeric", "tests/dialects/test_bigquery.py::TestBigQuery::test_bigquery"], "flaky": []}
+{"id": "truth:class:sqlglot/generator.py:158", "confirmed": ["tests/dialects/test_mysql.py::TestMySQL::test_ddl", "tests/test_transpile.py::TestTranspile::test_identity"], "flaky": []}
+{"id": "truth:class:sqlglot/generators/duckdb.py:1576", "confirmed": ["tests/dialects/test_dialect.py::TestDialect::test_window_exclude"], "flaky": []}
+{"id": "truth:class:sqlglot/expressions/ddl.py:144", "confirmed": ["tests/dialects/test_clickhouse.py::TestClickhouse::test_detach"], "flaky": []}
+{"id": "truth:class:sqlglot/generators/mysql.py:171", "confirmed": ["tests/dialects/test_mysql.py::TestMySQL::test_canonical_functions", "tests/dialects/test_mysql.py::TestMySQL::test_mysql_time"], "flaky": []}
+{"id": "mine:a7fcf9e07f", "confirmed": ["tests/dialects/test_tsql.py::TestTSQL::test_tsql"], "flaky": []}
+{"id": "mine:c4090855c9", "confirmed": ["tests/dialects/test_singlestore.py::TestSingleStore::test_collate_sql"], "flaky": []}
+{"id": "mine:8efda2c6ce", "confirmed": ["tests/test_parser.py::TestParser::test_parse_drop_schema"], "flaky": []}

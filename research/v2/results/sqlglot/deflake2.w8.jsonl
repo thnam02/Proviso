@@ -1,0 +1,8 @@
+{"id": "truth:class:sqlglot/parsers/clickhouse.py:343", "confirmed": ["tests/dialects/test_databricks.py::TestDatabricks::test_databricks"], "flaky": []}
+{"id": "truth:function:sqlglot/parsers/exasol.py:144", "confirmed": ["tests/dialects/test_exasol.py::TestExasol::test_local_prefix_for_alias", "tests/dialects/test_exasol.py::TestExasol::test_qualify_unscoped_star"], "flaky": []}
+{"id": "truth:class:sqlglot/generators/hive.py:328", "confirmed": ["tests/dialects/test_exasol.py::TestExasol::test_stringFunctions", "tests/dialects/test_snowflake.py::TestSnowflake::test_regexp_replace"], "flaky": []}
+{"id": "truth:function:sqlglot/parser.py:3103", "confirmed": ["tests/dialects/test_tsql.py::TestTSQL::test_temporal_table"], "flaky": []}
+{"id": "truth:class:sqlglot/parsers/dax.py:10", "confirmed": ["tests/dialects/test_dax.py::TestDAX::test_filter"], "flaky": []}
+{"id": "mine:d84f7f3ee1", "confirmed": ["tests/dialects/test_hive.py::TestHive::test_cast"], "flaky": []}
+{"id": "mine:76004d7f33", "confirmed": ["tests/dialects/test_mysql.py::TestMySQL::test_mysql", "tests/dialects/test_tsql.py::TestTSQL::test_tsql"], "flaky": []}
+{"id": "mine:6de29fdce7", "confirmed": ["tests/dialects/test_hive.py::TestHive::test_multitable_inserts"], "flaky": []}
