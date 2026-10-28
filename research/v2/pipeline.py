@@ -177,7 +177,7 @@ def _limit_memory():
     resource.setrlimit(resource.RLIMIT_AS, (lim, lim))
 
 
-def run_tests(tree, out, targets=None, timeout=int(os.environ.get("PROVISO_TEST_TIMEOUT", "1800"))):
+def run_tests(tree, out, targets=None, timeout=int(os.environ.get("PROVISO_TEST_TIMEOUT", "900"))):
     e = env(tree, [PLUG])
     e["OUTCOMES_OUT"] = out
     if os.path.exists(out):
@@ -426,6 +426,11 @@ def truth_worker(i, n):
             r = run_tests(tree, os.path.join(WORK, f"truth_w{i}.json"))
             append("truth", i, {**b, "code": code, "failing": sorted(x for x in failing(r) if ok(x)),
                                 "n_tests": len(r), "secs": round(time.time() - t, 1)})
+        except subprocess.TimeoutExpired:
+            # the suite hangs on this bug: its ground truth is unknown, so it is left out; recorded so that a re-run
+            # does not spend the timeout on it again
+            append("truth", i, {**b, "failing": [], "n_tests": None, "timeout": True})
+            print(b["id"], "TIMEOUT (left out)", flush=True)
         except Exception as e:  # noqa: BLE001
             print(b["id"], "ERROR", repr(e)[:300], flush=True)
         finally:
@@ -504,7 +509,7 @@ def select_worker(i, n):
     cov, base, db = covmap(), baseline(), testmon()
     plain = {k: t for k, (ok, t) in base.items()}
     universe = universe_of(cov, failing(base))
-    for b in [b for b in bugs()[i::n] if b["id"] not in done and b["id"] in truth]:
+    for b in [b for b in bugs()[i::n] if b["id"] not in done and b["id"] in truth and not truth[b["id"]].get("timeout")]:
         try:
             apply_bug(tree, b)
             r = score_all(tree, cov, universe, truth_failing(truth[b["id"]], universe), plain, db, nr_cache, nr_tree)
@@ -562,6 +567,10 @@ def mine_worker(i, n):
             ok = ok_filter(failing(base))
             append("mine", i, {"id": c["id"], "commit": c["commit"], "src": c["src"],
                                "failing": sorted(x for x in failing(ch) if ok(x)), "n_tests": len(base)})
+        except subprocess.TimeoutExpired:   # left out of the real set (n_tests 0), not retried
+            append("mine", i, {"id": c["id"], "commit": c["commit"], "src": c["src"], "failing": [], "n_tests": 0,
+                               "timeout": True})
+            print(c["id"], "TIMEOUT (left out)", flush=True)
         except Exception as e:  # noqa: BLE001
             print(c["id"], "ERROR", repr(e)[:300], flush=True)
         finally:
@@ -837,6 +846,10 @@ def report():
         order = SELECTORS + ["namerts", "tdad", "tdad_nocap"]
         names = sorted({k for r in rows for k in r["selectors"]}, key=lambda k: order.index(k) if k in order else 99)
         nfl = sum(r.get("flaky_dropped", 0) for r in rows)
+        if stage == "select":
+            hung = sum(1 for b in merged("truth").values() if b.get("timeout"))
+            if hung:
+                lines += [f"({hung} planted bugs left out: the test suite hung past the timeout on them)", ""]
         lines += [f"## {title}: {len(rows)} changes, {len(brk)} break tests ({sum(r['truth'] for r in brk)} failing tests)"
                   + (f"; {nfl} flaky failures dropped (passed when re-run)" if nfl else ""),
                   "", "| selector | changes with a missed failure | failing tests missed | test time selected, mean (median) |",
