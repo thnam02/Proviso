@@ -28,7 +28,9 @@ _TRUE = ("1", "true", "yes", "on")
 
 # Variables the nested Claude Code may keep from the host. Everything else
 # (CLAUDE_*, proxies, session tokens, tool config) is dropped.
-_KEEP_ENV = ("ANTHROPIC_BASE_URL", "LANG", "LC_ALL", "TZ", "TERM")
+# ANTHROPIC_API_KEY: kept so that runs authenticated by an API key also work without --bare (--bare ignores hooks
+# passed through --settings, so the Proviso arms need this mode); absent in host-authenticated sessions.
+_KEEP_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "LANG", "LC_ALL", "TZ", "TERM")
 
 
 def is_offline(env: dict[str, str] | None = None) -> bool:

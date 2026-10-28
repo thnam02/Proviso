@@ -21,6 +21,22 @@ command -v claude >/dev/null || { echo "Claude Code CLI not found: npm install -
 command -v python3 >/dev/null && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)' \
   || { echo "Python 3.12+ needed"; exit 1; }
 
+# Claude Code's --bare mode ignores hooks given through --settings, so Proviso would never run. Every arm (baseline
+# included, for a fair comparison) therefore runs without --bare, in a clean environment with a fresh HOME per run.
+export DC_EVAL_CLAUDE_HOST_AUTH=1
+
+# Pre-flight (free: an invalid key, so nothing reaches the model): does this Claude Code fire hooks from --settings?
+PF=$(mktemp -d)
+printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"touch %s/fired"}]}]}}' "$PF" > "$PF/settings.json"
+(cd "$PF" && env -i PATH="$PATH" HOME="$PF" ANTHROPIC_API_KEY=invalid-preflight-key \
+   timeout 60 claude -p "hi" --settings "$PF/settings.json" --output-format stream-json --verbose >/dev/null 2>&1 || true)
+if [ ! -f "$PF/fired" ]; then
+  echo "Pre-flight failed: Claude Code did not run a hook from --settings. Proviso would be inactive; not starting."
+  rm -rf "$PF"; exit 1
+fi
+rm -rf "$PF"
+echo "== pre-flight: hooks fire"
+
 if [ ! -x "$VENV/bin/python" ]; then
   python3 -m venv "$VENV"
   "$VENV/bin/pip" install -q --upgrade pip
