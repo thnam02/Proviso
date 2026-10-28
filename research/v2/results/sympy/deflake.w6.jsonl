@@ -1,4 +1,0 @@
-{"id": "truth:function:sympy/functions/elementary/exponential.py:1219", "confirmed": ["sympy/functions/elementary/tests/test_exponential.py::test_lambertw"], "flaky": []}
-{"id": "truth:function:sympy/functions/special/zeta_functions.py:157", "confirmed": ["sympy/functions/special/tests/test_zeta_functions.py::test_lerchphi_expansion"], "flaky": []}
-{"id": "truth:module:sympy/core/relational.py:1586", "confirmed": ["sympy/functions/elementary/tests/test_piecewise.py::test_issue_10122"], "flaky": []}
-{"id": "mine:94f14043f5", "confirmed": ["sympy/functions/elementary/tests/test_hyperbolic.py::test_acoth", "sympy/functions/elementary/tests/test_trigonometric.py::test_evenodd_rewrite"], "flaky": []}

@@ -1,4 +1,4 @@
-"""Reproduce NameRTS's published RQ1 results through THIS study's NameRTS setup (research/compare/namerts_driver.py,
+"""Reproduce NameRTS's published RQ1 results through THIS study's NameRTS setup (research/v2/namerts_driver.py,
 called exactly as the evaluation pipeline calls it). If our setup selects what NameRTS's own runs selected, the
 NameRTS rows of our evaluation are trustworthy; if not, they are not.
 

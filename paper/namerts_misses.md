@@ -1,7 +1,7 @@
 # Why NameRTS misses failing tests in our evaluation (28 Oct 2026)
 
 ## 1. Is our NameRTS setup valid? Yes.
-We ran NameRTS through our own setup (research/compare/namerts_driver.py, called as the pipeline calls it) on the
+We ran NameRTS through our own setup (research/v2/namerts_driver.py, called as the pipeline calls it) on the
 first 20 target commits of NameRTS's published loguru benchmark (results/namerts_repro/loguru.jsonl).
 
 | Measure | Result |

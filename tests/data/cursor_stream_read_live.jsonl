@@ -1,7 +1,0 @@
-{"type":"tool_call","subtype":"started","call_id":"c1","tool_call":{"readToolCall":{"args":{"path":"tomlkit/items.py","limit":200}}},"session_id":"sess-1"}
-{"type":"tool_call","subtype":"completed","call_id":"c1","tool_call":{"readToolCall":{"args":{"path":"tomlkit/items.py","limit":200},"result":{"success":{"content":"from __future__ import annotations\n\nimport abc\n","isEmpty":false}}}},"session_id":"sess-1"}
-{"type":"tool_call","subtype":"started","call_id":"c2","tool_call":{"webSearchToolCall":{"args":{"searchTerm":"tomlkit Float PySequence_Check github issue 563"}}},"session_id":"sess-1"}
-{"type":"tool_call","subtype":"completed","call_id":"c2","tool_call":{"webSearchToolCall":{"args":{"searchTerm":"tomlkit Float PySequence_Check github issue 563"},"result":{"success":{}}}},"session_id":"sess-1"}
-{"type":"tool_call","subtype":"started","call_id":"c3","tool_call":{"webFetchToolCall":{"args":{"url":"https://github.com/python-poetry/tomlkit/issues/563"}}},"session_id":"sess-1"}
-{"type":"tool_call","subtype":"completed","call_id":"c3","tool_call":{"webFetchToolCall":{"args":{"url":"https://github.com/python-poetry/tomlkit/issues/563"},"result":{"success":{}}}},"session_id":"sess-1"}
-{"type":"result","subtype":"success","duration_ms":1000,"is_error":false,"result":"done","session_id":"sess-1"}

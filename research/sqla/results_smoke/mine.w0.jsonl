@@ -1,3 +1,0 @@
-{"id": "cf951a246e", "commit": "cf951a246eab9d660ae00bd8226ec5ba0a9c3aea", "src": ["lib/sqlalchemy/sql/ddl.py"], "failing": [], "base_failing": [], "n_tests": 9704}
-{"id": "b82b066497", "commit": "b82b06649735d4f0a0b4dfefdf307be046ceaa50", "src": ["lib/sqlalchemy/dialects/postgresql/named_types.py", "lib/sqlalchemy/sql/sqltypes.py"], "failing": [], "base_failing": [], "n_tests": 9658}
-{"id": "a9956b1ab7", "commit": "a9956b1ab72561c4642ff9dfdf9ae52f3eb5d307", "src": ["lib/sqlalchemy/engine/_result_cy.py"], "failing": [], "base_failing": [], "n_tests": 9630}

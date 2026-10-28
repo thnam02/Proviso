@@ -2,10 +2,10 @@
 
 Assets (built once per base commit, in .dc-engine/):
   covmap.json         {test node id: {"funcs": [[file, first line], ...], "time": s, "ok": bool}} from running the
-                      suite at the base commit with a call profiler (research/ripple/covplugin.py)
+                      suite at the base commit with the recorder (dc_engine.covplugin, via dc_engine.record)
   base_failures.json  test node ids (or test modules) that already fail at the base commit
   probes.json         [[source dialect, run dialect, input], ...]: inputs the test suite already contains, also run in
-                      every component that inherits from the input's own (research/ripple/replay.py)
+                      every component that inherits from the input's own (replay.py below)
   ripple_base.json    behaviour of the base commit on those probes
   replay.py           the replay runner (repository-specific behaviour function)
 

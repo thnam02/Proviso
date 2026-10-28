@@ -9,7 +9,7 @@ For a base tree, plant single-line bugs of three kinds:
 For each bug: selection (dc_engine.impact.selection with the base coverage map) vs ground truth (the full suite run on
 the bugged tree; failures not present at base). A bug is "missed" if some failing test is not selected.
 
-Usage: python research/ripple/mutants.py TASK_PREFIX N_PER_KIND SEED OUT.json
+Usage: python research/v2/mutants.py TASK_PREFIX N_PER_KIND SEED OUT.json
 """
 
 from __future__ import annotations

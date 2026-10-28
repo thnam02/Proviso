@@ -233,46 +233,5 @@ class Brief(RepoCase):
         self.assertEqual(P.handle_event("proviso-brief-1", {"prompt": "x"}, self.root), {})
 
 
-class Arms(unittest.TestCase):
-    def test_oracle_arm_prompt_hook_only_and_needs_brief(self):
-        from dc_eval.arms import arm_config, proviso_settings, write_proviso_files
-        flags = arm_config("oracle")["proviso"]
-        hooks = proviso_settings("/py", "/probe", flags)["hooks"]
-        self.assertEqual(set(hooks), {"UserPromptSubmit"})
-        self.assertEqual(len(hooks["UserPromptSubmit"]), 6)
-        d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, d, True)
-        with self.assertRaises(FileNotFoundError):
-            write_proviso_files(os.path.join(d, "s"), os.path.join(d, "r"), "/p", flags,
-                                brief=os.path.join(d, "missing.md"))
-        b = os.path.join(d, "b.md")
-        open(b, "w").write("brief")
-        write_proviso_files(os.path.join(d, "s"), os.path.join(d, "r"), "/p", flags, brief=b)
-        self.assertEqual(open(os.path.join(d, "r", ".dc-engine", "brief.md")).read(), "brief")
-
-    def test_proviso_arms(self):
-        from dc_eval.arms import arm_config, claude_argv, proviso_settings, write_proviso_files
-        for arm, flags in (("proviso", (True, True, True)), ("replay-only", (False, True, True)),
-                           ("tests-only", (False, False, True))):
-            cfg = arm_config(arm)
-            self.assertFalse(cfg["mcp"])
-            self.assertEqual(tuple(cfg["proviso"][k] for k in ("context", "trajectory", "tests")), flags)
-            argv = claude_argv("p", arm, model="m", budget_usd=1, settings="/s.json", bare=False)
-            self.assertIn("--settings", argv)
-            self.assertNotIn("--mcp-config", argv)
-        hooks = proviso_settings("/py", "/probe")["hooks"]
-        self.assertEqual(set(hooks), {"UserPromptSubmit", "PostToolUse", "Stop"})
-        self.assertEqual(hooks["PostToolUse"][0]["matcher"], "Bash")
-        self.assertIn("proviso-verify", hooks["Stop"][0]["hooks"][0]["command"])
-        self.assertGreaterEqual(hooks["Stop"][0]["hooks"][0]["timeout"], 300)
-        d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, d, True)
-        write_proviso_files(os.path.join(d, "slot"), os.path.join(d, "repo"), "/probe/python",
-                            arm_config("tests-only")["proviso"])
-        cfg = json.load(open(os.path.join(d, "repo", ".dc-engine", "proviso.json")))
-        self.assertEqual(cfg["python"], "/probe/python")
-        self.assertFalse(cfg["trajectory"])
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -33,8 +33,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(ROOT, "src"))
-sys.path.insert(0, os.path.join(ROOT, "research", "compare"))
-sys.path.insert(0, os.path.join(ROOT, "research", "ripple"))
+sys.path.insert(0, HERE)   # rts.py (selectors), mutants.py (planted bugs), namerts_driver.py live here
 from dc_engine import impact as I  # noqa: E402
 from dc_engine import record as REC  # noqa: E402
 import mutants as M  # noqa: E402
@@ -337,7 +336,7 @@ def namerts(action, tree, cache):
          "PATH": os.path.dirname(PY) + os.pathsep + os.environ.get("PATH", ""),
          "NAMERTS_EXTRA_PATH": os.pathsep.join([os.path.join(tree, p) for p in CFG["pythonpath"]] + [PLUG] +
                                                [x for x in os.environ.get("PROVISO_EXTRA_PATH", "").split(os.pathsep) if x])}
-    r = subprocess.run([PY, os.path.join(ROOT, "research", "compare", "namerts_driver.py"), action, tree, cache,
+    r = subprocess.run([PY, os.path.join(HERE, "namerts_driver.py"), action, tree, cache,
                         CFG["nr_repo"]], capture_output=True, text=True, env=e, timeout=14400)
     if action == "select":
         for line in r.stdout.splitlines():

@@ -1,8 +1,0 @@
-{"id": "truth:function:pygments/lexers/mime.py:175", "confirmed": ["tests/examplefiles/email/example.eml::", "tests/examplefiles/mime/MIME_example.eml::"], "flaky": []}
-{"id": "truth:module:pygments/lexers/_mapping.py:366", "confirmed": ["tests/snippets/numbair/test_numba_ir_snippet.txt::", "tests/test_guess.py::test_lexer_fixtures[snippets]"], "flaky": []}
-{"id": "truth:function:pygments/formatters/groff.py:157", "confirmed": ["tests/test_groff_formatter.py::test_basic", "tests/test_groff_formatter.py::test_inheritance_custom_tokens"], "flaky": []}
-{"id": "truth:class:pygments/lexers/pddl.py:51", "confirmed": ["tests/examplefiles/pddl/example-domain.pddl::"], "flaky": []}
-{"id": "truth:function:pygments/lexers/templates.py:724", "confirmed": ["tests/examplefiles/cheetah/cheetah_example.tmpl::"], "flaky": []}
-{"id": "mine:94702fe584", "confirmed": ["tests/examplefiles/kotlin/example.kt::"], "flaky": []}
-{"id": "mine:b073d8adf1", "confirmed": ["tests/examplefiles/cpp/namespace.cpp::"], "flaky": []}
-{"id": "mine:6e622c5362", "confirmed": ["tests/snippets/hare/hello-world.txt::", "tests/snippets/rego/test_assignment_and_equality.txt::", "tests/snippets/rego/test_builtin_functions.txt::", "tests/snippets/rego/test_for_all.txt::", "tests/snippets/rego/test_iteration.txt::", "tests/snippets/rego/test_lookup.txt::", "tests/snippets/rego/test_rules.txt::"], "flaky": []}

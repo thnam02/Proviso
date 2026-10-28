@@ -1,6 +1,0 @@
-Date,Cloud Agent ID,Automation ID,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost
-2026-10-14T12:00:10.000Z,ca-with,,agent,composer-1,false,1000,0,2000,100,3100,0.12
-2026-10-14T12:00:20.000Z,ca-without,,agent,composer-1,false,0,500,100,50,650,Included
-2026-10-14T12:00:30.000Z,ca-free,,agent,composer-1,false,200,0,0,10,210,Free
-2026-10-14T15:00:00.000Z,ca-outside,,agent,composer-1,false,1,0,0,1,2,0.01
-2026-10-14T12:04:30.000Z,ca-ambig,,agent,composer-1,false,10,0,0,1,11,0.01

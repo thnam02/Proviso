@@ -1,344 +1,92 @@
-# dc-engine — Phase 1–3
+# Proviso
 
-Symbol-level context and edits for coding agents, served over MCP.
-This is Phase 1 of the **Delta Contracts** layer: it sits between a coding
-agent (Claude Code, Cursor, Codex…) and your Python codebase so the agent
-reads **signatures and slices instead of whole files**, and edits **by
-symbol with instant, diffed checks** instead of string search-and-replace.
+**Safe, fast test feedback for coding agents (Python).** After each edit, Proviso runs only the tests the edit can
+affect, and tells the agent what the edit touched.
 
-```
-Coding agent ──MCP──▶ dc-engine ──▶ your repo
-                      ├─ indexer   symbols, signatures, imports, call graph (SQLite, incremental)
-                      ├─ views     repo map · symbol lookup · references · slices (token-budgeted)
-                      └─ edit gate symbol edits · syntax gate · ruff/pyright new-diagnostic diff
-                                   · broken-caller check on signature changes
-```
+Across five repositories (469 planted bugs and 181 real commits; ground truth = the tests that actually fail), Proviso
+missed a failing test in **3%** of test-breaking changes. pytest-testmon missed in 17–24%, NameRTS in 44–61%, and TDAD
+in 95–97%. With selection time included, a typical run drops from 27 s to 2 s on sqlglot and from 8 s to 1 s on
+pygments. Full results: [`research/v2/results/report-all.md`](research/v2/results/report-all.md). Paper:
+[`paper/kaggle.md`](paper/kaggle.md).
 
-## Measured on real repos
+## How it works
 
-Index build: ~250 ms for requests / flask / httpx (37–83 files, 12–18k lines).
-Re-index after an edit only re-parses the changed file.
+1. **Record once per base commit.** The suite runs under a pytest plugin built on Python 3.12's `sys.monitoring`. For
+   each test it records:
+   - the functions the test executes;
+   - the fixtures it uses and the code they run;
+   - code run while its test module imports.
 
-Context needed to change one function — `dc_get_slice` (target body + callee
-and caller signatures + class context) vs. reading every file that contains
-the target, its callees or its callers:
+   Each test file runs in a fresh interpreter, so caches cannot hide dependencies. A snapshot fingerprints every value
+   the package builds at import time: tables, maps, class attributes.
+2. **Select on every run.** From `git diff`, Proviso selects the tests that:
+   - executed an edited function;
+   - read an import-time value that actually changed (it re-snapshots and compares the values);
+   - use a changed class.
 
-| Repo | Target | Read files | Slice | Saving |
-|---|---|---:|---:|---:|
-| requests | `Session.request` | 20,395 | 1,771 | 92% |
-| requests | `HTTPAdapter.send` | 9,650 | 1,961 | 80% |
-| requests | `utils.get_encoding_from_headers` | 23,873 | 498 | 98% |
-| flask | `Flask.make_response` | 16,325 | 1,792 | 90% |
-| flask | `Flask.full_dispatch_request` | 16,325 | 715 | 96% |
-| flask | `helpers.send_from_directory` | 26,394 | 598 | 98% |
-| httpx | `Client.send` | 16,429 | 851 | 95% |
-| httpx | `Response.json` | 11,175 | 171 | 99% |
-| httpx | `URL.join` | 5,379 | 263 | 96% |
+   A new source file runs everything, and edited tests always run.
+3. **In the agent.** A pre-tool hook rewrites broad test commands (`pytest`, `pytest tests/`) into a Proviso run and
+   prints a short report of what the change affected.
 
-Tokens estimated at ~4 characters per token. This compares context *size*
-only; it is not yet an end-to-end measurement of an agent solving tasks
-(agents also grep and read partial files). That benchmark is the next step.
+## Use it on a repository
 
-Static call resolution (library code, excluding tests/docs/examples): 80–94%
-of calls whose target is knowable without type inference (plain names,
-`self.method`, `super()`, imports incl. relative, aliased, star and package
-re-exports). Calls on variables of unknown type (`response.read()`) stay
-unresolved and are shown as such — never guessed.
-
-Edit gate on httpx's 2,000-line `_client.py` / `_models.py`: 2–4 s per edit
-with ruff + pyright. A signature change additionally type-checks every file
-that may call the symbol (~13 s for `URL.join`, which caught 50 broken call
-sites across library and test code).
-
-## Install
+Requires Python 3.12+ and pytest.
 
 ```bash
-pip install -e .                 # needs Python 3.10+ and the `mcp` package
-pip install ruff pyright         # optional but recommended: edit checks
+pip install -e /path/to/Proviso
+cd your-repo
+# 1. record the dependency map at the base commit (PKG = package directory, e.g. mypkg or src/mypkg)
+python -m dc_engine.record --root . --pkg PKG --out .dc-engine/covmap.json tests
+# 2. turn on test selection for the hook
+echo '{"impact": true, "python": "'"$(which python)"'"}' > .dc-engine/proviso.json
 ```
 
-Without ruff/pyright the edit gate still syntax-checks every edit; it just
-reports `skipped` for the missing checker. Set `DC_TYPECHECK=off` to skip
-pyright (faster edits, no type checking).
-
-## Use with Claude Code
-
-From your project's root:
-
-```bash
-claude mcp add --transport stdio dc-engine -- dc-engine-mcp --root "$(pwd)"
-```
-
-Or share it with your team via `.mcp.json` in the project root:
+Then add the hook to the agent's settings. For Claude Code (`.claude/settings.json`):
 
 ```json
-{
-  "mcpServers": {
-    "dc-engine": {
-      "type": "stdio",
-      "command": "dc-engine-mcp",
-      "args": ["--root", "${CLAUDE_PROJECT_DIR:-.}"]
-    }
-  }
-}
+{"hooks": {"PreToolUse": [{"matcher": "Bash",
+  "hooks": [{"type": "command", "command": "dc-engine hook proviso-pretool"}]}]}}
 ```
 
-The index lives in `<repo>/.dc-engine/` (it adds its own `.gitignore`, so it
-never shows up in `git status`). Any other MCP client works the same way: run
-`dc-engine-mcp --root <repo>` over stdio.
+## Reproduce the evaluation
 
-## Tools
+Everything lives in [`research/v2/`](research/v2). It runs on Linux or WSL2 (8+ cores and 16+ GB recommended). Each
+stage is resumable, and results are pushed to `research/v2/results/<repo>/` as each repository finishes.
 
-| Tool | What the agent gets |
+```bash
+bash research/v2/run_all.sh            # venv with pinned dependencies, NameRTS, then all five repositories
+bash research/v2/run_overnight.sh      # the same, plus TDAD baseline rows, flaky-test check and the combined report
+python research/v2/pipeline.py report-all          # rebuild the combined report from the stored results
+python research/v2/namerts_repro.py loguru 20      # check our NameRTS setup against its published results
+```
+
+| File | Role |
 |---|---|
-| `dc_repo_map(path_prefix, max_tokens)` | Files → classes/functions with signatures and line numbers; auto-compresses to fit the budget |
-| `dc_find_symbol(query)` | Matching symbols, ranked (exact name first) |
-| `dc_get_symbol(name, include_body)` | Signature, docstring, calls, external calls, callers; body only on request |
-| `dc_get_slice(targets, depth, max_tokens)` | Everything needed to change `targets`: their source, callee/caller signatures, class context, unresolved calls |
-| `dc_find_references(name)` | Resolved call sites + possible ones (unknown receiver, matched by name) |
-| `dc_file_outline(path)` | One file's structure |
-| `dc_replace_symbol(name, new_code)` | Replace one def/class; re-indents, rejects unparseable results, reports only new diagnostics and broken callers |
-| `dc_insert_symbol(code, after \| path)` | Add definitions after a symbol or at the end of a file |
-| `dc_index_status()` | Index size, resolution coverage, available checkers |
-| `dc_create_contract(task, targets, must_change, must_preserve)` | Freeze a baseline and declare which behaviours must change or stay the same |
-| `dc_check_contract(id)` | Run probes on baseline vs working tree; compact ✓/✗ report and a score |
-| `dc_get_contract` / `dc_list_contracts` / `dc_close_contract(id, reason?)` | Inspect or close a contract (`reason` required if score is below 1.0; JSON is kept) |
-| `dc_amend_contract(id, add_targets, add_must_change, add_must_preserve)` | Grow a contract when the change is bigger than planned; new probes are checked against the baseline |
-| `dc_list_checkpoints` / `dc_restore_checkpoint` | Score-gated snapshots of the working tree; restore only overwrites files that differ |
+| `pipeline.py` | Stages per repository: baseline, dependency map, planted bugs, ground truth, selection, real commits, flaky-test check, report |
+| `rts.py` | The baseline selectors (name matching, static imports, file/function coverage, testmon) and Proviso's ablations |
+| `mutants.py` | Planted-bug generator |
+| `namerts_driver.py`, `namerts_repro.py` | NameRTS baseline and its validation against NameRTS's published loguru results |
+| `tdad_select.py` | TDAD baseline (unmodified, NetworkX backend) |
+| `diagnose.py` | Read-only checks of the testmon baselines |
+| `results/` | Raw rows (jsonl), per-repository reports and `report-all.md` |
 
-Names can be full (`pkg.mod.Class.method`) or a unique suffix
-(`Class.method`); `name@L42` picks between duplicate definitions such as
-property setters.
-
-Example edit result:
-
-```
-✓ replaced shop.billing.validate_amount  shop/billing.py L22-25 → L22-25
-checks: syntax ok · ruff: 1 new · pyright: 2 new
-  ruff L25 F821: Undefined name `msg`
-  pyright L25 reportUndefinedVariable: "msg" is not defined
-  pyright L30 reportCallIssue: Argument missing for parameter "limit"
-⚠ signature changed: def validate_amount(amount: Decimal) -> None  →  def validate_amount(amount: Decimal, limit: Decimal) -> None
-  1 caller(s) may need updating:
-    shop.billing.charge  shop/billing.py:L30
-```
-
-## CLI (for trying it out)
-
-```bash
-dc-engine --root <repo> status
-dc-engine --root <repo> map --max-tokens 2000
-dc-engine --root <repo> slice Session.request --depth 1
-dc-engine --root <repo> bench Session.request      # slice vs naive file reads
-dc-engine --root <repo> contract-create spec.json
-dc-engine --root <repo> contract-check <id>
-dc-engine --root <repo> contract-list
-dc-engine --root <repo> install --claude-code
-dc-engine --root <repo> install --cursor
-dc-engine hook pre-edit|post-edit|stop     # Claude Code; JSON on stdin
-dc-engine hook preToolUse --format cursor  # Cursor; JSON on stdin
-```
-
-## Tests
-
-```bash
-python -m unittest discover -s tests        # phases 1–3; pyright tests skip if it's not installed
-python tests/mcp_smoke.py tests/fixtures/shop   # starts the MCP server over stdio and calls it
-```
-(`mcp_smoke.py` edits the repo you point it at; run it on a copy.)
-
-## Known limitations (Phase 1)
-
-- **Python only.** Parsing uses the standard-library `ast` module behind a
-  parser interface; TypeScript via tree-sitter is the next language.
-- **No type inference in the call graph** yet: calls on parameters/locals
-  (`client.send()`) are listed as unresolved. Planned: ask pyright/LSP for
-  receiver types to close most of the remaining gap.
-- **Context can only be kept out, not evicted.** An MCP server can't remove
-  what is already in the agent's context; savings come from compact
-  responses.
-- Re-indenting new code also shifts the contents of multi-line string
-  literals inside it (same as any editor re-indent).
-- Edits to module-level code outside functions/classes (imports, constants)
-  still go through the agent's normal edit tool.
+Repositories and pinned commits are listed in `REPOS` at the top of `pipeline.py`. pygments and datasette are held
+out: they were pinned before any run, and Proviso's selection logic was not changed after their results.
 
 ## Layout
 
 ```
-src/dc_engine/
-  parser.py     ast → symbols, imports, call sites
-  store.py      SQLite schema and queries
-  indexer.py    incremental indexing + static call resolution
-  views.py      repo map, symbol, references, slice (token budgets)
-  checks.py     ruff / pyright runners and before/after diagnostic diff
-  edit_gate.py  replace/insert by symbol
-  engine.py     facade used by server, CLI and tests
-  server.py     MCP server (works with mcp 1.x and 2.x)
-  cli.py        command line
-  contracts.py  delta-contract schema and JSON persistence
-  baseline.py   git worktree / copy snapshot of the repo
-  probes.py     isolated probe runner, normalisation, pytest compare
-  delta.py      create / validate / check / close / amend
-  checkpoints.py score-gated hidden git refs (or copied files)
-  active.py     one active contract per repo + enforce mode
-  hooks.py      Claude Code + Cursor (`--format cursor`) hook adapters
-  install.py    merge hooks into .claude/settings.json / .cursor/hooks.json and MCP configs
-tests/
-  test_engine.py, test_contracts.py, test_phase3.py, mcp_smoke.py, fixtures/shop/
+src/dc_engine/     the tool: recorder (covplugin.py, record.py), import-time snapshot (importstate.py),
+                   selection and agent hook (impact.py, proviso.py, hooks.py); the rest is the symbol index and
+                   MCP server the hook builds on
+research/v2/       evaluation pipeline, baselines and results
+paper/             Kaggle paper, literature review, NameRTS analysis
+tests/             unit tests (python -m pytest tests)
 ```
 
-## Delta contracts
+## Limitations
 
-Before an agent edits, it declares a contract: symbols it will change,
-probes whose behaviour must change (with the expected new result), and
-probes that must stay the same. The engine freezes a baseline (git
-worktree of `stash create`, or a copy if the tree is not a git repo),
-checks that `expect_old` actually matches current behaviour, and later
-diffs baseline vs working tree by running each probe in a subprocess.
-
-Example — `charge(user, 0)` currently returns a `Receipt`; we want it
-to raise `ValueError` without changing tax preview:
-
-```bash
-cat > /tmp/zero.json << 'EOF'
-{
-  "task": "charge(user, Decimal(0)) should raise ValueError",
-  "targets": ["billing.validate_amount"],
-  "must_change": [{
-    "id": "zero",
-    "setup": "from decimal import Decimal\nfrom shop.models import User\nfrom shop.billing import charge\nuser = User('a', 'AU')\n",
-    "call": "charge(user, Decimal(0))",
-    "expect_new": {"raises": "ValueError"}
-  }],
-  "must_preserve": [{
-    "id": "preview",
-    "setup": "from decimal import Decimal\nfrom shop.api import preview\n",
-    "call": "preview(Decimal('10'), 'AU')"
-  }]
-}
-EOF
-dc-engine --root tests/fixtures/shop contract-create /tmp/zero.json
-# edit validate_amount to reject amount <= 0, then:
-dc-engine --root tests/fixtures/shop contract-check charge-user-decimal-0-should-raise-valueerror
-```
-
-```
-contract charge-user-decimal-0-should-raise-valueerror: 2/2 satisfied  score 1.0
-✓ zero raises ValueError (was: Receipt)
-✓ preserved: preview
-```
-
-A wrong `expect_old` is rejected at creation ("your understanding of the
-current behaviour is wrong: got …"). Probes that already match
-`expect_new` are rejected too — nothing to change. Flaky probes (two
-baseline runs disagree) are reported and dropped from the score.
-
-## Hooks and checkpoints
-
-```bash
-dc-engine --root <repo> install --claude-code
-```
-
-That merges (never overwrites) three hook entries into `.claude/settings.json`
-and the MCP server into `.mcp.json`. `install --uninstall` removes only those
-entries. Mode is `.dc-engine/config.json` → `"enforce": "block"` (default),
-`"warn"`, or `"off"`.
-
-Creating a contract makes it **active**. Python edits through Edit/Write/MultiEdit,
-Bash commands that clearly write `.py` files, or `dc_replace_symbol` are denied
-until then. The Stop hook also blocks once if `.py` files changed with no
-contract, however they were written. Closing an unsatisfied contract requires a
-`reason`; the Stop hook then warns instead of going silent. After each symbol edit the engine
-appends a one-line contract status. Every check that *beats* the best score
-saves a checkpoint (`refs/dc/<id>/cp-<n>` in git; a file copy otherwise). A
-drop prints `dc_restore_checkpoint`. The Stop hook blocks while the score is
-below 1.0, with a loop guard so a stuck agent can still exit.
-
-Blocked-then-fixed session:
-
-```
-Agent: Edit shop/billing.py
-Hook:  deny — No active delta contract. Call dc_create_contract first.
-
-Agent: dc_create_contract(task="charge(user, 0) should raise",
-                          targets=["billing.validate_amount"],
-                          must_change=[{id: "zero", call: "charge(user, Decimal(0))",
-                                        expect_new: {raises: "ValueError"}}])
-       ✓ contract created: charge-zero-should-raise   (now active)
-
-Agent: dc_replace_symbol(validate_amount, … still allows 0)
-       contract charge-zero-should-raise: 0/1 ✗ not changed: zero still Receipt(…)
-
-Agent: (tries to stop)
-Hook:  decision=block
-       contract charge-zero-should-raise: 0/1 satisfied  score 0.0
-       ✗ not changed: zero  still Receipt(…)
-
-Agent: dc_replace_symbol(validate_amount, reject amount <= 0)
-       ✓ replaced shop.billing.validate_amount
-       contract charge-zero-should-raise: 1/1 ✓ zero raises ValueError (was: Receipt)
-
-Agent: (stop)  allowed — score 1.0
-```
-
-A later bad edit that drops the score prints:
-
-```
-⚠ score dropped 1/1 → 0/1 since checkpoint 2 (best). dc_restore_checkpoint to roll back.
-```
-
-`dc-engine clean --days 7` removes closed contracts' leftover baseline
-worktrees and `refs/dc/*` refs older than N days.
-
-## Security
-
-Probes are **arbitrary Python** the agent supplies (`setup` + `call`).
-`dc_create_contract` and `dc_amend_contract` echo that exact code in their
-result so a human can read it before anything runs. Run the layer only on
-repos and machines where executing agent-written snippets is acceptable, and
-keep `dc_create_contract` / `dc_amend_contract` on **manual approval** in
-Claude Code permissions (do not auto-allow those two tools).
-
-## Using with Cursor
-
-```bash
-dc-engine --root <repo> install --cursor
-```
-
-That merges (never overwrites) into `.cursor/hooks.json` (`version`: 1) and
-`.cursor/mcp.json`. `install --cursor --uninstall` removes only our entries.
-Enforce mode is the same `.dc-engine/config.json` field: `"block"` (default),
-`"warn"`, or `"off"`.
-
-| Cursor event | What it does |
-|---|---|
-| `preToolUse` (matcher `Write`) | Deny Python writes until there is an active contract (`permission: deny` + `agent_message`). |
-| `beforeShellExecution` | Same `.py`-write detection as the Claude Code Bash hook. |
-| `beforeMCPExecution` | Always `permission: allow` (MCP tools enforce themselves). |
-| `afterFileEdit` | Observational only: records the path in `.dc-engine/session.json` for the stop check. **Cannot inject context** (weaker than Claude Code `PostToolUse` `additionalContext`). |
-| `stop` | If the score is below 1.0 (or `.py` changed with no contract), return `followup_message`. Respects Cursor `loop_count` and our own 3-identical-score release. Warn/off never follow up. |
-
-## Evaluating with Cursor
-
-Use a **fixed model** (never `auto`) so baseline and layer are comparable. Turn
-**off on-demand spending** in the Cursor dashboard first. The harness runs
-**one agent at a time** so usage-export rows can be matched to runs.
-
-```bash
-# from outside the repo (live runs refuse the working copy)
-dc-eval run --runner cursor --model composer-1 --eval-dir /abs/path/eval --reps 1
-```
-
-After the batch, export usage from [cursor.com/dashboard/usage](https://cursor.com/dashboard/usage)
-and:
-
-```bash
-dc-eval import-usage usage.csv --eval-dir /abs/path/eval
-dc-eval report --eval-dir /abs/path/eval
-```
-
-Check **hooks active: yes/no** per run in the report. Cursor's docs do not
-confirm that project hooks run in the CLI; that flag is how you tell. Token
-cost in the report is **estimated** from `eval/prices.json` (fill in real
-prices). Dashboard `Total Tokens` becomes the main token metric when the
-import finds a match.
+- Speed depends on coupling. On SQLAlchemy and datasette most changes reach most tests, so Proviso stays safe but
+  saves little.
+- Remaining blind spots: pure-data classes loaded lazily after import, tests that inspect code structure, and state in
+  files or the network.

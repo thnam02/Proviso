@@ -1,8 +1,0 @@
-{"id": "truth:function:pygments/lexers/perl.py:529", "confirmed": ["tests/examplefiles/perl6/RoleQ.pm6::", "tests/examplefiles/perl6/grammar-test.p6::", "tests/examplefiles/perl6/test.p6::"], "flaky": []}
-{"id": "truth:module:pygments/lexers/_mapping.py:222", "confirmed": ["tests/examplefiles/html+php/html+php_faulty.phtml::", "tests/test_guess.py::test_filename_matching[html+php/html+php_faulty.phtml]", "tests/test_guess.py::test_lexer_fixtures[examplefiles]"], "flaky": []}
-{"id": "truth:function:pygments/lexers/dsls.py:908", "confirmed": ["tests/examplefiles/snowball/example.sbl::"], "flaky": []}
-{"id": "truth:function:pygments/lexers/javascript.py:755", "confirmed": ["tests/examplefiles/lasso/json.lasso9::", "tests/examplefiles/lasso/json.lasso::"], "flaky": []}
-{"id": "truth:function:pygments/lexers/pascal.py:493", "confirmed": ["tests/examplefiles/delphi/test.pas::"], "flaky": []}
-{"id": "mine:e5e4cf7b61", "confirmed": ["tests/examplefiles/boogie/test.bpl::"], "flaky": []}
-{"id": "mine:9c436b34cc", "confirmed": ["tests/examplefiles/go/generics.go::"], "flaky": []}
-{"id": "mine:c3d93adb98", "confirmed": ["tests/examplefiles/asn1/x509.asn1::"], "flaky": []}

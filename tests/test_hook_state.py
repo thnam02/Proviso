@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
 
 from dc_engine.hooks import handle, handle_cursor
 from dc_engine.jsonio import exclusive_lock, read_json, write_json_atomic
-from dc_eval.cursor_stream import summarize_hooks_log
 
 WORKER = r"""
 import sys
@@ -122,37 +121,6 @@ class HookLogJsonTests(unittest.TestCase):
         self.assertIn("boom", rec.get("error") or "")
         self.assertIn("Traceback", rec.get("traceback") or "")
         self.assertIn("RuntimeError", rec.get("traceback") or "")
-
-    def test_summarize_counts_events_denials_and_active(self):
-        handle_cursor("preToolUse", {
-            "tool_name": "Write",
-            "tool_input": {"path": self.py},
-            "cwd": self.tmp,
-        }, self.tmp)
-        handle_cursor("beforeMCPExecution", {"cwd": self.tmp}, self.tmp)
-        with patch("dc_engine.hooks.active.enforce_mode", side_effect=RuntimeError("x")):
-            handle_cursor("stop", {"cwd": self.tmp, "loop_count": 0}, self.tmp)
-        path = os.path.join(self.tmp, ".dc-engine", "hooks.log")
-        with open(path, encoding="utf-8") as fh:
-            text = fh.read()
-        s = summarize_hooks_log(text)
-        self.assertEqual(s["hook_calls"], 3)
-        self.assertEqual(s["hook_denials"], 1)
-        self.assertEqual(s["hook_errors"], 1)
-        self.assertEqual(s["hook_calls_by_event"]["preToolUse"], 1)
-        self.assertEqual(s["hook_calls_by_event"]["beforeMCPExecution"], 1)
-        self.assertEqual(s["hook_calls_by_event"]["stop"], 1)
-        self.assertTrue(s["hooks_active"])  # at least one call without error
-
-    def test_hooks_active_false_when_only_errors(self):
-        with patch("dc_engine.hooks.active.enforce_mode", side_effect=RuntimeError("x")):
-            handle("stop", {"cwd": self.tmp}, self.tmp)
-        path = os.path.join(self.tmp, ".dc-engine", "hooks.log")
-        with open(path, encoding="utf-8") as fh:
-            text = fh.read()
-        s = summarize_hooks_log(text)
-        self.assertEqual(s["hook_errors"], 1)
-        self.assertFalse(s["hooks_active"])
 
 
 if __name__ == "__main__":

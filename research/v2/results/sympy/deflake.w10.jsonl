@@ -1,3 +1,0 @@
-{"id": "truth:function:sympy/functions/special/hyper.py:1175", "confirmed": ["sympy/functions/special/tests/test_hyper.py::test_appellf1"], "flaky": []}
-{"id": "truth:class:sympy/core/mul.py:31", "confirmed": ["sympy/functions/elementary/tests/test_exponential.py::test_as_numer_denom"], "flaky": []}
-{"id": "truth:class:sympy/core/numbers.py:3060", "confirmed": ["sympy/functions/elementary/tests/test_integers.py::test_frac", "sympy/functions/elementary/tests/test_piecewise.py::test_piecewise_eval"], "flaky": []}

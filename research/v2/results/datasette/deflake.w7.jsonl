@@ -1,6 +1,0 @@
-{"id": "truth:function:datasette/utils/__init__.py:1297", "confirmed": ["tests/test_utils.py::test_actor_matches_allow[None-True-True]", "tests/test_utils.py::test_actor_matches_allow[actor3-True-True]"], "flaky": []}
-{"id": "truth:class:datasette/views/table_extras.py:618", "confirmed": ["tests/test_error_shape.py::test_html_only_extra_via_json_is_400", "tests/test_table_api.py::test_html_only_extras_are_not_advertised", "tests/test_table_api.py::test_html_only_extras_are_not_available_via_json[display_rows]"], "flaky": []}
-{"id": "truth:function:datasette/app.py:1555", "confirmed": ["tests/test_load_extensions.py::test_load_extension_is_disabled[False]", "tests/test_load_extensions.py::test_load_extension_is_disabled[True]"], "flaky": []}
-{"id": "truth:class:datasette/views/special.py:727", "confirmed": ["tests/test_html.py::test_no_alternate_url_json[/-/allow-debug]"], "flaky": []}
-{"id": "truth:function:datasette/views/table.py:1429", "confirmed": ["tests/test_api_write.py::test_drop_table[has_perm]", "tests/test_api_write.py::test_drop_table_cleans_up_fts"], "flaky": []}
-{"id": "mine:1538832830", "confirmed": ["tests/test_docs.py::test_view_classes_are_documented"], "flaky": []}

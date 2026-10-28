@@ -238,23 +238,6 @@ class Ripple(unittest.TestCase):
 
 
 class Hooks(unittest.TestCase):
-    def test_impact_arm_hooks_and_assets(self):
-        from dc_eval.arms import arm_config, proviso_settings, write_proviso_files
-        flags = arm_config("impact")["proviso"]
-        hooks = proviso_settings("/py", "/probe", flags)["hooks"]
-        self.assertEqual(set(hooks), {"UserPromptSubmit", "PreToolUse"})  # selection only
-        self.assertIn("proviso-pretool", hooks["PreToolUse"][0]["hooks"][0]["command"])
-        self.assertEqual(set(proviso_settings("/py", "/probe", arm_config("impact-ripple")["proviso"])["hooks"]),
-                         {"UserPromptSubmit", "PreToolUse", "Stop"})
-        d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, d, True)
-        with self.assertRaises(FileNotFoundError):
-            write_proviso_files(os.path.join(d, "s"), os.path.join(d, "r"), "/p", flags, assets=os.path.join(d, "no"))
-        os.makedirs(os.path.join(d, "a"))
-        open(os.path.join(d, "a", "covmap.json"), "w").write("{}")
-        write_proviso_files(os.path.join(d, "s"), os.path.join(d, "r"), "/p", flags, assets=os.path.join(d, "a"))
-        self.assertTrue(os.path.isfile(os.path.join(d, "r", ".dc-engine", "covmap.json")))
-
     def test_pretool_rewrites_only_with_coverage_map(self):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d, True)

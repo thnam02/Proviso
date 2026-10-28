@@ -1,3 +1,0 @@
-{"id": "0950f18cd3", "commit": "0950f18cd301b1d36687ee0339757f0fb32eb0c9", "src": ["lib/sqlalchemy/sql/compiler.py"], "failing": [], "base_failing": [], "n_tests": 9666}
-{"id": "ae11d43079", "commit": "ae11d43079207e159f3ba00f3c0e5188e2ccfe45", "src": ["lib/sqlalchemy/engine/default.py", "lib/sqlalchemy/sql/dml.py"], "failing": ["test/sql/test_returning.py::InsertReturnDefaultsTest_sqlite+pysqlite_3_45_1::test_insert_w_defaults_supplemental_processor_cols"], "base_failing": [], "n_tests": 9630}
-{"id": "049ed1db16", "commit": "049ed1db162ac36e35a40ce887d2cdbc27a962e0", "src": ["lib/sqlalchemy/orm/decl_base.py", "lib/sqlalchemy/sql/_annotated_cols.py", "lib/sqlalchemy/util/__init__.py"], "failing": [], "base_failing": [], "n_tests": 9624}
