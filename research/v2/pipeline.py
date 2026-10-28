@@ -466,6 +466,11 @@ def universe_of(cov, base_fail):
 
 
 def score_all(tree, cov, universe, truth, plain, db, nr_cache, nr_tree):
+    # a failing test that did not exist before the change (e.g. a new parameter id the change creates) cannot be
+    # selected by any selector; it is not part of the ground truth. A file-level entry stays if its file has tests.
+    files = {n.split("::", 1)[0] for n in universe}
+    new = [t for t in truth if t not in universe and not ("::" not in t and t in files)]
+    truth = [t for t in truth if t not in new]
     ch = SEL.Change(tree, [CFG["pkg"]])
     T = lambda ns: sum(plain.get(n, 0) for n in ns)
     tot = T(universe) or 1e-9
@@ -501,7 +506,8 @@ def score_all(tree, cov, universe, truth, plain, db, nr_cache, nr_tree):
         s = {n for n in universe if n.split("::", 1)[0] in files}
         rows["namerts"] = {"selected": len(s), "time_share": round(T(s) / tot, 4), "missed": SEL.missed(truth, s)}
         reset(nr_tree)
-    return {"universe": len(universe), "full_s": round(tot, 2), "truth": len(truth), "selectors": rows}
+    return {"universe": len(universe), "full_s": round(tot, 2), "truth": len(truth), "selectors": rows,
+            "new_tests_excluded": len(new)}
 
 
 def select_worker(i, n):
@@ -691,8 +697,25 @@ def deflake():
         "had flaky failures;", len(fl), "distinct flaky tests", fl[:10])
 
 
+def _drop_new_tests(rows):
+    """Rows scored before score_all excluded new tests: a failing test that the whole suite (retest_all) 'misses' was
+    not in the suite before the change, so it is removed from every selector's misses and from the truth count."""
+    out = []
+    for r in rows:
+        new = set(r["selectors"].get("retest_all", {}).get("missed", []))
+        if not new:
+            out.append(r)
+            continue
+        sels = {k: ({**v, "missed": [t for t in v["missed"] if t not in new]} if "missed" in v else v)
+                for k, v in r["selectors"].items()}
+        out.append({**r, "truth": r["truth"] - len(new), "selectors": sels,
+                    "new_tests_excluded": r.get("new_tests_excluded", 0) + len(new)})
+    return out
+
+
 def _confirmed(rows, stage):
     """Score only confirmed failures: truth count and missed lists restricted to the tests that failed again."""
+    rows = _drop_new_tests(rows)
     dfl = merged(DFL)
     if not dfl:
         return rows
@@ -704,7 +727,8 @@ def _confirmed(rows, stage):
             out.append(r)
             continue
         conf = set(d["confirmed"])
-        sels = {k: {**v, "missed": [t for t in v["missed"] if t in conf]} for k, v in r["selectors"].items()}
+        sels = {k: ({**v, "missed": [t for t in v["missed"] if t in conf]} if "missed" in v else v)
+                for k, v in r["selectors"].items()}
         out.append({**r, "truth": len(conf), "selectors": sels, "flaky_dropped": len(d["flaky"])})
     return out
 
@@ -849,6 +873,10 @@ def report():
         order = SELECTORS + ["namerts", "tdad", "tdad_nocap"]
         names = sorted({k for r in rows for k in r["selectors"]}, key=lambda k: order.index(k) if k in order else 99)
         nfl = sum(r.get("flaky_dropped", 0) for r in rows)
+        nnew = sum(r.get("new_tests_excluded", 0) for r in rows)
+        if nnew:
+            lines += [f"({nnew} failing tests left out: they were created by the change, so no selector could pick "
+                      "them)", ""]
         if stage == "select":
             hung = sum(1 for b in merged("truth").values() if b.get("timeout"))
             if hung:
