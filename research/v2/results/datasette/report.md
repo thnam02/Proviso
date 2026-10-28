@@ -13,6 +13,8 @@
 | func_file | 7 of 60 | 5438 | 32.9% (21.6%) |
 | proviso | 2 of 60 | 194 | 71.6% (98.3%) |
 | namerts | 11 of 60 | 6952 | 38.5% (23.5%) |
+| tdad | 56 of 60 | 9215 | 1.9% (2.0%) |
+| tdad_nocap | 24 of 60 | 1118 | 73.3% (83.9%) |
 
 testmon: could not run on 2 change(s) (e.g. the change breaks collection under it); those changes are left out of its row
 
@@ -31,5 +33,7 @@ End to end (plain s): full suite median 63.2; Proviso median 63.2, mean 45.9; fa
 | func_file | 3 of 4 | 4 | 59.9% (65.3%) |
 | proviso | 2 of 4 | 2 | 69.7% (98.5%) |
 | namerts | 1 of 4 | 1 | 62.2% (71.7%) |
+| tdad | 3 of 4 | 6 | 1.4% (1.1%) |
+| tdad_nocap | 1 of 4 | 1 | 62.2% (79.3%) |
 
 End to end (plain s): full suite median 64.3; Proviso median 53.2, mean 46.0; faster on 11 of 24; selection median 0.15 s
