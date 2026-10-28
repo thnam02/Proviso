@@ -6,3 +6,4 @@
 {"id": "module:sympy/core/assumptions_generated.py:1497", "kind": "module", "file": "sympy/core/assumptions_generated.py", "line": 1497, "op": "delete", "code": "('infinite', True): [11, 3, 8, 17, 7],", "failing": [], "n_tests": 581, "secs": 79.5}
 {"id": "module:sympy/core/assumptions_generated.py:1480", "kind": "module", "file": "sympy/core/assumptions_generated.py", "line": 1480, "op": "delete", "code": "('even', True): [3, 33, 8, 6, 5, 14, 34, 25, 20, 18, 27, 16, 21, 19, 22, 0, 28, 24, 7],", "failing": [], "n_tests": 581, "secs": 77.6}
 {"id": "module:sympy/core/assumptions_generated.py:1522", "kind": "module", "file": "sympy/core/assumptions_generated.py", "line": 1522, "op": "delete", "code": "('zero', True): [],", "failing": [], "n_tests": 581, "secs": 72.2}
+{"id": "class:sympy/core/numbers.py:343", "kind": "class", "file": "sympy/core/numbers.py", "line": 343, "op": "flip", "failing": [], "n_tests": null, "timeout": true}

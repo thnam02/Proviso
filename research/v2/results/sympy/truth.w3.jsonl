@@ -6,3 +6,4 @@
 {"id": "class:sympy/core/mul.py:35", "kind": "class", "file": "sympy/core/mul.py", "line": 35, "op": "flip", "code": "is_commutative = False", "failing": ["sympy/functions/elementary/tests/test_exponential.py::test_as_numer_denom"], "n_tests": 581, "secs": 79.4}
 {"id": "module:sympy/core/relational.py:1576", "kind": "module", "file": "sympy/core/relational.py", "line": 1576, "op": "delete", "code": "None: Equality,", "failing": [], "n_tests": 581, "secs": 78.2}
 {"id": "module:sympy/core/assumptions_generated.py:1513", "kind": "module", "file": "sympy/core/assumptions_generated.py", "line": 1513, "op": "delete", "code": "('positive', True): [32, 0, 1, 28, 13, 17],", "failing": [], "n_tests": 581, "secs": 77.3}
+{"id": "function:sympy/core/mul.py:2051", "kind": "function", "file": "sympy/core/mul.py", "line": 2051, "op": "flip", "failing": [], "n_tests": null, "timeout": true}
