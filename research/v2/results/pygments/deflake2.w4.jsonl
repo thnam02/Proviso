@@ -1,0 +1,8 @@
+{"id": "truth:class:pygments/lexers/int_fiction.py:1281", "confirmed": ["tests/examplefiles/tads3/tads3_example.t::", "tests/test_basic_api.py::test_get_lexers", "tests/test_basic_api.py::test_lexer_classes[Tads3Lexer]", "tests/test_basic_api.py::test_lexer_options[Tads3Lexer]", "tests/test_basic_api.py::test_random_input[Tads3Lexer]"], "flaky": []}
+{"id": "truth:function:pygments/lexers/dsls.py:896", "confirmed": ["tests/examplefiles/snowball/example.sbl::", "tests/test_basic_api.py::test_random_input[SnowballLexer]"], "flaky": []}
+{"id": "truth:module:pygments/lexers/_mapping.py:171", "confirmed": ["tests/examplefiles/fan/test.fan::", "tests/test_guess.py::test_filename_matching[fan/test.fan]", "tests/test_guess.py::test_lexer_fixtures[examplefiles]"], "flaky": []}
+{"id": "truth:module:pygments/lexers/_mapping.py:192", "confirmed": ["tests/examplefiles/genshi/genshi_example.xml+genshi.kid::", "tests/test_guess.py::test_filename_matching[genshi/genshi_example.xml+genshi.kid]", "tests/test_guess.py::test_lexer_fixtures[examplefiles]"], "flaky": []}
+{"id": "truth:module:pygments/lexers/_mapping.py:185", "confirmed": ["tests/examplefiles/gap-repl/euclidean.tst::", "tests/examplefiles/gap-repl/magma.tst::", "tests/test_guess.py::test_filename_matching[gap-repl/euclidean.tst]", "tests/test_guess.py::test_filename_matching[gap-repl/magma.tst]", "tests/test_guess.py::test_lexer_fixtures[examplefiles]"], "flaky": []}
+{"id": "mine:2a131b1adf", "confirmed": ["tests/examplefiles/vim/phpcomplete.vim::", "tests/examplefiles/vim/vimrc::"], "flaky": []}
+{"id": "mine:2b915b92b8", "confirmed": ["tests/examplefiles/control/control::"], "flaky": []}
+{"id": "mine:dab45b6e44", "confirmed": ["tests/examplefiles/swift/test.swift::"], "flaky": []}
