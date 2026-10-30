@@ -29,7 +29,7 @@ import tempfile
 
 HERE = os.path.abspath(__file__)
 SNAPSHOT_TIMEOUT = 300
-FORMAT = 10  # bump when fingerprints change; cached base snapshots of another format are rebuilt
+FORMAT = 11  # bump when fingerprints change; cached base snapshots of another format are rebuilt
 # bookkeeping that changes whenever lines move, or that Python fills in itself
 IGNORED_CLASS_KEYS = {"__dict__", "__weakref__", "__doc__", "__module__", "__qualname__", "__annotations__",
                       "__firstlineno__", "__static_attributes__", "__annotate__", "__annotate_func__",
@@ -161,6 +161,12 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
                                             for k, x in items)) + "}"
 
     def body(v, t, depth, seen):
+        if isinstance(v, logging.Logger):
+            # a logger's own settings only: its parent chain leads to the process-wide registry and the parent's level
+            # cache, which differ with anything that logged during import (e.g. a missing generated _version.py), so
+            # walking them made every module logger look changed
+            return (f"logger:{v.name}:{v.level}:{v.propagate}:{v.disabled}:"
+                    + ",".join(type(h).__name__ for h in getattr(v, "handlers", [])) + ";")
         if isinstance(v, types.FunctionType):
             r = f"fn:{v.__module__}.{v.__qualname__};"
             if "<" in v.__qualname__:
@@ -267,9 +273,25 @@ def _snapshot_main(tree: str, files_path: str, out_path: str) -> None:
             if isinstance(v, type) and v.__module__ == modname and v.__qualname__ == f"{cls.__qualname__}.{k}":
                 do_class(modname, v, f"{prefix}.{k}")
 
+    def generated_module(v) -> bool:
+        """A submodule that is not part of the recorded sources: version modules written at install time
+        (setuptools-scm's _version.py) or another untracked file in the tree. Whether it is importable depends on how
+        the tree was installed, not on the change."""
+        if not isinstance(v, types.ModuleType):
+            return False
+        if v.__name__.rsplit(".", 1)[-1] in ("_version", "version"):
+            return True
+        f = getattr(v, "__file__", None)
+        if not f:
+            return False
+        f = os.path.realpath(f)
+        return f.startswith(base_dir + os.sep) and f not in wanted
+
     for name, m in mods.items():
         for k, v in list(vars(m).items()):
             if k.startswith("__") and k.endswith("__"):
+                continue
+            if generated_module(v):
                 continue
             out[f"{name}:{k}"] = one(v)
             if isinstance(v, type) and v.__module__ == name and v.__qualname__ == k:
