@@ -765,6 +765,76 @@ def _confirmed(rows, stage):
 
 # ---------------------------------------------------------------------------------------------------- repair
 
+def _proviso_row(tree, cov, universe, truth, plain):
+    """Proviso's row exactly as score_all computes it (warm caches, then timed)."""
+    tot = sum(plain.get(n, 0) for n in universe) or 1e-9
+    I.selection(tree, cov, PY)
+    t = time.time()
+    psel, why = I.selection(tree, cov, PY)
+    sel_s = time.time() - t
+    s = universe if psel is None else set(psel) & universe
+    return {"selected": len(s), "time_share": round(sum(plain.get(n, 0) for n in s) / tot, 4),
+            "missed": SEL.missed(truth, s), "selection_s": round(sel_s, 2), "reason": why.get("reason")}
+
+
+def reproviso_worker(i, n):
+    """Recompute Proviso's rows (planted and real) with the current dc_engine; rows go to reproviso.w*.jsonl as
+    {"id": "<stage>:<change id>", "proviso": row}. Other selectors do not use the import-time snapshot."""
+    done = set(merged("reproviso"))
+    tr, base = merged("truth"), baseline()
+    jobs = [("select", r["id"]) for r in merged("select").values()] + [("realeval", r["id"]) for r in merged("realeval").values()]
+    jobs = [j for j in jobs if f"{j[0]}:{j[1]}" not in done][i::n]
+    tree = make_tree(f"w{i}", CFG["commit"])
+    cov0, plain0 = covmap(), {k: t for k, (ok, t) in base.items()}
+    uni0 = universe_of(cov0, failing(base))
+    bug_by_id = {b["id"]: b for b in bugs()}
+    real = {r["id"]: r for r in merged("mine").values()}
+    for stage, cid in jobs:
+        try:
+            if stage == "select":
+                tree = make_tree(f"w{i}", CFG["commit"])
+                apply_bug(tree, bug_by_id[cid])
+                row = _proviso_row(tree, cov0, uni0, truth_failing(tr[cid], uni0), plain0)
+            else:
+                r, d = real[cid], os.path.join(WORK, "real", cid)
+                tree = make_tree(f"w{i}", r["commit"] + "^")
+                b0 = jload(os.path.join(d, "base_outcomes.json")) or {}
+                cov = jload(os.path.join(d, "covmap.json")) or {}
+                if not cov or not b0:
+                    raise RuntimeError("no coverage map or baseline recorded for this commit")
+                reset(tree)
+                apply_commit_src(tree, r)
+                row = _proviso_row(tree, cov, universe_of(cov, failing(b0)), r["failing"],
+                                   {k: t for k, (ok, t) in b0.items()})
+            append("reproviso", i, {"id": f"{stage}:{cid}", "proviso": row})
+        except Exception as e:  # noqa: BLE001
+            print(stage, cid, "ERROR", repr(e)[:300], flush=True)
+        finally:
+            reset(tree)
+
+
+def reproviso():
+    """Re-score Proviso with the current dc_engine (after the import-time snapshot fix, FORMAT 11). The previous rows
+    are kept as "proviso_v10" for the comparison the paper discloses; the report shows the current "proviso"."""
+    jobs = list(merged("select").values()) + list(merged("realeval").values())
+    parallel("reproviso", jobs)
+    new = merged("reproviso")
+    changed = 0
+    for stage in ("select", "realeval"):
+        for p in sorted(glob.glob(os.path.join(RES, f"{stage}.w*.jsonl"))):
+            rows = [json.loads(l) for l in open(p) if l.strip()]
+            for row in rows:
+                nr = new.get(f"{stage}:{row['id']}")
+                if nr is None:
+                    continue
+                sel = row["selectors"]
+                if "proviso_v10" not in sel and "proviso" in sel:
+                    sel["proviso_v10"] = sel["proviso"]
+                changed += sel.get("proviso", {}).get("selected") != nr["proviso"]["selected"]
+                sel["proviso"] = nr["proviso"]
+            jdump_lines(rows, p)
+    log("reproviso:", len(new), "rows re-scored;", changed, "with a different selection than before")
+
 def rescore():
     """Re-record the coverage maps (base and each real commit's parent) with the current recorder and recompute the
     selection rows; the ground truth (truth, mine) is kept. Used for pygments after the recorder learned to record
@@ -908,6 +978,8 @@ def report():
             continue
         brk = [r for r in rows if r["truth"]]
         order = SELECTORS + ["namerts", "tdad", "tdad_nocap"]
+        for r in rows:
+            r["selectors"].pop("proviso_v10", None)   # kept in the data for the before/after comparison
         names = sorted({k for r in rows for k in r["selectors"]}, key=lambda k: order.index(k) if k in order else 99)
         nfl = sum(r.get("flaky_dropped", 0) for r in rows)
         nnew = sum(r.get("new_tests_excluded", 0) for r in rows)
@@ -957,8 +1029,9 @@ STAGES = {"prepare": prepare, "baseline": baseline, "covmap": covmap, "testmon":
           "select": lambda: (baseline(), covmap(), testmon(), nrinit(), drop_crash_rows(),
                              parallel("select", bugs(), NR_WORKERS)),
           "mine": lambda: parallel("mine", commits()), "realeval": lambda: parallel("realeval", real_set(), NR_WORKERS),
-          "deflake": deflake, "report": report, "retestmon": retestmon, "tdad": tdad, "rescore": lambda: rescore()}
+          "deflake": deflake, "report": report, "retestmon": retestmon, "tdad": tdad, "rescore": lambda: rescore(), "reproviso": reproviso}
 WORKER = {"truth": truth_worker, "select": select_worker, "mine": mine_worker, "realeval": realeval_worker,
+          "reproviso": reproviso_worker,
           "deflake": deflake_worker}
 
 if __name__ == "__main__":
@@ -972,6 +1045,6 @@ if __name__ == "__main__":
     if sys.argv[2] == "worker":
         WORKER[sys.argv[3]](int(sys.argv[4]), int(sys.argv[5]))
     else:
-        for s in ([k for k in STAGES if k not in ("retestmon", "tdad", "rescore")] if sys.argv[2] == "all" else sys.argv[2:]):
+        for s in ([k for k in STAGES if k not in ("retestmon", "tdad", "rescore", "reproviso")] if sys.argv[2] == "all" else sys.argv[2:]):
             log("==", s)
             STAGES[s]()
