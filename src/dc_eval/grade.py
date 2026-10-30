@@ -184,6 +184,68 @@ def snapshot_agent_test_files(
     return modified
 
 
+_HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")
+
+
+def _patched_old_lines(test_patch: str) -> dict[str, set[int]]:
+    """Lines of each file's base version that a unified diff touches: removed lines, and for an insertion the base
+    line just before it (so an insertion inside a test body counts for that test)."""
+    out: dict[str, set[int]] = {}
+    cur = None
+    old_ln = 0
+    for line in test_patch.splitlines():
+        if line.startswith("diff --git "):
+            m = re.match(r"diff --git a/(\S+) b/(\S+)", line)
+            cur = m.group(1) if m else None
+            continue
+        m = _HUNK.match(line)
+        if m:
+            old_ln = int(m.group(1))
+            continue
+        if cur is None or line.startswith(("---", "+++", "index ", "new file", "deleted file", "similarity", "rename")):
+            continue
+        if line.startswith("-"):
+            out.setdefault(cur, set()).add(old_ln)
+            old_ln += 1
+        elif line.startswith("+"):
+            out.setdefault(cur, set()).add(max(old_ln - 1, 1))
+        elif line.startswith(" ") or line == "":
+            old_ln += 1
+    return out
+
+
+def _as_list(selection) -> list[str]:
+    from .tasks import pytest_selection
+    return pytest_selection(selection)
+
+
+def tests_changed_by_patch(test_patch: str, base_source) -> set[str]:
+    """Existing tests (node ids without parameters) whose body the hidden test patch edits. Such a test checks the
+    new behaviour the agent was asked for, so failing it is a hidden-test failure, not a regression.
+    base_source(path) returns the file's content at the task's base commit, or None."""
+    import ast
+    changed: set[str] = set()
+    for path, lines in _patched_old_lines(test_patch).items():
+        src = base_source(path)
+        if not src:
+            continue
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            continue
+
+        def visit(node, prefix):
+            for ch in getattr(node, "body", []):
+                if isinstance(ch, ast.ClassDef):
+                    visit(ch, prefix + [ch.name])
+                elif isinstance(ch, (ast.FunctionDef, ast.AsyncFunctionDef)) and ch.name.startswith("test"):
+                    start = min([ch.lineno] + [d.lineno for d in ch.decorator_list])
+                    if any(start <= ln <= (ch.end_lineno or ch.lineno) for ln in lines):
+                        changed.add("::".join([path] + prefix + [ch.name]))
+        visit(tree, [])
+    return changed
+
+
 def restore_hidden_tests(
     task: Task,
     repo: str,
@@ -719,8 +781,17 @@ def grade_repo(
         repo, task.hidden_tests, hidden_xml, timeout=pytest_timeout, python=python,
         log_path=log_path, log_title="hidden tests",
     )
+    # existing tests the hidden test patch edits check the new behaviour: count them with the hidden tests' outcome,
+    # not as regressions (otherwise not implementing a hidden requirement looks like breaking an existing test)
+    edited: set[str] = set()
+    if src_repo and task.test_patch:
+        def _base(path: str):
+            r = subprocess.run(["git", "-C", src_repo, "show", f"{task.commit}:{path}"], capture_output=True, text=True)
+            return r.stdout if r.returncode == 0 else None
+        edited = tests_changed_by_patch(task.test_patch, _base)
+    regr_ids = [t for t in _as_list(task.regression_tests) if t.split("[", 1)[0] not in edited]
     regression = run_pytest(
-        repo, task.regression_tests, regr_xml, timeout=pytest_timeout, python=python,
+        repo, regr_ids, regr_xml, timeout=pytest_timeout, python=python,
         log_path=log_path, log_title="regression tests",
     )
     hidden_fail = [k for k, ok in hidden.items() if not ok]
