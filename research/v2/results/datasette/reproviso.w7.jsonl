@@ -1,0 +1,11 @@
+{"id": "select:function:datasette/stored_queries.py:156", "proviso": {"selected": 751, "time_share": 0.4853, "missed": [], "selection_s": 0.23, "reason": null}}
+{"id": "select:class:datasette/views/stored_queries.py:302", "proviso": {"selected": 2201, "time_share": 0.9831, "missed": [], "selection_s": 1.82, "reason": null}}
+{"id": "select:class:datasette/views/table_extras.py:661", "proviso": {"selected": 2201, "time_share": 0.9831, "missed": [], "selection_s": 1.76, "reason": null}}
+{"id": "select:function:datasette/utils/multipart.py:641", "proviso": {"selected": 58, "time_share": 0.0762, "missed": [], "selection_s": 0.21, "reason": null}}
+{"id": "select:class:datasette/views/special.py:252", "proviso": {"selected": 2201, "time_share": 0.9831, "missed": [], "selection_s": 1.88, "reason": null}}
+{"id": "select:module:datasette/app.py:386", "proviso": {"selected": 2215, "time_share": 0.9832, "missed": [], "selection_s": 1.93, "reason": null}}
+{"id": "select:function:datasette/app.py:638", "proviso": {"selected": 2198, "time_share": 0.9831, "missed": [], "selection_s": 0.24, "reason": null}}
+{"id": "select:class:datasette/views/table_extras.py:651", "proviso": {"selected": 2201, "time_share": 0.9831, "missed": [], "selection_s": 1.96, "reason": null}}
+{"id": "realeval:cca08d2886", "proviso": {"selected": 2557, "time_share": 1.0, "missed": ["tests/test_plugins.py::test_plugin_hooks_have_tests[shutdown]"], "selection_s": 0.3, "reason": "your edited functions run in 91% of the test time"}}
+{"id": "realeval:d0836ddedc", "proviso": {"selected": 2845, "time_share": 1.0, "missed": [], "selection_s": 1.58, "reason": "module datasette.utils.shutil_backport no longer imports"}}
+{"id": "realeval:df4c0fde0f", "proviso": {"selected": 2152, "time_share": 0.9942, "missed": [], "selection_s": 0.92, "reason": null}}

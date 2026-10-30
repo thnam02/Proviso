@@ -1,0 +1,14 @@
+{"id": "select:function:sqlglot/parser.py:10412", "proviso": {"selected": 5, "time_share": 0.0094, "missed": [], "selection_s": 0.23, "reason": null}}
+{"id": "select:class:sqlglot/expressions/query.py:1913", "proviso": {"selected": 15, "time_share": 0.0592, "missed": [], "selection_s": 1.51, "reason": null}}
+{"id": "select:module:sqlglot/executor/env.py:263", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 1.35, "reason": null}}
+{"id": "select:function:sqlglot/parser.py:10396", "proviso": {"selected": 2, "time_share": 0.0079, "missed": [], "selection_s": 0.24, "reason": null}}
+{"id": "select:class:sqlglot/generators/hive.py:328", "proviso": {"selected": 250, "time_share": 0.1035, "missed": [], "selection_s": 1.55, "reason": null}}
+{"id": "select:module:sqlglot/generators/duckdb.py:57", "proviso": {"selected": 3, "time_share": 0.0106, "missed": [], "selection_s": 1.74, "reason": null}}
+{"id": "select:function:sqlglot/anonymize.py:104", "proviso": {"selected": 30, "time_share": 0.008, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:class:sqlglot/generators/mysql.py:320", "proviso": {"selected": 50, "time_share": 0.0637, "missed": [], "selection_s": 1.59, "reason": null}}
+{"id": "select:module:sqlglot/typing/__init__.py:412", "proviso": {"selected": 356, "time_share": 0.8904, "missed": [], "selection_s": 1.62, "reason": null}}
+{"id": "realeval:f064484b68", "proviso": {"selected": 5, "time_share": 0.0144, "missed": [], "selection_s": 0.14, "reason": null}}
+{"id": "realeval:5e6887adc8", "proviso": {"selected": 104, "time_share": 0.0612, "missed": [], "selection_s": 1.69, "reason": null}}
+{"id": "realeval:d7ada74e21", "proviso": {"selected": 336, "time_share": 0.8913, "missed": [], "selection_s": 1.38, "reason": null}}
+{"id": "realeval:c4090855c9", "proviso": {"selected": 2, "time_share": 0.0089, "missed": [], "selection_s": 0.15, "reason": null}}
+{"id": "realeval:b65592b458", "proviso": {"selected": 930, "time_share": 0.9933, "missed": [], "selection_s": 1.9, "reason": null}}

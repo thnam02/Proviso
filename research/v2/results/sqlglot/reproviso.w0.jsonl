@@ -1,0 +1,14 @@
+{"id": "select:function:sqlglot/parser.py:6328", "proviso": {"selected": 101, "time_share": 0.0843, "missed": [], "selection_s": 0.23, "reason": null}}
+{"id": "select:function:sqlglot/parsers/exasol.py:144", "proviso": {"selected": 29, "time_share": 0.0139, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:class:sqlglot/generators/duckdb.py:1716", "proviso": {"selected": 258, "time_share": 0.1001, "missed": [], "selection_s": 1.71, "reason": null}}
+{"id": "select:function:sqlglot/generator.py:1827", "proviso": {"selected": 280, "time_share": 0.1195, "missed": [], "selection_s": 0.21, "reason": null}}
+{"id": "select:function:sqlglot/generator.py:1422", "proviso": {"selected": 115, "time_share": 0.0868, "missed": [], "selection_s": 0.22, "reason": null}}
+{"id": "select:module:sqlglot/dialects/dialect.py:2182", "proviso": {"selected": 57, "time_share": 0.0662, "missed": [], "selection_s": 1.68, "reason": null}}
+{"id": "select:function:sqlglot/generators/postgres.py:229", "proviso": {"selected": 3, "time_share": 0.0121, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:class:sqlglot/expressions/ddl.py:144", "proviso": {"selected": 4, "time_share": 0.009, "missed": [], "selection_s": 1.5, "reason": null}}
+{"id": "select:module:sqlglot/executor/env.py:298", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 1.4, "reason": null}}
+{"id": "realeval:9f604b3de5", "proviso": {"selected": 2, "time_share": 0.0098, "missed": [], "selection_s": 0.17, "reason": null}}
+{"id": "realeval:99940ea16d", "proviso": {"selected": 954, "time_share": 0.2473, "missed": [], "selection_s": 1.91, "reason": null}}
+{"id": "realeval:8efda2c6ce", "proviso": {"selected": 37, "time_share": 0.0531, "missed": [], "selection_s": 2.49, "reason": null}}
+{"id": "realeval:a3884168f6", "proviso": {"selected": 929, "time_share": 0.9944, "missed": [], "selection_s": 1.93, "reason": null}}
+{"id": "realeval:e105403618", "proviso": {"selected": 337, "time_share": 0.9102, "missed": [], "selection_s": 1.04, "reason": null}}

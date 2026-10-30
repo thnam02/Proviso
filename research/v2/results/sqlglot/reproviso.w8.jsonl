@@ -1,0 +1,13 @@
+{"id": "select:function:sqlglot/optimizer/pushdown_predicates.py:144", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 0.15, "reason": null}}
+{"id": "select:class:sqlglot/generators/duckdb.py:1576", "proviso": {"selected": 9, "time_share": 0.0398, "missed": [], "selection_s": 1.66, "reason": null}}
+{"id": "select:module:sqlglot/executor/env.py:296", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 1.33, "reason": null}}
+{"id": "select:function:sqlglot/generators/clickhouse.py:684", "proviso": {"selected": 3, "time_share": 0.0109, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:class:sqlglot/expressions/ddl.py:252", "proviso": {"selected": 17, "time_share": 0.0345, "missed": [], "selection_s": 1.55, "reason": null}}
+{"id": "select:function:sqlglot/tokenizer_core.py:885", "proviso": {"selected": 1164, "time_share": 1.0, "missed": [], "selection_s": 1.48, "reason": "module sqlglot.dialects.duckdb no longer imports"}}
+{"id": "select:function:sqlglot/tokenizer_core.py:1314", "proviso": {"selected": 1164, "time_share": 1.0, "missed": [], "selection_s": 1.45, "reason": "module sqlglot.dialects.duckdb no longer imports"}}
+{"id": "select:class:sqlglot/tokens.py:335", "proviso": {"selected": 1126, "time_share": 0.9991, "missed": [], "selection_s": 1.61, "reason": null}}
+{"id": "realeval:a7fcf9e07f", "proviso": {"selected": 56, "time_share": 0.0512, "missed": [], "selection_s": 1.78, "reason": null}}
+{"id": "realeval:1ba7b2715d", "proviso": {"selected": 1, "time_share": 0.0084, "missed": [], "selection_s": 0.13, "reason": null}}
+{"id": "realeval:3086608e6f", "proviso": {"selected": 5, "time_share": 0.0097, "missed": [], "selection_s": 0.15, "reason": null}}
+{"id": "realeval:64d6f59a49", "proviso": {"selected": 1, "time_share": 0.0097, "missed": [], "selection_s": 0.13, "reason": null}}
+{"id": "realeval:3ca824895e", "proviso": {"selected": 956, "time_share": 0.2343, "missed": [], "selection_s": 1.33, "reason": null}}

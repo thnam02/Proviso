@@ -1,0 +1,10 @@
+{"id": "select:function:sympy/functions/elementary/trigonometric.py:1453", "proviso": {"selected": 37, "time_share": 0.0373, "missed": [], "selection_s": 0.21, "reason": null}}
+{"id": "select:class:sympy/core/numbers.py:4017", "proviso": {"selected": 105, "time_share": 0.5159, "missed": [], "selection_s": 3.9, "reason": null}}
+{"id": "select:class:sympy/core/numbers.py:3217", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 25.93, "reason": "module sympy no longer imports"}}
+{"id": "select:function:sympy/core/expr.py:3541", "proviso": {"selected": 131, "time_share": 0.5439, "missed": [], "selection_s": 0.14, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1487", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 2.9, "reason": null}}
+{"id": "select:function:sympy/core/intfunc.py:120", "proviso": {"selected": 9, "time_share": 0.0672, "missed": [], "selection_s": 0.13, "reason": null}}
+{"id": "select:function:sympy/functions/combinatorial/numbers.py:3053", "proviso": {"selected": 1, "time_share": 0.0, "missed": [], "selection_s": 0.17, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1483", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 2.92, "reason": null}}
+{"id": "realeval:c42397116c", "proviso": {"selected": 551, "time_share": 1.0, "missed": [], "selection_s": 2.98, "reason": null}}
+{"id": "realeval:d7c3be2816", "proviso": {"selected": 552, "time_share": 1.0, "missed": [], "selection_s": 0.12, "reason": "your edited functions run in 97% of the test time"}}

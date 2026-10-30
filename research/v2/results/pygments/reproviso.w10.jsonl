@@ -1,0 +1,13 @@
+{"id": "select:function:pygments/lexers/javascript.py:755", "proviso": {"selected": 16, "time_share": 0.0357, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:class:pygments/styles/algol.py:54", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 1.6, "reason": null}}
+{"id": "select:function:pygments/lexers/bibtex.py:47", "proviso": {"selected": 7, "time_share": 0.013, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:function:pygments/lexers/mime.py:175", "proviso": {"selected": 4, "time_share": 0.0136, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:class:pygments/lexers/int_fiction.py:1281", "proviso": {"selected": 7, "time_share": 0.0288, "missed": [], "selection_s": 1.67, "reason": null}}
+{"id": "select:function:pygments/lexers/esoteric.py:62", "proviso": {"selected": 20, "time_share": 0.0288, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:class:pygments/filters/__init__.py:597", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 1.64, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:192", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.69, "reason": null}}
+{"id": "realeval:2b915b92b8", "proviso": {"selected": 7, "time_share": 0.0227, "missed": [], "selection_s": 1.7, "reason": null}}
+{"id": "realeval:0b9138ac85", "proviso": {"selected": 8, "time_share": 0.0244, "missed": [], "selection_s": 1.55, "reason": null}}
+{"id": "realeval:bdd74ebf8e", "proviso": {"selected": 14, "time_share": 0.0211, "missed": [], "selection_s": 1.71, "reason": null}}
+{"id": "realeval:0853028bfe", "proviso": {"selected": 163, "time_share": 0.048, "missed": [], "selection_s": 0.15, "reason": null}}
+{"id": "realeval:74fab4eb60", "proviso": {"selected": 2958, "time_share": 0.931, "missed": [], "selection_s": 1.5, "reason": null}}

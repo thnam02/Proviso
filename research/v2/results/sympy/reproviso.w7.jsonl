@@ -1,0 +1,10 @@
+{"id": "select:function:sympy/core/mul.py:827", "proviso": {"selected": 161, "time_share": 0.7322, "missed": ["sympy/functions/special/tests/test_hyper.py::test_eval_nseries"], "selection_s": 0.17, "reason": null}}
+{"id": "select:class:sympy/core/numbers.py:3517", "proviso": {"selected": 576, "time_share": 0.999, "missed": [], "selection_s": 4.1, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1522", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 4.02, "reason": null}}
+{"id": "select:function:sympy/core/numbers.py:985", "proviso": {"selected": 67, "time_share": 0.3394, "missed": [], "selection_s": 0.2, "reason": null}}
+{"id": "select:module:sympy/core/relational.py:1586", "proviso": {"selected": 355, "time_share": 0.94, "missed": [], "selection_s": 3.71, "reason": null}}
+{"id": "select:class:sympy/core/numbers.py:775", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 22.84, "reason": "module sympy no longer imports"}}
+{"id": "select:function:sympy/core/containers.py:262", "proviso": {"selected": 193, "time_share": 0.7755, "missed": [], "selection_s": 2.81, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1485", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 2.99, "reason": null}}
+{"id": "realeval:94f14043f5", "proviso": {"selected": 32, "time_share": 0.0453, "missed": [], "selection_s": 0.19, "reason": null}}
+{"id": "realeval:751a370416", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 0.1, "reason": "your edited functions run in 100% of the test time"}}

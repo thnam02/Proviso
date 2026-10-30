@@ -1,0 +1,14 @@
+{"id": "select:function:pygments/lexers/pascal.py:493", "proviso": {"selected": 9, "time_share": 0.0245, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:function:pygments/formatters/img.py:159", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 0.1, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:185", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.71, "reason": null}}
+{"id": "select:function:pygments/lexers/data.py:482", "proviso": {"selected": 28, "time_share": 0.0155, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:class:pygments/lexers/grammar_notation.py:257", "proviso": {"selected": 9, "time_share": 0.0242, "missed": [], "selection_s": 1.61, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:7", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.7, "reason": null}}
+{"id": "select:function:pygments/lexers/modula2.py:1550", "proviso": {"selected": 7, "time_share": 0.0152, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:class:pygments/styles/default.py:69", "proviso": {"selected": 202, "time_share": 0.1606, "missed": [], "selection_s": 1.63, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:405", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.67, "reason": null}}
+{"id": "realeval:96fff34d11", "proviso": {"selected": 13, "time_share": 0.023, "missed": [], "selection_s": 1.52, "reason": null}}
+{"id": "realeval:510a9c227e", "proviso": {"selected": 13, "time_share": 0.0251, "missed": [], "selection_s": 1.71, "reason": null}}
+{"id": "realeval:c3d93adb98", "proviso": {"selected": 9, "time_share": 0.021, "missed": [], "selection_s": 1.65, "reason": null}}
+{"id": "realeval:94702fe584", "proviso": {"selected": 15, "time_share": 0.0311, "missed": [], "selection_s": 1.64, "reason": null}}
+{"id": "realeval:1fa7ace39f", "proviso": {"selected": 7, "time_share": 0.023, "missed": [], "selection_s": 1.22, "reason": null}}

@@ -1,0 +1,12 @@
+{"id": "select:function:lib/sqlalchemy/sql/compiler.py:2928", "proviso": {"selected": 96, "time_share": 0.6454, "missed": [], "selection_s": 0.78, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/sql/sqltypes.py:1947", "proviso": {"selected": 127, "time_share": 0.6449, "missed": [], "selection_s": 0.63, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/sql/coercions.py:1236", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.51, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/sql/coercions.py:889", "proviso": {"selected": 716, "time_share": 0.6867, "missed": [], "selection_s": 0.71, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/sql/annotation.py:458", "proviso": {"selected": 41, "time_share": 0.6446, "missed": [], "selection_s": 0.61, "reason": null}}
+{"id": "select:module:lib/sqlalchemy/sql/compiler.py:309", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.78, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/sql/traversals.py:778", "proviso": {"selected": 131, "time_share": 0.665, "missed": [], "selection_s": 0.62, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/sql/elements.py:378", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.94, "reason": null}}
+{"id": "select:module:lib/sqlalchemy/sql/operators.py:2794", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.66, "reason": null}}
+{"id": "realeval:e3f7bc683a", "proviso": {"selected": 6505, "time_share": 1.0, "missed": [], "selection_s": 3.08, "reason": null}}
+{"id": "realeval:7c70ab8c6b", "proviso": {"selected": 6538, "time_share": 1.0, "missed": [], "selection_s": 2.2, "reason": null}}
+{"id": "realeval:cf951a246e", "proviso": {"selected": 9664, "time_share": 1.0, "missed": [], "selection_s": 1.7, "reason": null}}

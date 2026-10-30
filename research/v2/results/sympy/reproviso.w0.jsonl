@@ -1,0 +1,11 @@
+{"id": "select:function:sympy/functions/elementary/integers.py:635", "proviso": {"selected": 1, "time_share": 0.0002, "missed": [], "selection_s": 0.15, "reason": null}}
+{"id": "select:function:sympy/functions/elementary/hyperbolic.py:2073", "proviso": {"selected": 2, "time_share": 0.0301, "missed": [], "selection_s": 0.18, "reason": null}}
+{"id": "select:module:sympy/core/relational.py:1588", "proviso": {"selected": 355, "time_share": 0.94, "missed": [], "selection_s": 3.85, "reason": null}}
+{"id": "select:function:sympy/functions/elementary/trigonometric.py:520", "proviso": {"selected": 3, "time_share": 0.0018, "missed": [], "selection_s": 0.19, "reason": null}}
+{"id": "select:class:sympy/core/symbol.py:511", "proviso": {"selected": 295, "time_share": 0.9176, "missed": [], "selection_s": 4.01, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1480", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 3.61, "reason": null}}
+{"id": "select:function:sympy/core/multidimensional.py:128", "proviso": {"selected": 0, "time_share": 0.0, "missed": [], "selection_s": 0.15, "reason": null}}
+{"id": "select:class:sympy/functions/special/error_functions.py:559", "proviso": {"selected": 9, "time_share": 0.0423, "missed": [], "selection_s": 3.7, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1479", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 3.51, "reason": null}}
+{"id": "realeval:cef500a371", "proviso": {"selected": 0, "time_share": 0.0, "missed": [], "selection_s": 0.35, "reason": null}}
+{"id": "realeval:33231a3fb5", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 0.17, "reason": "your edited functions run in 92% of the test time"}}

@@ -1,0 +1,11 @@
+{"id": "select:function:lib/sqlalchemy/sql/elements.py:5098", "proviso": {"selected": 179, "time_share": 0.6596, "missed": ["test/sql/test_resultset.py::KeyTargetingTest_sqlite+pysqlite_3_53_1::test_adapt_result_columns_from_cache[_adapt_result_columns_fixture_one]", "test/sql/test_resultset.py::KeyTargetingTest_sqlite+pysqlite_3_53_1::test_keyed_accessor_composite_labeled", "test/sql/test_resultset.py::KeyTargetingTest_sqlite+pysqlite_3_53_1::test_keyed_accessor_single_labeled"], "selection_s": 0.73, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/sql/elements.py:5074", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.68, "reason": null}}
+{"id": "select:module:lib/sqlalchemy/sql/compiler.py:292", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.8, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/sql/cache_key.py:360", "proviso": {"selected": 30, "time_share": 0.6422, "missed": [], "selection_s": 0.66, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/sql/selectable.py:667", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.64, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/engine/_result_cy.py:268", "proviso": {"selected": 2390, "time_share": 0.7522, "missed": [], "selection_s": 0.63, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/engine/reflection.py:2071", "proviso": {"selected": 58, "time_share": 0.6462, "missed": [], "selection_s": 0.69, "reason": null}}
+{"id": "select:module:lib/sqlalchemy/sql/operators.py:2756", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.55, "reason": null}}
+{"id": "realeval:31c4d6c180", "proviso": {"selected": 48, "time_share": 0.6786, "missed": [], "selection_s": 0.55, "reason": null}}
+{"id": "realeval:0260f7e58b", "proviso": {"selected": 7413, "time_share": 1.0, "missed": [], "selection_s": 2.88, "reason": null}}
+{"id": "realeval:ed3e2447da", "proviso": {"selected": 9419, "time_share": 1.0, "missed": [], "selection_s": 0.19, "reason": "new source file lib/sqlalchemy/sql/_cache_key_cy.py"}}

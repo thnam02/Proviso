@@ -1,0 +1,13 @@
+{"id": "select:function:pygments/formatters/rtf.py:306", "proviso": {"selected": 30, "time_share": 0.1323, "missed": [], "selection_s": 0.13, "reason": null}}
+{"id": "select:class:pygments/styles/gh_dark.py:82", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 1.64, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:583", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.68, "reason": null}}
+{"id": "select:function:pygments/formatters/terminal.py:86", "proviso": {"selected": 8, "time_share": 0.0131, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:class:pygments/lexers/pddl.py:51", "proviso": {"selected": 8, "time_share": 0.0243, "missed": [], "selection_s": 1.64, "reason": null}}
+{"id": "select:module:pygments/styles/solarized.py:85", "proviso": {"selected": 5339, "time_share": 1.0, "missed": [], "selection_s": 1.44, "reason": "module pygments.styles.solarized no longer imports"}}
+{"id": "select:function:pygments/lexer.py:831", "proviso": {"selected": 184, "time_share": 0.0548, "missed": [], "selection_s": 0.13, "reason": null}}
+{"id": "select:class:pygments/lexers/jvm.py:1150", "proviso": {"selected": 17, "time_share": 0.027, "missed": [], "selection_s": 1.61, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:234", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.62, "reason": null}}
+{"id": "realeval:e3a3c54b58", "proviso": {"selected": 17, "time_share": 0.0318, "missed": [], "selection_s": 1.69, "reason": null}}
+{"id": "realeval:52ce77b0f7", "proviso": {"selected": 1604, "time_share": 0.6843, "missed": [], "selection_s": 1.71, "reason": null}}
+{"id": "realeval:4306a4708b", "proviso": {"selected": 32, "time_share": 0.0545, "missed": [], "selection_s": 1.74, "reason": null}}
+{"id": "realeval:7c19615049", "proviso": {"selected": 23, "time_share": 0.0303, "missed": [], "selection_s": 1.57, "reason": null}}

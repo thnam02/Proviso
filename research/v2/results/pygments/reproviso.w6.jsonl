@@ -1,0 +1,13 @@
+{"id": "select:function:pygments/lexers/configs.py:80", "proviso": {"selected": 19, "time_share": 0.0287, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:class:pygments/lexers/lean.py:58", "proviso": {"selected": 7, "time_share": 0.0251, "missed": [], "selection_s": 1.63, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:472", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.72, "reason": null}}
+{"id": "select:function:pygments/lexers/dsls.py:892", "proviso": {"selected": 23, "time_share": 0.0298, "missed": ["tests/test_html_formatter.py::test_external_css"], "selection_s": 1.69, "reason": null}}
+{"id": "select:class:pygments/lexers/asm.py:934", "proviso": {"selected": 7, "time_share": 0.0244, "missed": [], "selection_s": 1.63, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:150", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.59, "reason": null}}
+{"id": "select:function:pygments/lexers/scripting.py:464", "proviso": {"selected": 9, "time_share": 0.025, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:class:pygments/styles/murphy.py:56", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 1.57, "reason": null}}
+{"id": "realeval:7a45519e88", "proviso": {"selected": 4595, "time_share": 0.973, "missed": [], "selection_s": 1.53, "reason": null}}
+{"id": "realeval:7536da3d5a", "proviso": {"selected": 6, "time_share": 0.0548, "missed": [], "selection_s": 1.39, "reason": null}}
+{"id": "realeval:69216f7914", "proviso": {"selected": 5132, "time_share": 0.9872, "missed": [], "selection_s": 1.7, "reason": null}}
+{"id": "realeval:1d92d12403", "proviso": {"selected": 6, "time_share": 0.0601, "missed": [], "selection_s": 1.29, "reason": null}}
+{"id": "realeval:dab45b6e44", "proviso": {"selected": 8, "time_share": 0.0288, "missed": [], "selection_s": 1.01, "reason": null}}

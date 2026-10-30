@@ -1,0 +1,14 @@
+{"id": "select:function:pygments/lexers/dsls.py:896", "proviso": {"selected": 23, "time_share": 0.0298, "missed": [], "selection_s": 1.62, "reason": null}}
+{"id": "select:function:pygments/lexers/data.py:605", "proviso": {"selected": 28, "time_share": 0.0155, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:class:pygments/filters/__init__.py:239", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 1.59, "reason": null}}
+{"id": "select:function:pygments/lexers/php.py:119", "proviso": {"selected": 5, "time_share": 0.0131, "missed": [], "selection_s": 0.1, "reason": null}}
+{"id": "select:function:pygments/util.py:193", "proviso": {"selected": 27, "time_share": 0.0288, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:584", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.69, "reason": null}}
+{"id": "select:function:pygments/style.py:99", "proviso": {"selected": 5339, "time_share": 1.0, "missed": [], "selection_s": 1.51, "reason": "module pygments.styles.lilypond no longer imports"}}
+{"id": "select:class:pygments/styles/coffee.py:48", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 1.59, "reason": null}}
+{"id": "select:module:pygments/token.py:211", "proviso": {"selected": 1637, "time_share": 0.8554, "missed": [], "selection_s": 1.59, "reason": null}}
+{"id": "realeval:398050e157", "proviso": {"selected": 22, "time_share": 0.0306, "missed": ["tests/test_html_formatter.py::test_external_css"], "selection_s": 0.15, "reason": null}}
+{"id": "realeval:a43b45dcf0", "proviso": {"selected": 2, "time_share": 0.0137, "missed": [], "selection_s": 1.37, "reason": null}}
+{"id": "realeval:b073d8adf1", "proviso": {"selected": 62, "time_share": 0.1548, "missed": [], "selection_s": 1.56, "reason": null}}
+{"id": "realeval:d24e272894", "proviso": {"selected": 194, "time_share": 0.2003, "missed": ["tests/examplefiles/python/linecontinuation.py::", "tests/examplefiles/python/unicodedoc.py::", "tests/test_irc_formatter.py::test_linecount_output"], "selection_s": 1.68, "reason": null}}
+{"id": "realeval:72101ab2ee", "proviso": {"selected": 99, "time_share": 0.0507, "missed": [], "selection_s": 1.42, "reason": null}}

@@ -1,0 +1,14 @@
+{"id": "select:function:sqlglot/executor/env.py:26", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 0.14, "reason": null}}
+{"id": "select:function:sqlglot/parsers/bigquery.py:747", "proviso": {"selected": 2, "time_share": 0.0084, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:module:sqlglot/executor/env.py:308", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 1.32, "reason": null}}
+{"id": "select:function:sqlglot/parser.py:2080", "proviso": {"selected": 1164, "time_share": 1.0, "missed": [], "selection_s": 0.19, "reason": "your edited functions run in 96% of the test time"}}
+{"id": "select:class:sqlglot/parsers/clickhouse.py:343", "proviso": {"selected": 77, "time_share": 0.0393, "missed": [], "selection_s": 1.51, "reason": null}}
+{"id": "select:module:sqlglot/typing/__init__.py:424", "proviso": {"selected": 356, "time_share": 0.8904, "missed": [], "selection_s": 1.54, "reason": null}}
+{"id": "select:function:sqlglot/parsers/hive.py:186", "proviso": {"selected": 5, "time_share": 0.0118, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:class:sqlglot/dialects/drill.py:17", "proviso": {"selected": 32, "time_share": 0.0446, "missed": [], "selection_s": 1.55, "reason": null}}
+{"id": "select:module:sqlglot/typing/snowflake.py:568", "proviso": {"selected": 356, "time_share": 0.8904, "missed": [], "selection_s": 1.55, "reason": null}}
+{"id": "realeval:4eb2c99a15", "proviso": {"selected": 10, "time_share": 0.0092, "missed": [], "selection_s": 1.67, "reason": null}}
+{"id": "realeval:51587ffdec", "proviso": {"selected": 32, "time_share": 0.0191, "missed": [], "selection_s": 0.15, "reason": null}}
+{"id": "realeval:5fe5606b90", "proviso": {"selected": 1144, "time_share": 1.0, "missed": [], "selection_s": 0.14, "reason": "your edited functions run in 100% of the test time"}}
+{"id": "realeval:49d6ed4366", "proviso": {"selected": 1142, "time_share": 1.0, "missed": [], "selection_s": 0.11, "reason": "your edited functions run in 100% of the test time"}}
+{"id": "realeval:284ea43fe7", "proviso": {"selected": 50, "time_share": 0.0505, "missed": [], "selection_s": 1.55, "reason": null}}

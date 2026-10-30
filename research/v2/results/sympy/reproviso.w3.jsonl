@@ -1,0 +1,10 @@
+{"id": "select:function:sympy/functions/elementary/exponential.py:953", "proviso": {"selected": 32, "time_share": 0.3311, "missed": [], "selection_s": 0.18, "reason": null}}
+{"id": "select:class:sympy/core/numbers.py:4127", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 4.29, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1481", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 4.08, "reason": null}}
+{"id": "select:function:sympy/core/basic.py:1392", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 0.11, "reason": "your edited functions run in 94% of the test time"}}
+{"id": "select:class:sympy/core/numbers.py:3060", "proviso": {"selected": 561, "time_share": 0.9986, "missed": [], "selection_s": 3.74, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1519", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 3.65, "reason": null}}
+{"id": "select:function:sympy/functions/elementary/trigonometric.py:104", "proviso": {"selected": 4, "time_share": 0.0057, "missed": [], "selection_s": 0.19, "reason": null}}
+{"id": "select:class:sympy/core/mul.py:35", "proviso": {"selected": 0, "time_share": 0.0, "missed": ["sympy/functions/elementary/tests/test_exponential.py::test_as_numer_denom"], "selection_s": 3.47, "reason": null}}
+{"id": "realeval:3f58eb0ce8", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 0.16, "reason": "your edited functions run in 94% of the test time"}}
+{"id": "realeval:00c969e914", "proviso": {"selected": 15, "time_share": 0.098, "missed": [], "selection_s": 0.22, "reason": null}}

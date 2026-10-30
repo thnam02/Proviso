@@ -1,0 +1,10 @@
+{"id": "select:function:sympy/core/evalf.py:438", "proviso": {"selected": 7, "time_share": 0.1235, "missed": [], "selection_s": 0.17, "reason": null}}
+{"id": "select:class:sympy/functions/special/beta_functions.py:243", "proviso": {"selected": 1, "time_share": 0.0001, "missed": [], "selection_s": 3.81, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1507", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 3.89, "reason": null}}
+{"id": "select:function:sympy/functions/elementary/trigonometric.py:3760", "proviso": {"selected": 150, "time_share": 0.5618, "missed": [], "selection_s": 0.19, "reason": null}}
+{"id": "select:class:sympy/functions/elementary/complexes.py:203", "proviso": {"selected": 399, "time_share": 0.9811, "missed": [], "selection_s": 3.81, "reason": null}}
+{"id": "select:class:sympy/core/numbers.py:3568", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 41.32, "reason": "module sympy no longer imports"}}
+{"id": "select:function:sympy/functions/elementary/hyperbolic.py:788", "proviso": {"selected": 1, "time_share": 0.0, "missed": [], "selection_s": 0.11, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1488", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 2.12, "reason": null}}
+{"id": "realeval:70849bbdea", "proviso": {"selected": 0, "time_share": 0.0, "missed": [], "selection_s": 0.22, "reason": null}}
+{"id": "realeval:42869fd021", "proviso": {"selected": 1, "time_share": 0.0191, "missed": [], "selection_s": 0.12, "reason": null}}

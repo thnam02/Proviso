@@ -1,0 +1,13 @@
+{"id": "select:function:sqlglot/generators/sqlite.py:334", "proviso": {"selected": 2, "time_share": 0.0078, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:class:sqlglot/expressions/math.py:114", "proviso": {"selected": 4, "time_share": 0.0269, "missed": [], "selection_s": 1.51, "reason": null}}
+{"id": "select:module:sqlglot/executor/env.py:268", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 1.35, "reason": null}}
+{"id": "select:function:sqlglot/parser.py:5944", "proviso": {"selected": 1164, "time_share": 1.0, "missed": [], "selection_s": 0.2, "reason": "your edited functions run in 98% of the test time"}}
+{"id": "select:class:sqlglot/generators/redshift.py:88", "proviso": {"selected": 83, "time_share": 0.0738, "missed": [], "selection_s": 1.54, "reason": null}}
+{"id": "select:module:sqlglot/expressions/core.py:2491", "proviso": {"selected": 1091, "time_share": 0.9993, "missed": [], "selection_s": 1.63, "reason": null}}
+{"id": "select:function:sqlglot/generator.py:4862", "proviso": {"selected": 813, "time_share": 0.2012, "missed": [], "selection_s": 0.23, "reason": null}}
+{"id": "select:class:sqlglot/dialects/exasol.py:20", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 1.36, "reason": null}}
+{"id": "select:module:sqlglot/executor/env.py:259", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 1.37, "reason": null}}
+{"id": "realeval:6de29fdce7", "proviso": {"selected": 1157, "time_share": 1.0, "missed": [], "selection_s": 0.34, "reason": "your edited functions run in 97% of the test time"}}
+{"id": "realeval:b3b6c57cea", "proviso": {"selected": 283, "time_share": 0.1247, "missed": [], "selection_s": 0.15, "reason": null}}
+{"id": "realeval:afd6b69462", "proviso": {"selected": 345, "time_share": 0.9004, "missed": [], "selection_s": 1.94, "reason": null}}
+{"id": "realeval:4b84b4d4f3", "proviso": {"selected": 9, "time_share": 0.0087, "missed": [], "selection_s": 1.47, "reason": null}}

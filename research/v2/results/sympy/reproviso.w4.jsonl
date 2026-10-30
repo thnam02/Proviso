@@ -1,0 +1,10 @@
+{"id": "select:function:sympy/core/function.py:633", "proviso": {"selected": 136, "time_share": 0.6174, "missed": [], "selection_s": 0.19, "reason": null}}
+{"id": "select:class:sympy/functions/combinatorial/numbers.py:2043", "proviso": {"selected": 1, "time_share": 0.0001, "missed": [], "selection_s": 4.1, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1511", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 3.76, "reason": null}}
+{"id": "select:function:sympy/core/function.py:632", "proviso": {"selected": 136, "time_share": 0.6174, "missed": [], "selection_s": 0.17, "reason": null}}
+{"id": "select:class:sympy/core/function.py:327", "proviso": {"selected": 573, "time_share": 0.9987, "missed": [], "selection_s": 3.59, "reason": null}}
+{"id": "select:function:sympy/core/operations.py:645", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 23.59, "reason": "module sympy no longer imports"}}
+{"id": "select:function:sympy/functions/special/hyper.py:1175", "proviso": {"selected": 2, "time_share": 0.0, "missed": [], "selection_s": 0.14, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1497", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 2.99, "reason": null}}
+{"id": "realeval:a5160b5815", "proviso": {"selected": 0, "time_share": 0.0, "missed": [], "selection_s": 2.5, "reason": null}}
+{"id": "realeval:5968b9bfd2", "proviso": {"selected": 1, "time_share": 0.0009, "missed": [], "selection_s": 0.13, "reason": null}}

@@ -1,0 +1,11 @@
+{"id": "select:function:lib/sqlalchemy/engine/default.py:1537", "proviso": {"selected": 2258, "time_share": 0.7514, "missed": [], "selection_s": 0.72, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/engine/reflection.py:1859", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.8, "reason": null}}
+{"id": "select:module:lib/sqlalchemy/sql/operators.py:2776", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.54, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/engine/row.py:315", "proviso": {"selected": 25, "time_share": 0.6422, "missed": [], "selection_s": 1.01, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/engine/default.py:1452", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.59, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/engine/default.py:2107", "proviso": {"selected": 2306, "time_share": 0.7519, "missed": [], "selection_s": 0.66, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/sql/coercions.py:1027", "proviso": {"selected": 570, "time_share": 0.6679, "missed": [], "selection_s": 0.64, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/engine/default.py:1440", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.65, "reason": null}}
+{"id": "realeval:21ab0f4249", "proviso": {"selected": 9421, "time_share": 1.0, "missed": [], "selection_s": 2.86, "reason": null}}
+{"id": "realeval:4ef36de359", "proviso": {"selected": 6569, "time_share": 1.0, "missed": [], "selection_s": 2.14, "reason": null}}
+{"id": "realeval:48410f8340", "proviso": {"selected": 7505, "time_share": 1.0, "missed": [], "selection_s": 1.84, "reason": null}}

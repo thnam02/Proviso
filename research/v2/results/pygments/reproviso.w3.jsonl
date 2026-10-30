@@ -1,0 +1,14 @@
+{"id": "select:function:pygments/lexers/lisp.py:2436", "proviso": {"selected": 3, "time_share": 0.0132, "missed": [], "selection_s": 0.14, "reason": null}}
+{"id": "select:class:pygments/lexers/javascript.py:1281", "proviso": {"selected": 7, "time_share": 0.0248, "missed": [], "selection_s": 1.68, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:222", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.76, "reason": null}}
+{"id": "select:function:pygments/lexers/dsls.py:908", "proviso": {"selected": 23, "time_share": 0.0298, "missed": [], "selection_s": 1.73, "reason": null}}
+{"id": "select:class:pygments/styles/stata_light.py:35", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 1.6, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:171", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.58, "reason": null}}
+{"id": "select:function:pygments/lexers/_php_builtins.py:3313", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 0.12, "reason": null}}
+{"id": "select:class:pygments/filters/__init__.py:554", "proviso": {"selected": 2, "time_share": 0.0129, "missed": [], "selection_s": 1.61, "reason": null}}
+{"id": "select:module:pygments/lexers/_mapping.py:366", "proviso": {"selected": 5291, "time_share": 0.9831, "missed": [], "selection_s": 1.68, "reason": null}}
+{"id": "realeval:0c1efaf684", "proviso": {"selected": 7, "time_share": 0.0227, "missed": [], "selection_s": 1.75, "reason": null}}
+{"id": "realeval:2a131b1adf", "proviso": {"selected": 8, "time_share": 0.0278, "missed": [], "selection_s": 1.71, "reason": null}}
+{"id": "realeval:3c3323f9a6", "proviso": {"selected": 6, "time_share": 0.052, "missed": [], "selection_s": 1.56, "reason": null}}
+{"id": "realeval:6e622c5362", "proviso": {"selected": 5134, "time_share": 0.9998, "missed": [], "selection_s": 1.3, "reason": null}}
+{"id": "realeval:f49fc01593", "proviso": {"selected": 6, "time_share": 0.0246, "missed": [], "selection_s": 0.94, "reason": null}}

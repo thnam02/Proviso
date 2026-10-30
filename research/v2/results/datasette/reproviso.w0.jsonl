@@ -1,0 +1,11 @@
+{"id": "select:function:datasette/app.py:436", "proviso": {"selected": 2198, "time_share": 0.9831, "missed": [], "selection_s": 0.24, "reason": null}}
+{"id": "select:function:datasette/app.py:2603", "proviso": {"selected": 656, "time_share": 0.5654, "missed": [], "selection_s": 0.38, "reason": null}}
+{"id": "select:module:datasette/views/table_create_alter.py:366", "proviso": {"selected": 2201, "time_share": 0.9831, "missed": [], "selection_s": 1.87, "reason": null}}
+{"id": "select:module:datasette/utils/sql_analysis.py:95", "proviso": {"selected": 2220, "time_share": 0.9832, "missed": [], "selection_s": 1.61, "reason": null}}
+{"id": "select:function:datasette/facets.py:238", "proviso": {"selected": 214, "time_share": 0.2812, "missed": [], "selection_s": 0.2, "reason": null}}
+{"id": "select:class:datasette/views/special.py:789", "proviso": {"selected": 2201, "time_share": 0.9831, "missed": [], "selection_s": 1.9, "reason": null}}
+{"id": "select:module:datasette/utils/sql_analysis.py:83", "proviso": {"selected": 2220, "time_share": 0.9832, "missed": [], "selection_s": 1.93, "reason": null}}
+{"id": "select:function:datasette/utils/__init__.py:1297", "proviso": {"selected": 308, "time_share": 0.2257, "missed": [], "selection_s": 0.22, "reason": null}}
+{"id": "select:class:datasette/views/table_extras.py:420", "proviso": {"selected": 2202, "time_share": 0.9831, "missed": [], "selection_s": 1.87, "reason": null}}
+{"id": "realeval:9cdf95ac2c", "proviso": {"selected": 2092, "time_share": 0.9866, "missed": [], "selection_s": 1.54, "reason": null}}
+{"id": "realeval:27b7240f30", "proviso": {"selected": 187, "time_share": 0.3066, "missed": [], "selection_s": 0.15, "reason": null}}

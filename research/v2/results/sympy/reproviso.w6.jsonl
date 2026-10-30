@@ -1,0 +1,10 @@
+{"id": "select:function:sympy/core/relational.py:644", "proviso": {"selected": 9, "time_share": 0.0402, "missed": [], "selection_s": 0.16, "reason": null}}
+{"id": "select:class:sympy/core/basic.py:257", "proviso": {"selected": 218, "time_share": 0.8735, "missed": [], "selection_s": 3.92, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1513", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 3.89, "reason": null}}
+{"id": "select:function:sympy/functions/special/singularity_functions.py:105", "proviso": {"selected": 1, "time_share": 0.0002, "missed": [], "selection_s": 0.22, "reason": null}}
+{"id": "select:class:sympy/functions/combinatorial/numbers.py:1869", "proviso": {"selected": 1, "time_share": 0.0, "missed": [], "selection_s": 3.65, "reason": null}}
+{"id": "select:class:sympy/core/numbers.py:2826", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 22.98, "reason": "module sympy no longer imports"}}
+{"id": "select:function:sympy/functions/combinatorial/factorials.py:969", "proviso": {"selected": 22, "time_share": 0.0507, "missed": [], "selection_s": 0.14, "reason": null}}
+{"id": "select:module:sympy/core/assumptions_generated.py:1473", "proviso": {"selected": 578, "time_share": 1.0, "missed": [], "selection_s": 3.05, "reason": null}}
+{"id": "realeval:9bc95b1a80", "proviso": {"selected": 581, "time_share": 1.0, "missed": [], "selection_s": 0.12, "reason": "your edited functions run in 95% of the test time"}}
+{"id": "realeval:f6ca6b37c0", "proviso": {"selected": 0, "time_share": 0.0, "missed": [], "selection_s": 2.62, "reason": null}}

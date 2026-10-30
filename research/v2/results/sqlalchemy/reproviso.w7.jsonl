@@ -1,0 +1,11 @@
+{"id": "select:function:lib/sqlalchemy/sql/schema.py:5021", "proviso": {"selected": 990, "time_share": 0.6738, "missed": [], "selection_s": 0.73, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/sql/functions.py:1823", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.92, "reason": null}}
+{"id": "select:module:lib/sqlalchemy/sql/compiler.py:295", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.78, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/engine/base.py:1076", "proviso": {"selected": 34, "time_share": 0.6553, "missed": [], "selection_s": 0.66, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/engine/base.py:2214", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.53, "reason": null}}
+{"id": "select:module:lib/sqlalchemy/sql/compiler.py:357", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.79, "reason": null}}
+{"id": "select:function:lib/sqlalchemy/sql/schema.py:5865", "proviso": {"selected": 1760, "time_share": 0.7444, "missed": [], "selection_s": 0.67, "reason": null}}
+{"id": "select:class:lib/sqlalchemy/sql/functions.py:2017", "proviso": {"selected": 9760, "time_share": 1.0, "missed": [], "selection_s": 2.67, "reason": null}}
+{"id": "realeval:ae11d43079", "proviso": {"selected": 9629, "time_share": 1.0, "missed": [], "selection_s": 2.84, "reason": null}}
+{"id": "realeval:156fef6113", "proviso": {"selected": 6645, "time_share": 1.0, "missed": [], "selection_s": 0.56, "reason": "your edited functions run in 91% of the test time"}}
+{"id": "realeval:ef23611a6b", "proviso": {"selected": 6816, "time_share": 1.0, "missed": [], "selection_s": 2.07, "reason": null}}

@@ -1,0 +1,14 @@
+{"id": "select:function:sqlglot/jsonpath.py:173", "proviso": {"selected": 1164, "time_share": 1.0, "missed": [], "selection_s": 1.35, "reason": "module sqlglot.dialects.duckdb no longer imports"}}
+{"id": "select:class:sqlglot/parsers/singlestore.py:210", "proviso": {"selected": 3, "time_share": 0.0079, "missed": [], "selection_s": 1.48, "reason": null}}
+{"id": "select:module:sqlglot/typing/duckdb.py:125", "proviso": {"selected": 356, "time_share": 0.8904, "missed": [], "selection_s": 1.56, "reason": null}}
+{"id": "select:function:sqlglot/parser.py:8518", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 0.23, "reason": null}}
+{"id": "select:class:sqlglot/dialects/spark.py:32", "proviso": {"selected": 169, "time_share": 0.0829, "missed": [], "selection_s": 1.54, "reason": null}}
+{"id": "select:module:sqlglot/executor/env.py:267", "proviso": {"selected": 1, "time_share": 0.0078, "missed": [], "selection_s": 1.4, "reason": null}}
+{"id": "select:function:sqlglot/optimizer/simplify.py:362", "proviso": {"selected": 3, "time_share": 0.0241, "missed": [], "selection_s": 0.13, "reason": null}}
+{"id": "select:class:sqlglot/parsers/dax.py:10", "proviso": {"selected": 4, "time_share": 0.008, "missed": [], "selection_s": 1.49, "reason": null}}
+{"id": "select:module:sqlglot/typing/mysql.py:202", "proviso": {"selected": 356, "time_share": 0.8904, "missed": [], "selection_s": 1.56, "reason": null}}
+{"id": "realeval:8bf484ce23", "proviso": {"selected": 192, "time_share": 0.1178, "missed": [], "selection_s": 2.05, "reason": null}}
+{"id": "realeval:1e6c6c58e1", "proviso": {"selected": 133, "time_share": 0.0791, "missed": [], "selection_s": 1.46, "reason": null}}
+{"id": "realeval:b54d32f036", "proviso": {"selected": 61, "time_share": 0.0171, "missed": [], "selection_s": 0.16, "reason": null}}
+{"id": "realeval:cefce19186", "proviso": {"selected": 1053, "time_share": 0.9996, "missed": [], "selection_s": 2.18, "reason": null}}
+{"id": "realeval:6874e1c4bf", "proviso": {"selected": 3, "time_share": 0.0105, "missed": [], "selection_s": 0.11, "reason": null}}
