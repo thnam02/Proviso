@@ -23,13 +23,22 @@ from dc_eval.tasks import load_tasks  # noqa: E402
 PKG = {"sqlglot": "sqlglot"}  # repository name -> package directory
 
 
+def _snapshot_current(path: str) -> bool:
+    """A precomputed base snapshot in the current snapshot format (an older format is rebuilt)."""
+    try:
+        return json.load(open(path)).get("format") == importstate.FORMAT
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def git(cwd, *a):
     return subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True, check=True).stdout
 
 
 def build(eval_dir: str, task, python: str) -> str:
     dest = os.path.join(eval_dir, "impact", task.id)
-    if os.path.isfile(os.path.join(dest, "covmap.json")) and os.path.isfile(os.path.join(dest, "importstate_base.json")):
+    snap_path = os.path.join(dest, "importstate_base.json")
+    if os.path.isfile(os.path.join(dest, "covmap.json")) and _snapshot_current(snap_path):
         return dest + " (exists)"
     os.makedirs(dest, exist_ok=True)
     src = clone_url(task.repo, eval_dir)
@@ -42,7 +51,8 @@ def build(eval_dir: str, task, python: str) -> str:
     env = {"PATH": os.path.dirname(python) + os.pathsep + os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", "/tmp"),
            "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": os.pathsep.join([tree, os.path.join(ROOT, "src")])}
     cov_path = os.path.join(dest, "covmap.json")
-    record.record(tree, PKG[name], cov_path, python, ["tests"], None, "", ["-p", "no:randomly"], env)
+    if not os.path.isfile(cov_path):
+        record.record(tree, PKG[name], cov_path, python, ["tests"], None, "", ["-p", "no:randomly"], env)
     cov = json.load(open(cov_path))
     tests = [n for n in cov if not n.startswith("__")]
     if not tests:
