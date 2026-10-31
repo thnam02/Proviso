@@ -76,7 +76,9 @@ echo "== building Proviso assets per task ($(date +%T))"
 "$PY" "$REPO_DIR/research/agent/build_assets.py" "$W"
 
 echo "== pre-flight: does Proviso narrow the tests on each task? ($(date +%T))"
-"$PY" "$REPO_DIR/research/agent/preflight_selection.py" "$W"
+mkdir -p "$REPO_DIR/research/agent/results"
+"$PY" "$REPO_DIR/research/agent/preflight_selection.py" "$W" | tee "$REPO_DIR/research/agent/results/preflight.txt"
+[ "${PIPESTATUS[0]}" -eq 0 ] || exit 1
 
 echo "== running the study ($(date +%T)); budget cap \$$BUDGET per run"
 cd "$W"
