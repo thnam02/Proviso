@@ -185,5 +185,5 @@ Python libraries reach much of their behaviour through data built at import: dis
 - Legunsen, O., Shi, A., Marinov, D. (2017). STARTS: STAtic regression test selection. ASE (tool demo).
 - Lin, Z., et al. (2026). To Run or Not to Run: Analyzing the cost-effectiveness of code execution in LLM-based program repair. ISSTA. arXiv:2606.26978.
 - TestPrune: Can old tests do new tricks for resolving SWE issues? (2025). arXiv:2510.18270.
-- Wang, Y., Pradel, M., Liu, Z. (2026). Names are all you need: effective and safe regression test selection for Python. TOSEM. arXiv:2605.25356.
+- Wang, Y., Pradel, M., Liu, Z. (2026). Names are all you need: effective and safe regression test selection for Python. In Proc. ISSTA 2026. arXiv:2605.25356.
 - pytest-testmon. https://testmon.org

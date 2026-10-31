@@ -33,7 +33,7 @@ mechanism, and C as standard practice (cite NameRTS).
 - Surveys to cite: Yoo & Harman (2012); Engström et al. (2010).
 
 ### 2.2 RTS for Python and dynamic languages
-- **NameRTS** (Wang, Pradel, Liu, TOSEM 2026, arXiv 2605.25356): the closest prior work and the main competitor.
+- **NameRTS** (Wang, Pradel, Liu, ISSTA 2026, arXiv 2605.25356): the closest prior work and the main competitor.
   - Name-based dependency propagation, at file and function level.
   - Evaluated on 10 projects (including sympy) and 500 commits: SafeR 99.6%, TimeR 45.6%.
   - Import-time functions go under a shared key, so changing one selects all tests.
@@ -116,7 +116,7 @@ mechanism, and C as standard practice (cite NameRTS).
 - Any 2026 agent-RTS work beyond TDAD (re-check arXiv monthly until submission).
 
 ## 5. Sources
-- NameRTS: https://arxiv.org/abs/2605.25356 (TOSEM: https://dl.acm.org/doi/abs/10.1145/3832218)
+- NameRTS: https://arxiv.org/abs/2605.25356 (accepted at ISSTA 2026; ACM DL: https://dl.acm.org/doi/abs/10.1145/3832218)
 - Kauhanen et al., Python RTS tool (SANER 2021 workshop): https://researchportal.helsinki.fi/en/publications/regression-test-selection-tool-for-python-in-continuous-integrati/
 - pytest-rts: https://github.com/F-Secure/pytest-rts
 - testmon: https://www.testmon.org/
