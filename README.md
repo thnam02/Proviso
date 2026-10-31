@@ -1,12 +1,13 @@
 # Proviso
 
 **Safe, fast test feedback for coding agents (Python).** After each edit, Proviso runs only the tests the edit can
-affect, and tells the agent what the edit touched.
+affect, including tests that depend on data the package builds at import time (dispatch tables, class attributes).
 
 Across five repositories (469 planted bugs and 181 real commits; ground truth = the tests that actually fail), Proviso
 missed a failing test in **3%** of test-breaking changes. pytest-testmon missed in 17–24%, NameRTS in 44–61%, and TDAD
-in 95–97%. With selection time included, a typical run drops from 27 s to 2 s on sqlglot and from 8 s to 1 s on
-pygments. Full results: [`research/v2/results/report-all.md`](research/v2/results/report-all.md). Paper:
+in 95–97%. With selection time included, a typical run drops from 27 s to 3 s on sqlglot and from 8 s to 2 s on
+pygments. In 72 Claude Code runs on real sqlglot fixes, Proviso cut the agent's median task time from 124 s to 71 s
+with no loss in hidden-test score. Full results: [`research/v2/results/report-all.md`](research/v2/results/report-all.md). Paper:
 [`paper/kaggle.md`](paper/kaggle.md).
 
 ## How it works
@@ -72,6 +73,17 @@ python research/v2/namerts_repro.py loguru 20      # check our NameRTS setup aga
 
 Repositories and pinned commits are listed in `REPOS` at the top of `pipeline.py`. pygments and datasette are held
 out: they were pinned before any run, and Proviso's selection logic was not changed after their results.
+
+## Reproduce the agent study
+
+[`research/agent/`](research/agent) runs Claude Code (Sonnet) on 12 real sqlglot fixes in three arms (baseline,
+Proviso selection, selection plus the blast-radius report), 2 repetitions each, about $15 in API cost. See
+[`research/agent/README.md`](research/agent/README.md); results, per-run interception counts and the selection
+pre-flight are in [`research/agent/results/`](research/agent/results).
+
+```bash
+bash research/agent/run_study.sh       # needs ANTHROPIC_API_KEY; run as a user without credentials (the agent has a shell)
+```
 
 ## Layout
 
