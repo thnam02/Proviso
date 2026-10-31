@@ -6,7 +6,7 @@ Coding agents validate each edit by running tests, and full suites are slow. Reg
 
 ## 1. Introduction
 
-Coding agents check their work by running tests, 8.8 times per SWE-bench task on average [Lin et al. 2026], and on consumer hardware each full-suite run can take minutes. The same study reports that forbidding execution reduces token usage by 56–62% with little loss in resolved tasks: execution is costly enough that agents may be better off without it.
+Coding agents check their work by running tests, 8.8 times per SWE-bench task on average [Lin et al. 2026], and on consumer hardware each full-suite run can take minutes. The same study reports that, for Claude Code, forbidding execution reduces token usage by 56–62% with little loss in resolved tasks: execution is costly enough that agents may be better off without it.
 
 Regression test selection (RTS) offers a middle ground by running only the tests a change can affect. An RTS technique should be *effective*, skipping many tests, and *safe*, never skipping a test whose outcome the change alters. For agents, safety is critical: a skipped failing test becomes a regression submitted as correct.
 
@@ -180,11 +180,11 @@ Function coverage misses most failures, as 55 of every 95 planted bugs lie outsi
 
 ## 6. Related Work
 
-**RTS.** Ekstazi [Gligoric et al. 2015] tracks file dependencies dynamically, and STARTS [Legunsen et al. 2017] class dependencies statically. For Python, pytest-testmon and pytest-rts use coverage; a line-level coverage tool missed 16–24% of mutants [Kauhanen et al. 2021]. NameRTS [Wang et al. 2026] propagates names and treats functions executed at import as reachable from all tests. Proviso instead compares import-time values directly.
+**RTS.** Ekstazi [Gligoric et al. 2015] tracks file dependencies dynamically, and STARTS [Legunsen et al. 2017] class dependencies statically. For Python, pytest-testmon and pytest-rts [Kauhanen et al. 2021] use coverage. NameRTS [Wang et al. 2026] propagates names and treats functions executed at import as reachable from all tests. Proviso instead compares import-time values directly.
 
 **Shared state.** PolDet [Gyori et al. 2015] compares heap state reachable from static fields to detect polluting tests; Proviso compares import-time state across versions to select tests. Dependent tests also affect RTS [Lam et al. 2020].
 
-**Testing in coding agents.** TDAD [Alonso et al. 2026] gives agents a static test map, TestPrune [2025] selects tests from an issue before a patch exists, and Lin et al. [2026] measure the cost of execution in program repair.
+**Testing in coding agents.** TDAD [Alonso et al. 2026] gives agents a static test map, TestPrune [Chen et al. 2026] selects tests from an issue before a patch exists, and Lin et al. [2026] measure the cost of execution in program repair.
 
 ## 7. Conclusion
 
@@ -194,13 +194,13 @@ Python libraries reach much of their behaviour through data built at import time
 
 ## References
 
-- Alonso, P., Yovine, S., Braberman, V. (2026). TDAD: Test-Driven Agentic Development. arXiv:2603.17973.
-- Gligoric, M., Eloussi, L., Marinov, D. (2015). Practical regression test selection with dynamic file dependencies. ISSTA.
+- Alonso, P., Yovine, S., Braberman, V. A. (2026). TDAD: Test-Driven Agentic Development – Reducing code regressions in AI coding agents via graph-based impact analysis. arXiv:2603.17973.
+- Chen, Y., Ahmed, T., Jabbarvand, R., Hirzel, M. (2026). Can old tests do new tricks for resolving SWE issues? Proc. ACM Softw. Eng. 3(FSE). https://doi.org/10.1145/3808148
+- Gligoric, M., Eloussi, L., Marinov, D. (2015). Practical regression test selection with dynamic file dependencies. ISSTA, 211–222.
 - Gyori, A., Shi, A., Hariri, F., Marinov, D. (2015). Reliable testing: detecting state-polluting tests to prevent test dependency. ISSTA.
-- Kauhanen, E., Nurminen, J. K., Mikkonen, T., Pashkovskiy, M. (2021). Regression test selection tool for Python in continuous integration process. SANER (VST workshop).
+- Kauhanen, E., Nurminen, J. K., Mikkonen, T., Pashkovskiy, M. (2021). Regression test selection tool for Python in continuous integration process. SANER 2021 (VST workshop), 618–621.
 - Lam, W., Shi, A., Oei, R., Zhang, S., Ernst, M. D., Xie, T. (2020). Dependent-test-aware regression testing techniques. ISSTA.
 - Legunsen, O., Shi, A., Marinov, D. (2017). STARTS: STAtic regression test selection. ASE (tool demo).
-- Lin, Z., et al. (2026). To Run or Not to Run: Analyzing the cost-effectiveness of code execution in LLM-based program repair. ISSTA. arXiv:2606.26978.
-- TestPrune: Can old tests do new tricks for resolving SWE issues? (2025). arXiv:2510.18270.
+- Lin, Z., Zhu, J., Zhou, M., Wang, X., Sun, Z., Yang, R., Lo, D., Li, L. (2026). To Run or Not to Run: Analyzing the cost-effectiveness of code execution in LLM-based program repair. ISSTA. arXiv:2606.26978.
 - Wang, Y., Pradel, M., Liu, Z. (2026). Names are all you need: effective and safe regression test selection for Python. ISSTA. arXiv:2605.25356.
 - pytest-testmon. https://testmon.org
