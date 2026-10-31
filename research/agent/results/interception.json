@@ -3,33 +3,30 @@
   "task": "03744a2a83-fix-hive-spark-parse-alter-table-replace",
   "arm": "baseline",
   "rep": "1",
-  "bash_cmds": 5,
-  "test_cmds": 4,
-  "broad_test_cmds": 1,
-  "intercepts": 0,
-  "impact_runs": 0,
-  "proviso_outputs_seen": 0,
-  "reports_seen": 0,
-  "test_cmd_examples": [
-   "cd . && python - <<'E'\np='tests/dialects/test_hive.py'\ns=open(p).read()\ni=s.index(\"    def test_\")\ns=s[:i]+'''    def test_alter_replace_columns(self):\n        for dialect in (\"hive\", \"spark\"):\n            with self.subTest(dialect):\n                self.validate_identity(\n                    \"ALTER TABLE X REPLACE COLUMNS (y INT COMMENT 'c', z STRING) CASCADE\"\n                ).assert_is(exp.Alter)\n                self.validate_identity(\"ALTER TABLE x REPLACE COLUMNS (y INT) RESTRICT\")\n        self.assertIsInstance(\n            self.parse_one(\"ALTER TABLE x REPLACE COLUMNS (y)\"), exp.Command\n        )\n\n'''+s[i:]\nopen(p,'w').write(s)\nE\ngrep -n \"^from\\|^import\" tests/dialects/test_hive.py | head -4; python -m unittest tests.dialects.test_hive 2>&1 | tail -8",
-   "python -m unittest discover -s tests 2>&1 | tail -4",
-   "python -m unittest tests.dialects.test_spark tests.dialects.test_databricks tests.test_parser tests.test_expressions tests.test_transpile 2>&1 | tail -4"
-  ]
- },
- {
-  "task": "03744a2a83-fix-hive-spark-parse-alter-table-replace",
-  "arm": "baseline",
-  "rep": "2",
-  "bash_cmds": 5,
-  "test_cmds": 2,
+  "bash_cmds": 3,
+  "test_cmds": 1,
   "broad_test_cmds": 0,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\np='tests/dialects/test_hive.py'\ns=open(p).read()\na='        self.validate_identity(\"ALTER TABLE x PARTITION(y = z) ADD COLUMN a VARCHAR(10)\")\\n'\nn=a+'''        for option in (\"\", \" CASCADE\", \" RESTRICT\"):\n            sql = f\"ALTER TABLE x REPLACE COLUMNS (y INT COMMENT 'c', z STRING){option}\"\n            self.assertIsInstance(self.parse_one(sql), exp.Alter)\n            self.validate_identity(sql)\n        self.assertIsInstance(\n            self.parse_one(\"ALTER TABLE x REPLACE COLUMNS (y)\", error_level=ErrorLevel.IGNORE),\n            exp.Command,\n        )\n'''\nopen(p,'w').write(s.replace(a,n,1))\nE\nhead -12 tests/dialects/test_hive.py | grep import; python -m unittest tests.dialects.test_hive tests.dialects.test_spark tests.dialects.test_databricks tests.test_parser 2>&1 | tail -8",
-   "sed -i 's/, error_level=ErrorLevel.IGNORE//' tests/dialects/test_hive.py; python -m unittest tests.dialects.test_hive tests.dialects.test_spark tests.dialects.test_databricks tests.test_parser 2>&1 | tail -4; ruff format sqlglot tests/dialects/test_hive.py 2>&1 | tail -1"
+   "sed -i \"149a\\\\        self.validate_identity(\\\"ALTER TABLE X REPLACE COLUMNS (y INT COMMENT 'c', z STRING) CASCADE\\\").assert_is(exp.Alter)\\n        self.validate_identity(\\\"ALTER TABLE X REPLACE COLUMNS (y INT) RESTRICT\\\")\\n        self.assertIsInstance(self.parse_one(\\\"ALTER TABLE X REPLACE COLUMNS (y)\\\"), exp.Command)\" tests/dialects/test_hive.py\npython -m unittest tests.dialects.test_hive tests.dialects.test_spark tests.dialects.test_databricks tests.test_parser tests.test_expressions 2>&1 | tail -15"
+  ]
+ },
+ {
+  "task": "03744a2a83-fix-hive-spark-parse-alter-table-replace",
+  "arm": "baseline",
+  "rep": "2",
+  "bash_cmds": 6,
+  "test_cmds": 1,
+  "broad_test_cmds": 0,
+  "intercepts": 0,
+  "impact_runs": 0,
+  "proviso_outputs_seen": 0,
+  "reports_seen": 0,
+  "test_cmd_examples": [
+   "python - <<'E'\np='tests/dialects/test_hive.py'\ns=open(p).read()\na='''        self.validate_identity(\"ALTER TABLE x PARTITION(y = z) ADD COLUMN a VARCHAR(10)\")\n'''\ns=s.replace(a,a+'''        self.validate_identity(\n            \"ALTER TABLE x REPLACE COLUMNS (y INT COMMENT 'c', z STRING) CASCADE\"\n        ).assert_is(exp.Alter).args[\"actions\"][0].assert_is(exp.ReplaceColumns)\n        self.validate_identity(\"ALTER TABLE x REPLACE COLUMNS (y INT) RESTRICT\")\n        self.validate_identity(\n            \"ALTER TABLE x REPLACE COLUMNS y INT, z STRING\",\n            \"ALTER TABLE x REPLACE COLUMNS (y INT, z STRING)\",\n        )\n        self.assertIsInstance(\n            self.parse_one(\"ALTER TABLE x REPLACE COLUMNS (y)\"),\n            exp.Command,\n        )\n''',1)\nopen(p,'w').write(s)\nE\npython -m unittest tests.test_parser tests.test_generator tests.dialects 2>&1 | tail -15"
   ]
  },
  {
@@ -101,34 +98,34 @@
   "task": "1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub",
   "arm": "baseline",
   "rep": "1",
-  "bash_cmds": 13,
-  "test_cmds": 7,
-  "broad_test_cmds": 1,
+  "bash_cmds": 8,
+  "test_cmds": 3,
+  "broad_test_cmds": 3,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\nimport re\np='sqlglot/parsers/tsql.py'\ns=open(p).read()\ns=s.replace('''    return parser.build_extract_json_with_path(exp.JSONExtract)(args, dialect)\n\n\ndef _build_datetrunc''','''    expression = parser.build_extract_json_with_path(exp.JSONExtract)(args, dialect)\n    expression.set(\"json_query\", True)\n    return expression\n\n\ndef _build_isnull(args: list) -> exp.Expr:\n    coalesce = build_coalesce(args=args, is_null=True)\n    query, value = coalesce.this, coalesce.expressions[0] if coalesce.expressions else None\n\n    # ISNULL(JSON_QUERY(x, p), JSON_VALUE(x, p)) is the generic JSON extraction\n    if (\n        isinstance(query, exp.JSONExtract)\n        and query.args.get(\"json_query\")\n        and isinstance(value, exp.JSONExtractScalar)\n        and query.this == value.this\n        and query.expression == value.expression\n    ):\n        generic = query.copy()\n        generic.set(\"json_query\", None)\n        return generic\n\n    return coalesce\n\n\ndef _build_datetrunc''',1)\ns=s.replace('\"ISNULL\": lambda args: build_coalesce(args=args, is_null=True),','\"ISNULL\": _build_isnull,')\nopen(p,'w').write(s)\np='sqlglot/generators/tsql.py'\ns=open(p).read()\ns=s.replace('''    json_query = self.func(\"JSON_QUERY\", expression.this, expression.expression)\n    json_value''','''    if isinstance(expression, exp.JSONExtractScalar):\n        return self.func(\"JSON_VALUE\", expression.this, expression.expression)\n\n    json_query = self.func(\"JSON_QUERY\", expression.this, expression.expression)\n    if expression.args.get(\"json_query\"):\n        return json_query\n\n    json_value''',1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"JSON_QUERY(x, '$.a')\",\"JSON_VALUE(x, '$.a')\",\"ISNULL(JSON_QUERY(x, '$.a'), JSON_VALUE(x, '$.a'))\",\"JSON_QUERY(x)\",\"ISNULL(a,b)\"]:\n    a=parse_one(q,read=\"tsql\").sql(\"tsql\");print(a, parse_one(a,read=\"tsql\").sql(\"tsql\")==a)\nprint(parse_one(\"JSON_EXTRACT(x,'$.a')\").sql(\"tsql\"))\nE\npython -m unittest discover -s tests -p \"test_*.py\" 2>&1 | tail -15",
-   "python -m unittest tests.dialects.test_tsql tests.dialects.test_fabric tests.dialects.test_dialect 2>&1 | tail -25",
-   "python -m unittest tests.dialects.test_tsql tests.dialects.test_fabric tests.dialects.test_dialect 2>&1 | grep -E \"^(FAIL|\\-|\\+) \"; grep -n \"class JSONExtractScalar\" -A12 sqlglot/expressions/json.py; grep -rn \"JSON_EXTRACT_SCALAR_SCALAR_ONLY\" sqlglot | head"
+   "python - <<'E'\nimport re\np='sqlglot/expressions/json.py'\ns=open(p).read()\ns=s.replace('''        \"json_subtype\": False,\n    }\n    _sql_names = [\"JSON_EXTRACT_SCALAR\"]''','''        \"json_subtype\": False,\n        \"json_value\": False,\n    }\n    _sql_names = [\"JSON_EXTRACT_SCALAR\"]''',1)\nopen(p,'w').write(s)\n\np='sqlglot/generators/tsql.py'\ns=open(p).read()\ns=s.replace('''    json_query = self.func(\"JSON_QUERY\"''','''    if expression.args.get(\"json_query\"):\n        return self.func(\"JSON_QUERY\", expression.this, expression.expression)\n    if expression.args.get(\"json_value\"):\n        return self.func(\"JSON_VALUE\", expression.this, expression.expression)\n\n    json_query = self.func(\"JSON_QUERY\"''',1)\nopen(p,'w').write(s)\n\np='sqlglot/parsers/tsql.py'\ns=open(p).read()\ns=s.replace('''    return parser.build_extract_json_with_path(exp.JSONExtract)(args, dialect)\n''','''    expression = parser.build_extract_json_with_path(exp.JSONExtract)(args, dialect)\n    expression.set(\"json_query\", True)\n    return expression\n\n\ndef _build_json_value(args: list, dialect: Dialect) -> exp.JSONExtractScalar:\n    expression = parser.build_extract_json_with_path(exp.JSONExtractScalar)(args, dialect)\n    expression.set(\"json_value\", True)\n    return expression\n\n\ndef _build_isnull(args: list) -> exp.Expression:\n    # ISNULL(JSON_QUERY(x, p), JSON_VALUE(x, p)) is how a generic JSON extraction is generated\n    if len(args) == 2:\n        query, value = args\n        if (\n            isinstance(query, exp.JSONExtract)\n            and query.args.get(\"json_query\")\n            and isinstance(value, exp.JSONExtractScalar)\n            and value.args.get(\"json_value\")\n            and query.this == value.this\n            and query.expression == value.expression\n        ):\n            generic = query.copy()\n            generic.set(\"json_query\", None)\n            return generic\n\n    return build_coalesce(args=args, is_null=True)\n''',1)\ns=s.replace('\"ISNULL\": lambda args: build_coalesce(args=args, is_null=True),','\"ISNULL\": _build_isnull,')\ns=s.replace('\"JSON_VALUE\": parser.build_extract_json_with_path(exp.JSONExtractScalar),','\"JSON_VALUE\": _build_json_value,')\nopen(p,'w').write(s)\n\np='tests/dialects/test_tsql.py'\ns=open(p).read()\ns=s.replace('''            \"\"\"ISNULL(JSON_QUERY(REPLACE(REPLACE(x, '''+\"''''\"+''', '\"'), '\"\"', '\"'), '$'), JSON_VALUE(REPLACE(REPLACE(x, '''+\"''''\"+''', '\"'), '\"\"', '\"'), '$'))\"\"\",\n        )\n''','''            \"\"\"JSON_QUERY(REPLACE(REPLACE(x, '''+\"''''\"+''', '\"'), '\"\"', '\"'), '$')\"\"\",\n        )\n        self.validate_identity(\"JSON_VALUE(x, '$.a')\")\n        self.validate_identity(\"ISNULL(JSON_QUERY(x, '$.a'), JSON_VALUE(x, '$.a'))\")\n''',1)\ns=s.replace('''                \"tsql\": \"ISNULL(JSON_QUERY(r.JSON, '$.Attr_INT'), JSON_VALUE(r.JSON, '$.Attr_INT'))\",\n            },\n        )\n        self.validate_all(\n            \"JSON_VALUE''','''                \"tsql\": \"JSON_QUERY(r.JSON, '$.Attr_INT')\",\n            },\n        )\n        self.validate_all(\n            \"JSON_VALUE''',1)\ns=s.replace('''                \"tsql\": \"ISNULL(JSON_QUERY(r.JSON, '$.Attr_INT'), JSON_VALUE(r.JSON, '$.Attr_INT'))\",\n            },\n        )\n\n    def test_datefrom''','''                \"tsql\": \"JSON_VALUE(r.JSON, '$.Attr_INT')\",\n            },\n        )\n\n    def test_datefrom''',1)\nopen(p,'w').write(s)\nE\ngrep -n \"build_coalesce\" sqlglot/parsers/tsql.py | head -3\npython -m pytest tests -q -x 2>&1 | tail -8",
+   "python -m pytest tests -q --ignore=tests/dialects/test_bigquery.py 2>&1 | tail -8\npython -c \"\nfrom sqlglot import parse_one\nfor q in [\\\"JSON_QUERY(x, '\\$.a')\\\",\\\"JSON_VALUE(x,'\\$.a')\\\",\\\"ISNULL(JSON_QUERY(x, '\\$.a'), JSON_VALUE(x, '\\$.a'))\\\"]:\n    print(parse_one(q,read='tsql').sql('tsql'))\nprint(parse_one(\\\"JSON_EXTRACT(x,'\\$.a')\\\",read='mysql').sql('tsql'))\"",
+   "python -m pytest tests/dialects -q --ignore=tests/dialects/test_bigquery.py 2>&1 | tail -5"
   ]
  },
  {
   "task": "1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 9,
-  "test_cmds": 4,
-  "broad_test_cmds": 4,
+  "bash_cmds": 15,
+  "test_cmds": 8,
+  "broad_test_cmds": 3,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "cd /home/agentrun/proviso-work/agent/runs/1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub/baseline/2/repo; python - <<'E'\nimport re\np='sqlglot/parsers/tsql.py'\ns=open(p).read()\ns=s.replace(\"\"\"    return parser.build_extract_json_with_path(exp.JSONExtract)(args, dialect)\n\n\"\"\",\"\"\"    node = parser.build_extract_json_with_path(exp.JSONExtract)(args, dialect)\n    node.set(\"json_query\", True)\n    return node\n\n\ndef _build_isnull(args: list) -> exp.Expression:\n    # ISNULL(JSON_QUERY(x, p), JSON_VALUE(x, p)) is how a generic JSON extraction is generated\n    if len(args) == 2:\n        query, value = args\n        if (\n            isinstance(query, exp.JSONExtract)\n            and query.args.get(\"json_query\")\n            and isinstance(value, exp.JSONExtractScalar)\n            and query.this == value.this\n            and query.expression == value.expression\n        ):\n            return exp.JSONExtract(this=query.this, expression=query.expression)\n\n    return parser.build_coalesce(args=args, is_null=True)\n\n\"\"\",1)\ns=s.replace('\"ISNULL\": lambda args: build_coalesce(args=args, is_null=True),','\"ISNULL\": _build_isnull,')\nopen(p,'w').write(s)\np='sqlglot/generators/tsql.py'\ns=open(p).read()\ns=s.replace(\"\"\"    json_query = self.func(\"JSON_QUERY\\\"\"\"\",\"\"\"    if isinstance(expression, exp.JSONExtractScalar):\n        return self.func(\"JSON_VALUE\", expression.this, expression.expression)\n    if expression.args.get(\"json_query\"):\n        return self.func(\"JSON_QUERY\", expression.this, expression.expression)\n\n    json_query = self.func(\"JSON_QUERY\\\"\"\"\",1)\nopen(p,'w').write(s)\np='tests/dialects/test_tsql.py'\ns=open(p).read()\ns=s.replace(\"\"\"            \\\"\\\"\\\"ISNULL(JSON_QUERY(REPLACE(REPLACE(x, '''', '\"'), '\"\"', '\"'), '$'), JSON_VALUE(REPLACE(REPLACE(x, '''', '\"'), '\"\"', '\"'), '$'))\\\"\\\"\\\",\n\"\"\",\"\"\"            \\\"\\\"\\\"JSON_QUERY(REPLACE(REPLACE(x, '''', '\"'), '\"\"', '\"'), '$')\\\"\\\"\\\",\n\"\"\")\ns=s.replace(\"\"\"                \"tsql\": \"ISNULL(JSON_QUERY(r.JSON, '$.Attr_INT'), JSON_VALUE(r.JSON, '$.Attr_INT'))\",\n            },\n        )\n        self.validate_all(\n            \"JSON_VALUE\"\"\",\"\"\"                \"tsql\": \"JSON_QUERY(r.JSON, '$.Attr_INT')\",\n            },\n        )\n        self.validate_all(\n            \"JSON_VALUE\"\"\")\ns=s.replace(\"\"\"                \"tsql\": \"ISNULL(JSON_QUERY(r.JSON, '$.Attr_INT'), JSON_VALUE(r.JSON, '$.Attr_INT'))\",\n            },\n        )\n\n    def test_datefromparts\"\"\",\"\"\"                \"tsql\": \"JSON_VALUE(r.JSON, '$.Attr_INT')\",\n            },\n        )\n        self.validate_identity(\"ISNULL(JSON_QUERY(x, '$.a'), JSON_VALUE(x, '$.a'))\")\n        self.validate_all(\n            \"SELECT x -> '$.a'\",\n            read={\"duckdb\": \"SELECT x -> '$.a'\"},\n            write={\"tsql\": \"SELECT ISNULL(JSON_QUERY(x, '$.a'), JSON_VALUE(x, '$.a'))\"},\n        )\n\n    def test_datefromparts\"\"\")\nopen(p,'w').write(s)\nE\npython -m pytest tests -q -x 2>&1 | tail -15",
-   "cd /home/agentrun/proviso-work/agent/runs/1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub/baseline/2/repo; python -m pytest tests -q --ignore=tests/dialects/test_bigquery.py 2>&1 | tail -15",
-   "cd /home/agentrun/proviso-work/agent/runs/1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub/baseline/2/repo; python -m pytest tests/dialects -q --ignore=tests/dialects/test_bigquery.py 2>&1 | tail -15"
+   "cd /home/agentrun/proviso-work/agent/runs/1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub/baseline/2/repo/sqlglot; python - <<'E'\nimport re\np='parsers/tsql.py'\ns=open(p).read()\ns=s.replace('''    return parser.build_extract_json_with_path(exp.JSONExtract)(args, dialect)\n''','''    expression = parser.build_extract_json_with_path(exp.JSONExtract)(args, dialect)\n    expression.set(\"json_query\", True)\n    return expression\n\n\ndef _build_isnull(args: list) -> exp.Expr:\n    coalesce = build_coalesce(args=args, is_null=True)\n    query, value = coalesce.this, seq_get(coalesce.expressions, 0)\n\n    # ISNULL(JSON_QUERY(x, p), JSON_VALUE(x, p)) is how a generic JSON extraction is generated\n    if (\n        len(coalesce.expressions) == 1\n        and isinstance(query, exp.JSONExtract)\n        and query.args.get(\"json_query\")\n        and isinstance(value, exp.JSONExtractScalar)\n        and query.this == value.this\n        and query.expression == value.expression\n    ):\n        query.set(\"json_query\", None)\n        return query\n\n    return coalesce\n''',1)\ns=s.replace('\"ISNULL\": lambda args: build_coalesce(args=args, is_null=True),','\"ISNULL\": _build_isnull,')\nopen(p,'w').write(s)\np='generators/tsql.py'\ns=open(p).read()\ns=s.replace('''    json_query = self.func(\"JSON_QUERY\", expression.this, expression.expression)\n    json_value = self.func(\"JSON_VALUE\", expression.this, expression.expression)\n    return self.func(\"ISNULL\", json_query, json_value)''','''    if isinstance(expression, exp.JSONExtractScalar):\n        return self.func(\"JSON_VALUE\", expression.this, expression.expression)\n\n    json_query = self.func(\"JSON_QUERY\", expression.this, expression.expression)\n    if expression.args.get(\"json_query\"):\n        return json_query\n\n    json_value = self.func(\"JSON_VALUE\", expression.this, expression.expression)\n    return self.func(\"ISNULL\", json_query, json_value)''')\nopen(p,'w').write(s)\nE\ncd ..; python -c \"\nfrom sqlglot import parse_one\nfor q in ['JSON_QUERY(x, \\'\\$.a\\')','JSON_VALUE(x, \\'\\$.a\\')','ISNULL(JSON_QUERY(x, \\'\\$.a\\'), JSON_VALUE(x, \\'\\$.a\\'))']:\n    a=parse_one(q,read='tsql').sql('tsql');print(a, parse_one(a,read='tsql').sql('tsql')==a)\nprint(parse_one('SELECT x:a',read='databricks').sql('tsql'))\n\"; python -m unittest discover -s tests -t . 2>&1 | tail -15",
+   "python -m unittest discover -s tests -t . 2>&1 | grep -E \"^(FAIL|ERROR)\"; git stash -q; python -m unittest discover -s tests -t . 2>&1 | grep -E \"^(FAIL|ERROR)\"; git stash pop -q",
+   "python -m unittest tests.dialects.test_dialect.TestDialect.test_json tests.dialects.test_tsql.TestTSQL.test_json 2>&1 | grep -B3 -A8 \"^AssertionError\" | head -50; grep -n \"scalar_only\\|JSON_EXTRACT_SCALAR_SCALAR_ONLY\" sqlglot/dialects/tsql.py sqlglot/*/tsql.py"
   ]
  },
  {
@@ -203,6 +200,23 @@
   "arm": "baseline",
   "rep": "1",
   "bash_cmds": 15,
+  "test_cmds": 6,
+  "broad_test_cmds": 1,
+  "intercepts": 0,
+  "impact_runs": 0,
+  "proviso_outputs_seen": 0,
+  "reports_seen": 0,
+  "test_cmd_examples": [
+   "python - <<'E'\np='sqlglot/generator.py'\ns=open(p).read()\ns=s.replace('''            return self.sql(\n                expression.this if expression.expression.this else exp.not_(expression.this)\n            )\n        return self.binary(expression, \"IS NOT\"''','''            value = bool(expression.expression.this) != bool(expression.args.get(\"negate\"))\n            return self.sql(expression.this if value else exp.not_(expression.this))\n        return self.binary(expression, \"IS NOT\"''',1)\nopen(p,'w').write(s)\np='sqlglot/generators/tsql.py'\ns=open(p).read()\ns=s.replace('''            return self.binary(expression, \"=\")\n        return self.binary(expression, \"IS NOT\"''','''            return self.binary(expression, \"<>\" if expression.args.get(\"negate\") else \"=\")\n        return self.binary(expression, \"IS NOT\"''',1)\nopen(p,'w').write(s)\nE\ncat > /tmp/t.py <<'E'\nfrom sqlglot import parse_one, transpile\nfor q in [\"SELECT r IS NOT NULL FROM t\",\"SELECT r NOTNULL FROM t\",\"SELECT r ISNULL FROM t\",\"SELECT r IS NOT UNKNOWN FROM t\",\"SELECT NOT r IS NULL FROM t\",\"SELECT r NOT NULL\",\"SELECT a IS NOT TRUE\",\"SELECT NULL IS NOT NULL\"]:\n    print(parse_one(q,read=\"postgres\").sql(\"postgres\"), \"|\", parse_one(q,read=\"postgres\").sql(\"duckdb\"))\nfrom sqlglot.optimizer.simplify import simplify\nprint(simplify(parse_one(\"NULL IS NOT NULL\",read=\"postgres\")).sql(), simplify(parse_one(\"NULL IS NULL\",read=\"postgres\")).sql())\nprint(parse_one(\"r IS NOT NULL\", read=\"postgres\").args.get(\"negate\"))\nE\npython /tmp/t.py; python -m unittest discover -s tests -q 2>&1 | tail -30",
+   "python /tmp/t.py | sed -n 6p; python -m unittest -q 2>&1 | tail -30",
+   "python -m unittest -q 2>&1 | grep -E \"^(FAIL|ERROR|AssertionError|[-+] )\""
+  ]
+ },
+ {
+  "task": "2aae7f7605-feat-postgres-preserve-x-is-not-null-ins",
+  "arm": "baseline",
+  "rep": "2",
+  "bash_cmds": 13,
   "test_cmds": 5,
   "broad_test_cmds": 1,
   "intercepts": 0,
@@ -210,26 +224,9 @@
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\nfrom sqlglot import parse_one\nfrom sqlglot.optimizer.simplify import simplify\nfor q in [\"SELECT r IS NOT NULL FROM t\",\"SELECT NOT r IS NULL FROM t\",\"SELECT r NOTNULL, r ISNULL, r IS NOT UNKNOWN FROM t\",\"SELECT NULL IS NOT NULL, 1 IS NOT NULL, x IS NOT TRUE FROM t\"]:\n    e=parse_one(q,read=\"postgres\"); print(e.sql(\"postgres\"),'|',e.sql(\"duckdb\"),'|',simplify(e).sql(\"postgres\"))\nprint(parse_one(\"r IS NOT NULL\",read=\"postgres\").args.get(\"negate\"))\nE\npython -m unittest discover -s tests -q 2>&1 | tail -30",
+   "python - <<'E'\ndef sub(p,a,b):\n    s=open(p).read(); assert a in s,(p,a); open(p,'w').write(s.replace(a,b,1))\nsub('parser.py','negate=self._is_negate_arg())','negate=self.IS_NOT_USES_NEGATE_ARG or None)')\nsub('parser.py','    IS_JSON_PREDICATE_KIND: t.ClassVar','    IS_NOT_USES_NEGATE_ARG = False\\n\\n    IS_JSON_PREDICATE_KIND: t.ClassVar')\nsub('parser.py','''            return this\n\n        return self.expression(exp.Not(this=this))\n\n    def _parse_is''','''            return this\n\n        if self.IS_NOT_USES_NEGATE_ARG and isinstance(expression, exp.Is):\n            expression.set(\"negate\", True)\n            return this\n\n        return self.expression(exp.Not(this=this))\n\n    def _parse_is''')\nE\ncd ..; python - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"SELECT r IS NOT NULL FROM t\",\"SELECT r NOTNULL\",\"SELECT r ISNULL\",\"SELECT NOT r IS NULL\",\"SELECT r IS NOT UNKNOWN\",\"SELECT r NOT NULL\",\"SELECT r IS NOT TRUE\",\"SELECT r IS NOT DISTINCT FROM 1\"]:\n    e=parse_one(q,read=\"postgres\");print(e.sql(\"postgres\"),'|',e.sql(\"snowflake\"))\nfrom sqlglot.optimizer.simplify import simplify\nprint(simplify(parse_one(\"NULL IS NOT NULL\",read=\"postgres\")).sql(), simplify(parse_one(\"1 IS NOT NULL\",read=\"postgres\")).sql())\nprint(parse_one(\"r IS NOT NULL\",read=\"postgres\").args.get(\"negate\"))\nE\npython -m unittest discover -s tests 2>&1 | tail -15",
    "python -m unittest 2>&1 | tail -40",
-   "sed -i 's/if negate and self.PRESERVE_IS_NOT:/if negate and self.PRESERVE_IS_NOT and isinstance(expression, exp.Null):/' sqlglot/parser.py\npython -m unittest 2>&1 | grep -A12 \"^FAIL\\|^ERROR\" | head -80"
-  ]
- },
- {
-  "task": "2aae7f7605-feat-postgres-preserve-x-is-not-null-ins",
-  "arm": "baseline",
-  "rep": "2",
-  "bash_cmds": 23,
-  "test_cmds": 11,
-  "broad_test_cmds": 11,
-  "intercepts": 0,
-  "impact_runs": 0,
-  "proviso_outputs_seen": 0,
-  "reports_seen": 0,
-  "test_cmd_examples": [
-   "python - <<'E'\nfrom sqlglot import parse_one, transpile\nfor q in [\"SELECT r IS NOT NULL FROM t\",\"SELECT r NOTNULL, r ISNULL, r NOT NULL, NOT r IS NULL, r IS NOT UNKNOWN, r IS NOT TRUE FROM t\"]:\n    print(parse_one(q,read=\"postgres\").sql(\"postgres\"), \"|\", parse_one(q,read=\"postgres\").sql(\"duckdb\"))\nprint(parse_one(\"r IS NOT NULL\",read=\"postgres\").args.get(\"negate\"))\nfrom sqlglot.optimizer.simplify import simplify\nprint(simplify(parse_one(\"NULL IS NOT NULL\",read=\"postgres\")).sql(), simplify(parse_one(\"1 IS NOT NULL\",read=\"postgres\")).sql())\nE\npython -m pytest tests -q -x 2>&1 | tail -8",
-   "python -m pytest tests -q --ignore=tests/dialects/test_bigquery.py 2>&1 | tail -15",
-   "python -m pytest tests -q --ignore=tests/dialects/test_bigquery.py --ignore=tests/test_executor.py --ignore=tests/test_optimizer.py 2>&1 | tail -15"
+   "python - <<'E'\ndef sub(p,a,b):\n    s=open(p).read(); assert a in s,(p,a); open(p,'w').write(s.replace(a,b,1))\nsub('sqlglot/generator.py','''            return self.sql(\n                expression.this\n                if bool(expression.expression.this) != bool(negate)\n                else exp.not_(expression.this)\n            )''','''            this = (\n                expression.this if expression.expression.this else exp.not_(expression.this)\n            )\n            return self.sql(exp.not_(this) if negate else this)''')\nE\npython -m unittest 2>&1 | grep -A12 \"^FAIL\\|^ERROR\" | head -120"
   ]
  },
  {
@@ -304,34 +301,31 @@
   "task": "47b94d424a-feat-parser-mysql-accepts-non-csv-table",
   "arm": "baseline",
   "rep": "1",
-  "bash_cmds": 8,
-  "test_cmds": 2,
+  "bash_cmds": 7,
+  "test_cmds": 3,
   "broad_test_cmds": 2,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "cat >> /tmp/x.py <<'E'\nE\npython - <<'E'\np='tests/dialects/test_mysql.py'\ns=open(p).read()\nanchor=\"    def test_ddl(self):\\n\"\nnew=anchor+'''        self.validate_identity(\n            \"CREATE TABLE t (a VARCHAR(5) CHARSET utf8mb4 COLLATE utf8mb4_bin) CHARSET=utf8mb4 ENGINE=InnoDB\",\n            \"CREATE TABLE t (a VARCHAR(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin) CHARACTER SET=utf8mb4 ENGINE=InnoDB\",\n        )\n        self.validate_identity(\n            \"CREATE TABLE t (a VARCHAR(5) CHAR SET utf8mb4) DEFAULT CHAR SET=utf8mb4\",\n            \"CREATE TABLE t (a VARCHAR(5) CHARACTER SET utf8mb4) DEFAULT CHARACTER SET=utf8mb4\",\n        )\n        self.validate_identity(\n            \"ALTER TABLE t ADD COLUMN a VARCHAR(5) CHARSET utf8mb4 COLLATE utf8mb4_bin, CHARSET=utf8mb4 ENGINE=InnoDB\",\n            \"ALTER TABLE t ADD COLUMN a VARCHAR(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin, CHARACTER SET=utf8mb4, ENGINE=InnoDB\",\n        )\n'''\nassert anchor in s\nopen(p,'w').write(s.replace(anchor,new,1))\nE\npython -m unittest discover -s tests -q 2>&1 | tail -15",
-   "python -m unittest tests.dialects.test_mysql tests.dialects.test_postgres tests.test_parser tests.test_transpile tests.test_expressions 2>&1 | tail -8; python -m unittest discover -s tests/dialects -t . 2>&1 | tail -4"
+   "python - <<'E'\np='sqlglot/parser.py'\ns=open(p).read()\ns=s.replace('''        if self.dialect.ALTER_TABLE_SPACE_SEPARATED_OPTIONS:\n            while True:\n                more = self._parse_csv(self._parse_property)\n                if not more:\n                    break\n                options.extend(more)\n        return options''','''        while options and (more := self._parse_csv(self._parse_property)):\n            options.extend(more)\n        return options''')\nopen(p,'w').write(s)\nE\npython -c \"\nfrom sqlglot import parse_one\nfor s in ['CREATE TABLE t (a VARCHAR(5) CHARSET utf8mb4 COLLATE utf8mb4_bin) CHARSET=utf8mb4 ENGINE=InnoDB','ALTER TABLE t ADD COLUMN a VARCHAR(5) CHAR SET utf8mb4 COLLATE utf8mb4_bin, CHARSET=utf8mb4 ENGINE=InnoDB','CREATE TABLE t (a INT) DEFAULT CHARSET=utf8 CHAR SET utf8 ENGINE=InnoDB','ALTER TABLE t CHARSET=utf8mb4 ENGINE=InnoDB']:\n  print(parse_one(s,read='mysql').sql('mysql'))\n\"\npython -m unittest discover -s tests -q 2>&1 | tail -5",
+   "python -m unittest discover -s tests -q 2>&1 | tail -5; python -m unittest tests.test_parser tests.dialects.test_mysql tests.dialects.test_dialect tests.test_transpile 2>&1 | tail -4",
+   "python - <<'E'\np='tests/dialects/test_mysql.py'\ns=open(p).read()\ns=s.replace('''    def test_ddl(self):\n''','''    def test_ddl(self):\n        self.validate_identity(\n            \"CREATE TABLE t (a VARCHAR(5) CHARSET utf8mb4 COLLATE utf8mb4_bin) CHARSET=utf8mb4 ENGINE=InnoDB\",\n            \"CREATE TABLE t (a VARCHAR(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin) CHARACTER SET=utf8mb4 ENGINE=InnoDB\",\n        )\n        self.validate_identity(\n            \"ALTER TABLE t ADD COLUMN a VARCHAR(5) CHAR SET utf8mb4 COLLATE utf8mb4_bin, CHARSET=utf8mb4 ENGINE=InnoDB\",\n            \"ALTER TABLE t ADD COLUMN a VARCHAR(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin, CHARACTER SET=utf8mb4, ENGINE=InnoDB\",\n        )\n''',1)\nopen(p,'w').write(s)\nE\npython -m unittest tests.test_parser tests.dialects.test_mysql tests.dialects.test_dialect tests.test_transpile tests.dialects.test_snowflake tests.dialects.test_tsql tests.dialects.test_postgres 2>&1 | tail -4"
   ]
  },
  {
   "task": "47b94d424a-feat-parser-mysql-accepts-non-csv-table",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 6,
-  "test_cmds": 3,
-  "broad_test_cmds": 1,
+  "bash_cmds": 7,
+  "test_cmds": 0,
+  "broad_test_cmds": 0,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
-  "test_cmd_examples": [
-   "python -m unittest discover -s tests -q 2>&1 | tail -8",
-   "python -m unittest tests.dialects.test_mysql tests.test_parser tests.test_transpile tests.dialects.test_dialect tests.test_expressions 2>&1 | tail -8",
-   "python - <<'E'\np='tests/dialects/test_mysql.py'\ns=open(p).read()\ni=s.index(\"    def test_ddl(self):\")\nj=s.index(\"\\n\",i)+1\ns=s[:j]+'''        self.validate_identity(\n            \"CREATE TABLE t (a VARCHAR(5) CHARSET utf8mb4 COLLATE utf8mb4_bin) CHARSET=utf8mb4 ENGINE=InnoDB\",\n            \"CREATE TABLE t (a VARCHAR(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin) CHARACTER SET=utf8mb4 ENGINE=InnoDB\",\n        )\n        self.validate_identity(\n            \"ALTER TABLE t ADD COLUMN a VARCHAR(5) CHAR SET utf8mb4 COLLATE utf8mb4_bin, CHARSET=utf8mb4 ENGINE=InnoDB\",\n            \"ALTER TABLE t ADD COLUMN a VARCHAR(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin, CHARACTER SET=utf8mb4, ENGINE=InnoDB\",\n        )\n'''+s[j:]\nopen(p,'w').write(s)\nE\npython -m unittest tests.dialects.test_mysql 2>&1 | tail -3"
-  ]
+  "test_cmd_examples": []
  },
  {
   "task": "47b94d424a-feat-parser-mysql-accepts-non-csv-table",
@@ -402,23 +396,23 @@
   "arm": "baseline",
   "rep": "1",
   "bash_cmds": 12,
-  "test_cmds": 7,
+  "test_cmds": 9,
   "broad_test_cmds": 2,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "cd /home/agentrun/proviso-work/agent/runs/5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1/baseline/1/repo; python - <<'E'\np='sqlglot/parsers/tsql.py'\ns=open(p).read()\ns=s.replace(\"    UNPIVOT_VALUE_COLUMNS_FIRST = True\\n\",'''    UNPIVOT_VALUE_COLUMNS_FIRST = True\n\n    TABLE_HINT_NAMES = {\n        \"FORCESCAN\",\n        \"FORCESEEK\",\n        \"HOLDLOCK\",\n        \"IGNORE_CONSTRAINTS\",\n        \"IGNORE_TRIGGERS\",\n        \"INDEX\",\n        \"KEEPDEFAULTS\",\n        \"KEEPIDENTITY\",\n        \"NOEXPAND\",\n        \"NOLOCK\",\n        \"NOWAIT\",\n        \"PAGLOCK\",\n        \"READCOMMITTED\",\n        \"READCOMMITTEDLOCK\",\n        \"READPAST\",\n        \"READUNCOMMITTED\",\n        \"REPEATABLEREAD\",\n        \"ROWLOCK\",\n        \"SERIALIZABLE\",\n        \"SNAPSHOT\",\n        \"TABLOCK\",\n        \"TABLOCKX\",\n        \"UPDLOCK\",\n        \"XLOCK\",\n    }\n''',1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"SELECT * FROM t (NOLOCK)\",\"SELECT * FROM [dbo].[t] (NOLOCK)\",\"SELECT * FROM a.b.c (NOLOCK, INDEX(ix)) AS x\",\"SELECT * FROM t a (NOLOCK) JOIN u (READPAST) ON 1=1\",\"SELECT * FROM t AS a WITH (NOLOCK)\",\"SELECT * FROM f(1)\",\"UPDATE t (TABLOCK) SET a=1\"]:\n    try: print(parse_one(q,read=\"tsql\").sql(\"tsql\"))\n    except Exception as e: print(q,\"ERR\",str(e)[:80])\nE\npython -m unittest tests.dialects.test_tsql 2>&1 | tail -3",
-   "cd /home/agentrun/proviso-work/agent/runs/5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1/baseline/1/repo; python - <<'E'\np='sqlglot/parsers/tsql.py'\ns=open(p).read()\ns=s.replace(\"    def _parse_table_part(self\",'''    def _parse_table_alias(\n        self, alias_tokens: t.Collection[TokenType] | None = None\n    ) -> exp.TableAlias | None:\n        if self._curr and self._is_bare_table_hint(0):\n            return None\n        return super()._parse_table_alias(alias_tokens=alias_tokens)\n\n    def _parse_table_part(self''',1)\nopen(p,'w').write(s)\nE\ngrep -n \"^import typing\\|^import\" sqlglot/parsers/tsql.py|head -3\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"SELECT * FROM t (NOLOCK)\",\"SELECT * FROM [dbo].[t] (NOLOCK)\",\"SELECT * FROM a.b.c (NOLOCK, READPAST) AS x\",\"SELECT * FROM t a (NOLOCK) JOIN u (READPAST) ON 1=1\",\"SELECT * FROM t WITH (INDEX(ix))\",\"SELECT * FROM t (INDEX(ix))\",\"SELECT * FROM f(1)\",\"UPDATE t (TABLOCK) SET a=1\"]:\n    try: print(parse_one(q,read=\"tsql\").sql(\"tsql\"))\n    except Exception as e: print(q,\"ERR\",str(e)[:80])\nE\npython -m unittest tests.dialects.test_tsql 2>&1 | tail -3",
-   "cd /home/agentrun/proviso-work/agent/runs/5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1/baseline/1/repo; python - <<'E'\np='sqlglot/parsers/tsql.py'\ns=open(p).read()\ns=s.replace('''        if self._curr and self._is_bare_table_hint(0):\n            return None\n        return super()._parse_table_alias(''','''        if self._curr and self._is_bare_table_hint(0):\n            return None\n\n        offset = 2 if self._curr.token_type == TokenType.ALIAS else 1\n        if self._is_bare_table_hint(offset):\n            self._match(TokenType.ALIAS)\n            alias = self._parse_id_var(tokens=alias_tokens or self.TABLE_ALIAS_TOKENS)\n            return self.expression(exp.TableAlias(this=alias)) if alias else None\n\n        return super()._parse_table_alias(''',1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"SELECT * FROM a.b.c (NOLOCK, READPAST) AS x\",\"SELECT * FROM t a (NOLOCK) JOIN u AS b (READPAST) ON 1=1\",\"SELECT * FROM (SELECT 1) AS a(x)\",\"SELECT * FROM t AS a WITH (NOLOCK)\"]:\n    try: print(parse_one(q,read=\"tsql\").sql(\"tsql\"))\n    except Exception as e: print(q,\"ERR\",str(e)[:80])\nE\npython -m unittest tests.dialects.test_tsql 2>&1 | tail -3"
+   "python -c \"\nfrom sqlglot import parse_one\nfor s in ['SELECT * FROM t (NOLOCK)','SELECT * FROM [dbo].[t] (NOLOCK)','SELECT * FROM a.b.c (NOLOCK, INDEX(ix)) AS x','SELECT * FROM t AS x (NOLOCK) JOIN u (READPAST) ON 1=1','SELECT * FROM t WITH (NOLOCK)','SELECT * FROM dbo.fn(1)','UPDATE t (TABLOCK) SET a=1','DELETE FROM t (ROWLOCK) WHERE a=1','INSERT INTO t (TABLOCK) SELECT 1']:\n    try: print(parse_one(s,read='tsql').sql('tsql'))\n    except Exception as e: print(s,'ERR',e)\n\" && python -m unittest tests.dialects.test_tsql 2>&1 | tail -5",
+   "python -c \"\nfrom sqlglot import parse_one\nfor s in ['SELECT * FROM t (NOLOCK)','SELECT * FROM [dbo].[t] (NOLOCK)','SELECT * FROM a.b.c (NOLOCK, INDEX(ix))','SELECT * FROM t AS x (NOLOCK) JOIN u y (READPAST) ON 1=1','SELECT * FROM t x (NOLOCK) (x)','SELECT * FROM dbo.fn(1)','UPDATE t (TABLOCK) SET a=1','DELETE FROM t (ROWLOCK) WHERE a=1','SELECT * FROM t AS x(a, b)']:\n    try: print(parse_one(s,read='tsql').sql('tsql'))\n    except Exception as e: print(s,'ERR',e)\n\" && python -m unittest tests.dialects.test_tsql 2>&1 | tail -3",
+   "python -m unittest tests.dialects.test_tsql 2>&1 | grep -B5 -A15 FAIL | head -40"
   ]
  },
  {
   "task": "5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 6,
+  "bash_cmds": 7,
   "test_cmds": 6,
   "broad_test_cmds": 1,
   "intercepts": 0,
@@ -426,9 +420,9 @@
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python -c \"\nfrom sqlglot import parse_one\nfor s in ['SELECT * FROM t (NOLOCK)','SELECT * FROM [dbo].[t] (NOLOCK)','SELECT * FROM db.dbo.t AS a (NOLOCK, INDEX(ix))','SELECT * FROM t a (nolock) JOIN u (READPAST) ON 1=1','SELECT * FROM f(1)','SELECT * FROM t WITH (NOLOCK)']:\n    print(parse_one(s,read='tsql').sql('tsql'))\n\" && python -m unittest tests.dialects.test_tsql 2>&1 | tail -3",
-   "ruff format sqlglot/parsers/tsql.py -q; python -c \"\nfrom sqlglot import parse_one\nfor s in ['SELECT * FROM t (NOLOCK)','SELECT * FROM [dbo].[t] (NOLOCK)','SELECT * FROM db.dbo.t AS a (NOLOCK, INDEX(ix))','SELECT * FROM t a (nolock) JOIN u (READPAST) ON 1=1','SELECT * FROM f(1)','SELECT * FROM t WITH (NOLOCK)','SELECT * FROM t AS a (x, y)']:\n    print(parse_one(s,read='tsql').sql('tsql'))\n\" && python -m unittest tests.dialects.test_tsql 2>&1 | tail -3",
-   "python -m unittest tests.dialects.test_tsql 2>&1 | grep -B5 -A15 FAIL: | head -40; git stash -q; python -m unittest tests.dialects.test_tsql 2>&1 | tail -2; git stash pop -q"
+   "python -c \"\nfrom sqlglot import parse_one\nfor s in ['SELECT * FROM t (NOLOCK)','SELECT * FROM [dbo].[t] (NOLOCK)','SELECT * FROM a.b.t AS x (NOLOCK, INDEX(1))','SELECT * FROM t (NOLOCK) JOIN u (READPAST) ON 1=1','SELECT * FROM dbo.f(1)','SELECT * FROM t WITH (NOLOCK)','UPDATE t (ROWLOCK) SET a=1']:\n    print(parse_one(s,read='tsql').sql('tsql'))\n\"; python -m unittest tests.dialects.test_tsql 2>&1 | tail -3",
+   "python - <<'E'\np='sqlglot/parser.py'\ns=open(p).read()\ns=s.replace(\"\"\"        index = self._index\n        if self._match(TokenType.L_PAREN):\n            columns = self._parse_csv(self._parse_function_parameter)\"\"\",\"\"\"        index = self._index\n        if not self._is_bare_table_hint() and self._match(TokenType.L_PAREN):\n            columns = self._parse_csv(self._parse_function_parameter)\"\"\",1)\ns=s.replace(\"\"\"    def _parse_table_alias(\n        self, alias_tokens\"\"\",\"\"\"    def _is_bare_table_hint(self, offset: int = 0) -> bool:\n        return False\n\n    def _parse_table_alias(\n        self, alias_tokens\"\"\",1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nimport re\np='sqlglot/parsers/tsql.py'\ns=open(p).read()\ns=s.replace(\"\"\"        if not alias and not columns\"\"\",\"\"\"        if not alias and not columns\"\"\")\ns=s.replace(\"\"\"    def _parse_table_part(self, schema\"\"\",\"\"\"    def _parse_table_alias(\n        self, alias_tokens: t.Collection[TokenType] | None = None\n    ) -> exp.TableAlias | None:\n        if self._is_bare_table_hint():\n            return None\n        return super()._parse_table_alias(alias_tokens=alias_tokens)\n\n    def _parse_table_part(self, schema\"\"\",1)\nopen(p,'w').write(s)\nE\npython -c \"\nfrom sqlglot import parse_one\nfor s in ['SELECT * FROM t (NOLOCK)','SELECT * FROM [dbo].[t] (NOLOCK)','SELECT * FROM a.b.t AS x (NOLOCK, INDEX(1))','SELECT * FROM t (NOLOCK) JOIN u (READPAST) ON 1=1','SELECT * FROM dbo.f(1)','SELECT * FROM (select 1) AS x(a)','SELECT * FROM t WITH (NOLOCK)','UPDATE t (ROWLOCK) SET a=1']:\n    print(parse_one(s,read='tsql').sql('tsql'))\n\"; python -m unittest discover -s tests 2>&1 | tail -3",
+   "cat >> /tmp/t.py <<'E'\nE\npython - <<'E'\np='tests/dialects/test_tsql.py'\ns=open(p).read()\ni=s.index(\"    def test_\")\ns=s[:i]+'''    def test_bare_table_hints(self):\n        self.validate_identity(\"SELECT * FROM t WITH (NOLOCK)\")\n        self.validate_identity(\"SELECT * FROM dbo.f(1)\", \"SELECT * FROM dbo.F(1)\")\n        self.validate_identity(\"SELECT * FROM t (NOLOCK)\", \"SELECT * FROM t WITH (NOLOCK)\")\n        self.validate_identity(\n            \"SELECT * FROM [dbo].[t] (NOLOCK)\", \"SELECT * FROM [dbo].[t] WITH (NOLOCK)\"\n        )\n        self.validate_identity(\n            \"SELECT * FROM t AS a (NOLOCK, INDEX(1))\", \"SELECT * FROM t AS a WITH (NOLOCK, INDEX(1))\"\n        )\n\n'''+s[i:]\nopen(p,'w').write(s)\nE\npython -m unittest tests.dialects.test_tsql 2>&1 | tail -3; python -m unittest 2>&1 | tail -3"
   ]
  },
  {
@@ -502,31 +496,34 @@
   "task": "646295528c-fix-postgres-transpile-day-month-year-to",
   "arm": "baseline",
   "rep": "1",
-  "bash_cmds": 5,
-  "test_cmds": 2,
+  "bash_cmds": 10,
+  "test_cmds": 3,
   "broad_test_cmds": 1,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "cd ../generators; python - <<'E'\np='postgres.py'\ns=open(p).read()\ns=s.replace('''    def bracket_sql(self, expression: exp.Bracket)''','''    def _extract_date_part_sql(self, part: str, expression: exp.Expr) -> str:\n        from sqlglot.optimizer.annotate_types import annotate_types\n\n        arg = expression.this\n        if not arg.type:\n            arg = annotate_types(arg, dialect=self.dialect)\n\n        if not arg.is_type(exp.DType.DATE):\n            if (\n                arg.type\n                and not arg.is_type(exp.DType.UNKNOWN, *exp.DataType.TEXT_TYPES)\n                and not arg.is_type(*exp.DataType.TEMPORAL_TYPES)\n            ):\n                self.unsupported(f\"{part} requires a DATE argument\")\n            arg = exp.cast(arg, exp.DType.DATE)\n\n        return self.sql(exp.Extract(this=exp.var(part), expression=arg))\n\n    def day_sql(self, expression: exp.Day) -> str:\n        return self._extract_date_part_sql(\"DAY\", expression)\n\n    def month_sql(self, expression: exp.Month) -> str:\n        return self._extract_date_part_sql(\"MONTH\", expression)\n\n    def year_sql(self, expression: exp.Year) -> str:\n        return self._extract_date_part_sql(\"YEAR\", expression)\n\n    def bracket_sql(self, expression: exp.Bracket)''',1)\nopen(p,'w').write(s)\nE\ncd ../..; python -c \"\nfrom sqlglot import transpile\nprint(transpile('SELECT DAY(x), MONTH(x), YEAR(x), YEAR(CAST(x AS DATE)), DAY(1), MONTH(\\'2020-01-01\\')',read='tsql',write='postgres',unsupported_level=0)[0])\nprint(transpile('SELECT DAY(x), YEAR(x)',read='tsql',write='tsql')[0])\nprint(transpile('SELECT DAY(x)',read='mysql',write='postgres')[0])\"\npython -m unittest discover -s tests 2>&1 | tail -15",
-   "python -m unittest tests.dialects.test_postgres tests.dialects.test_tsql tests.dialects.test_mysql tests.dialects.test_dialect 2>&1 | tail -15"
+   "python -c \"\nfrom sqlglot import parse_one,ErrorLevel\nfrom sqlglot.optimizer.annotate_types import annotate_types\nfrom sqlglot.optimizer.qualify import qualify\nfor t in ('date','int'):\n    e=annotate_types(qualify(parse_one('SELECT YEAR(x) FROM t',read='tsql'),schema={'t':{'x':t}},dialect='tsql'),schema={'t':{'x':t}},dialect='tsql')\n    try: print(e.sql('postgres',unsupported_level=ErrorLevel.RAISE))\n    except Exception as x: print('ERR',x)\n\" 2>&1 | tail -4; python -m unittest discover -s tests -p 'test_*.py' 2>&1 | tail -4",
+   "python -m unittest tests.dialects.test_postgres tests.dialects.test_tsql tests.dialects.test_hive tests.dialects.test_mysql tests.dialects.test_dialect tests.dialects.test_duckdb 2>&1 | tail -15",
+   "python - <<'E'\np='tests/dialects/test_tsql.py'\ns=open(p).read()\na=\"    def test_null_ordering_simulation\"\nnew='''    def test_day_month_year(self):\n        self.validate_all(\n            \"SELECT DAY(x), MONTH(x), YEAR(x)\",\n            write={\n                \"tsql\": \"SELECT DAY(x), MONTH(x), YEAR(x)\",\n                \"postgres\": \"SELECT EXTRACT(DAY FROM CAST(x AS DATE)), EXTRACT(MONTH FROM CAST(x AS DATE)), EXTRACT(YEAR FROM CAST(x AS DATE))\",\n            },\n        )\n\n        date_expr = annotate_types(parse_one(\"YEAR(CAST(x AS DATE))\", read=\"tsql\"), dialect=\"tsql\")\n        self.assertEqual(date_expr.sql(\"postgres\"), \"EXTRACT(YEAR FROM CAST(x AS DATE))\")\n\n        int_expr = annotate_types(parse_one(\"YEAR(CAST(x AS INT))\", read=\"tsql\"), dialect=\"tsql\")\n        with self.assertRaises(UnsupportedError):\n            int_expr.sql(\"postgres\", unsupported_level=ErrorLevel.RAISE)\n\n'''\ns=s.replace(a,new+a,1).replace(\"from sqlglot.errors import ParseError\",\"from sqlglot.errors import ErrorLevel, ParseError\")\nopen(p,'w').write(s)\nE\npython -m unittest tests.dialects.test_tsql 2>&1 | tail -4"
   ]
  },
  {
   "task": "646295528c-fix-postgres-transpile-day-month-year-to",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 4,
-  "test_cmds": 1,
-  "broad_test_cmds": 0,
+  "bash_cmds": 6,
+  "test_cmds": 3,
+  "broad_test_cmds": 2,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "grep -n \"def test_\" tests/dialects/test_tsql.py | head -3 && python - <<'E'\np='tests/dialects/test_tsql.py'\ns=open(p).read()\ni=s.index(\"    def test_\",s.index(\"class TestTSQL\"))\nt='''    def test_day_month_year_to_postgres(self):\n        self.validate_all(\n            \"SELECT DAY(x), MONTH(x), YEAR(x)\",\n            write={\n                \"tsql\": \"SELECT DAY(x), MONTH(x), YEAR(x)\",\n                \"postgres\": \"SELECT EXTRACT(DAY FROM CAST(x AS DATE)), EXTRACT(MONTH FROM CAST(x AS DATE)), EXTRACT(YEAR FROM CAST(x AS DATE))\",\n            },\n        )\n\n'''\nopen(p,'w').write(s[:i]+t+s[i:])\nE\npython -m unittest tests.dialects.test_tsql tests.dialects.test_postgres tests.dialects.test_mysql tests.dialects.test_dialect 2>&1 | tail -15"
+   "cd /home/agentrun/proviso-work/agent/runs/646295528c-fix-postgres-transpile-day-month-year-to/baseline/2/repo; python -m unittest discover -s tests 2>&1 | tail -30",
+   "cd /home/agentrun/proviso-work/agent/runs/646295528c-fix-postgres-transpile-day-month-year-to/baseline/2/repo; python -m unittest discover 2>&1 | tail -30",
+   "cd /home/agentrun/proviso-work/agent/runs/646295528c-fix-postgres-transpile-day-month-year-to/baseline/2/repo; python - <<'E'\np='tests/dialects/test_tsql.py'\ns=open(p).read()\ni=s.index(\"    def test_\")\ns=s[:i]+'''    def test_day_month_year_to_postgres(self):\n        self.validate_all(\n            \"SELECT DAY(x), MONTH(x), YEAR(x)\",\n            write={\n                \"tsql\": \"SELECT DAY(x), MONTH(x), YEAR(x)\",\n                \"postgres\": \"SELECT EXTRACT(DAY FROM CAST(x AS DATE)), EXTRACT(MONTH FROM CAST(x AS DATE)), EXTRACT(YEAR FROM CAST(x AS DATE))\",\n            },\n        )\n        self.validate_all(\n            \"SELECT YEAR(CAST(x AS DATE))\",\n            write={\"postgres\": \"SELECT EXTRACT(YEAR FROM CAST(x AS DATE))\"},\n        )\n\n'''+s[i:]\nopen(p,'w').write(s)\nE\npython -m unittest tests.dialects.test_tsql 2>&1 | tail -3"
   ]
  },
  {
@@ -599,34 +596,34 @@
   "task": "6581f8c38b-fix-hive-parse-month-day-without-leading",
   "arm": "baseline",
   "rep": "1",
-  "bash_cmds": 18,
-  "test_cmds": 9,
-  "broad_test_cmds": 1,
+  "bash_cmds": 21,
+  "test_cmds": 8,
+  "broad_test_cmds": 2,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\np='sqlglot/generators/hive.py'\ns=open(p).read()\ns=s.replace('''    LAX_INVERSE_TIME_MAPPING: t.ClassVar[dict[str, str]] = {}\n    LAX_INVERSE_TIME_TRIE: t.ClassVar[dict] = {}\n\n''','',1)\ns=s.replace('''    def timetostr_sql(self, expression: exp.TimeToStr) -> str:''','''    def format_time(\n        self,\n        expression: exp.Expr,\n        inverse_time_mapping: dict[str, str] | None = None,\n        inverse_time_trie: dict | None = None,\n    ) -> str | None:\n        # Spark's MM / dd parse strictly, so a lenient %m / %d must become M / d when parsing\n        if (\n            inverse_time_mapping is None\n            and isinstance(\n                expression, (exp.StrToDate, exp.StrToTime, exp.TsOrDsToDate, exp.StrToUnix)\n            )\n            and not expression.meta.get(\"strict_format\")\n        ):\n            inverse_time_mapping = {\n                **self.dialect.INVERSE_TIME_MAPPING,\n                \"%m\": \"M\",\n                \"%d\": \"d\",\n            }\n            inverse_time_trie = new_trie(inverse_time_mapping)\n        return super().format_time(expression, inverse_time_mapping, inverse_time_trie)\n\n    def timetostr_sql(self, expression: exp.TimeToStr) -> str:''',1)\ns=s.replace(\"from sqlglot.generator import unsupported_args\",\"from sqlglot.generator import unsupported_args\\nfrom sqlglot.trie import new_trie\",1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import transpile\nfor q,r in [(\"SELECT STRPTIME('2016-1-1', '%Y-%m-%d')\",\"duckdb\"),(\"SELECT STR_TO_DATE('04/05/2013', '%m/%d/%Y')\",\"mysql\"),(\"SELECT TO_DATE('1/1/2020','MM/dd/yyyy')\",\"spark\"),(\"SELECT TO_TIMESTAMP('1/1/2020','MM/dd/yyyy')\",\"databricks\"),(\"SELECT DATE_FORMAT(x,'MM/dd')\",\"spark\")]:\n    for w in [\"spark\",\"hive\",\"databricks\",\"duckdb\",\"mysql\"]:\n        print(r,w,transpile(q,read=r,write=w)[0])\nE\npython -m unittest discover -s tests 2>&1 | tail -40",
-   "python -m unittest 2>&1 | tail -60",
-   "python -m unittest 2>&1 | grep -E \"^(FAIL|ERROR)|^AssertionError|Error:\" | head -80"
+   "cd /home/agentrun/proviso-work/agent/runs/6581f8c38b-fix-hive-parse-month-day-without-leading/baseline/1/repo; sed -i 's/^from sqlglot.generators.hive import HIVE_DATE_FORMAT, HiveGenerator, HIVE_TS_OR_DS_EXPRESSIONS/from sqlglot.generators.hive import (\\n    HIVE_DATE_FORMAT,\\n    HiveGenerator,\\n    HIVE_TS_OR_DS_EXPRESSIONS,\\n    _lax_format_time,\\n)/' sqlglot/generators/spark2.py\npython - <<'E'\nfrom sqlglot import transpile\nfor q,r in [(\"SELECT STRPTIME('2016-1-1', '%Y-%m-%d')\",\"duckdb\"),(\"SELECT STR_TO_DATE('04/05/2013', '%m/%d/%Y')\",\"mysql\")]:\n    for w in (\"spark\",\"hive\",\"databricks\"): print(transpile(q,read=r,write=w)[0])\nfor q in [\"SELECT TO_DATE(x, 'MM/dd/yyyy')\",\"SELECT TO_TIMESTAMP(x, 'MM/dd/yyyy')\",\"SELECT UNIX_TIMESTAMP(x, 'MM/dd/yyyy')\",\"SELECT DATE_FORMAT(x, 'MM/dd/yyyy')\",\"SELECT TO_DATE(x, 'M/d/yyyy')\"]:\n    print(transpile(q,read=\"spark\",write=\"spark\")[0], '|', transpile(q,read=\"spark\",write=\"duckdb\")[0],'|', transpile(q,read=\"spark\",write=\"mysql\")[0])\nprint(transpile(\"SELECT DATE_FORMAT(x,'%m/%d')\",read=\"duckdb\",write=\"spark\")[0])\nE\npython -m pytest tests -q -x 2>&1 | tail -15",
+   "cd /home/agentrun/proviso-work/agent/runs/6581f8c38b-fix-hive-parse-month-day-without-leading/baseline/1/repo; python - <<'E'\np='sqlglot/dialects/dialect.py'\ns=open(p).read()\ns=s.replace('''            if strict not in klass.INVERSE_TIME_MAPPING and lax in klass.INVERSE_TIME_MAPPING:\n                klass.INVERSE_TIME_MAPPING[strict] = klass.INVERSE_TIME_MAPPING[lax]''','''            if strict not in klass.INVERSE_TIME_MAPPING:\n                klass.INVERSE_TIME_MAPPING[strict] = klass.INVERSE_TIME_MAPPING.get(lax, lax)''',1)\nopen(p,'w').write(s)\nE\npip list 2>/dev/null | grep -i pytz; python -m unittest discover -s tests -q 2>&1 | tail -30",
+   "cd /home/agentrun/proviso-work/agent/runs/6581f8c38b-fix-hive-parse-month-day-without-leading/baseline/1/repo; python -m unittest -q $(ls tests/*.py tests/dialects/*.py | grep -v \"__init__\\|helpers\\|bigquery\\|test_docs\" | sed 's/\\.py//;s#/#.#g') 2>&1 | grep -v \"^  File\\|^    \" | tail -40"
   ]
  },
  {
   "task": "6581f8c38b-fix-hive-parse-month-day-without-leading",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 23,
-  "test_cmds": 6,
-  "broad_test_cmds": 1,
+  "bash_cmds": 16,
+  "test_cmds": 9,
+  "broad_test_cmds": 4,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "cd /home/agentrun/proviso-work/agent/runs/6581f8c38b-fix-hive-parse-month-day-without-leading/baseline/2/repo; sed -i 's/^from sqlglot.parsers.spark import SparkParser/from sqlglot.parsers.hive import _build_strict_time\\nfrom sqlglot.parsers.spark import SparkParser/' sqlglot/parsers/databricks.py\npython - <<'E'\nfrom sqlglot import transpile as t\nfor q,r in [(\"SELECT STRPTIME('2016-1-1', '%Y-%m-%d')\",'duckdb'),(\"SELECT STR_TO_DATE('04/05/2013', '%m/%d/%Y')\",'mysql')]:\n    for w in ['spark','hive','databricks']: print(t(q,read=r,write=w))\nfor q in [\"SELECT TO_DATE(x, 'MM/dd/yyyy')\",\"SELECT TO_TIMESTAMP(x, 'MM/dd/yyyy')\",\"SELECT UNIX_TIMESTAMP(x, 'MM/dd/yyyy')\",\"SELECT DATE_FORMAT(x, 'MM/dd/yyyy')\"]:\n    print(t(q,read='spark',write='spark'),t(q,read='spark',write='duckdb'),t(q,read='spark',write='mysql'))\nprint(t(\"SELECT DATE_FORMAT(x, '%m/%d')\",read='duckdb',write='spark'))\nE\npython -m unittest discover -s tests -q 2>&1 | tail -30",
-   "cd /home/agentrun/proviso-work/agent/runs/6581f8c38b-fix-hive-parse-month-day-without-leading/baseline/2/repo; python -m unittest -q 2>&1 | tail -40",
-   "cd /home/agentrun/proviso-work/agent/runs/6581f8c38b-fix-hive-parse-month-day-without-leading/baseline/2/repo; python -m unittest -q 2>&1 | grep -E \"^(FAIL|ERROR)|^AssertionError|^\\w*Error\" | head -70; git stash -q; python -m unittest -q 2>&1 | tail -3; git stash pop -q"
+   "python - <<'E'\np='sqlglot/generators/hive.py'\ns=open(p).read()\ns=s.replace(\"from sqlglot.generator import unsupported_args\\n\",\"from sqlglot.generator import unsupported_args\\nfrom sqlglot.trie import new_trie\\n\",1)\ns=s.replace(\"class HiveGenerator(generator.Generator):\\n\",\"class HiveGenerator(generator.Generator):\\n    _lax_inverse_time_mapping: tuple[dict[str, str], dict] | None = None\\n\\n\",1)\nopen(p,'w').write(s)\np='sqlglot/generators/spark2.py'\ns=open(p).read()\ns=s.replace('''    return self.func(\"TO_DATE\", expression.this, time_format)\n\n\ndef _unix''','''    return self.func(\"TO_DATE\", expression.this, self.format_parse_time(expression))\n\n\ndef _unix''')\ns=s.replace('self.func(\"TO_TIMESTAMP\", e.this, self.format_time(e))','self.func(\"TO_TIMESTAMP\", e.this, self.format_parse_time(e))')\nopen(p,'w').write(s)\nE\ngit diff --stat; grep -n \"UNIX_TIMESTAMP\\|StrToUnix\" sqlglot/generators/{hive,spark,spark2,databricks}.py | head\npython -c \"\nfrom sqlglot import transpile as t\nprint(t(\\\"SELECT STRPTIME('2016-1-1', '%Y-%m-%d')\\\",read='duckdb',write='spark'))\nprint(t(\\\"SELECT STR_TO_DATE('04/05/2013', '%m/%d/%Y')\\\",read='mysql',write='databricks'))\nprint(t(\\\"SELECT STR_TO_DATE('04/05/2013', '%m/%d/%Y')\\\",read='mysql',write='hive'))\nprint(t(\\\"SELECT TO_DATE('04/05/2013', 'MM/dd/yyyy'), DATE_FORMAT(x,'MM/dd')\\\",read='spark',write='duckdb'))\nprint(t(\\\"SELECT TO_DATE('04/05/2013', 'MM/dd/yyyy'), DATE_FORMAT(x,'MM/dd')\\\",read='spark',write='spark'))\nprint(t(\\\"SELECT STRFTIME(x,'%m/%d')\\\",read='duckdb',write='spark'))\n\"\npython -m unittest discover -s tests -q 2>&1 | tail -30",
+   "sed -i '124s/.*/    return self.func(\"UNIX_TIMESTAMP\", expression.this, self.format_parse_time(expression))/' sqlglot/generators/hive.py\npython -m unittest tests.dialects.test_hive tests.dialects.test_spark tests.dialects.test_databricks tests.dialects.test_duckdb tests.dialects.test_mysql tests.dialects.test_dialect tests.dialects.test_presto tests.test_transpile 2>&1 | tail -40",
+   "python - <<'E'\np='sqlglot/generators/hive.py'\ns=open(p).read()\ns=s.replace('''    return self.func(\"UNIX_TIMESTAMP\", expression.this, self.format_parse_time(expression))''','''    fmt = time_format(\"hive\")(self, expression)\n    return self.func(\"UNIX_TIMESTAMP\", expression.this, fmt and self.format_parse_time(expression))''')\nopen(p,'w').write(s)\nE\npython -m unittest tests.dialects.test_hive tests.dialects.test_spark tests.dialects.test_databricks tests.dialects.test_duckdb tests.dialects.test_mysql tests.dialects.test_dialect tests.dialects.test_presto tests.test_transpile 2>&1 | grep -A12 \"^FAIL\\|^Assertion\" | grep -v \"^  File\\|^    \""
   ]
  },
  {
@@ -701,34 +698,34 @@
   "task": "66316e335f-fix-hive-parse-single-digit-hour-minute",
   "arm": "baseline",
   "rep": "1",
-  "bash_cmds": 15,
-  "test_cmds": 9,
-  "broad_test_cmds": 3,
+  "bash_cmds": 16,
+  "test_cmds": 10,
+  "broad_test_cmds": 1,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\nimport re\ndef sub(p,a,b):\n    s=open(p).read(); assert a in s; open(p,'w').write(s.replace(a,b,1))\nsub('sqlglot/dialects/hive.py','''        \"HH\": \"%H\",''','''        \"HH\": \"%Hstrict\",''')\nsub('sqlglot/dialects/hive.py','''        \"hh\": \"%I\",''','''        \"hh\": \"%Istrict\",''')\nsub('sqlglot/dialects/hive.py','''        \"mm\": \"%M\",''','''        \"mm\": \"%Mstrict\",''')\nsub('sqlglot/dialects/hive.py','''        \"ss\": \"%S\",''','''        \"ss\": \"%Sstrict\",''')\nsub('sqlglot/dialects/spark2.py','''{**Hive.TIME_MAPPING, \"MM\": \"%m\", \"dd\": \"%d\"}''','''{\n        **Hive.TIME_MAPPING,\n        \"MM\": \"%m\",\n        \"dd\": \"%d\",\n        \"HH\": \"%H\",\n        \"hh\": \"%I\",\n        \"mm\": \"%M\",\n        \"ss\": \"%S\",\n    }''')\nsub('sqlglot/dialects/dialect.py','''STRICT_TIME_FORMATS = {\"%mstrict\": \"%m\", \"%dstrict\": \"%d\"}''','''STRICT_TIME_FORMATS = {\n    \"%mstrict\": \"%m\",\n    \"%dstrict\": \"%d\",\n    \"%Hstrict\": \"%H\",\n    \"%Istrict\": \"%I\",\n    \"%Mstrict\": \"%M\",\n    \"%Sstrict\": \"%S\",\n}''')\nsub('sqlglot/generators/hive.py','''%(?:mstrict|dstrict|[-:].|.)''','''%(?:[mdHIMS]strict|[-:].|.)''')\nsub('sqlglot/generators/hive.py','''{\"%m\": \"%-m\", \"%d\": \"%-d\"}''','''{\n    \"%m\": \"%-m\",\n    \"%d\": \"%-d\",\n    \"%H\": \"%-H\",\n    \"%I\": \"%-I\",\n    \"%M\": \"%-M\",\n    \"%S\": \"%-S\",\n}''')\nE\nsed -n 10,25p sqlglot/dialects/spark2.py\npython - <<'E'\nfrom sqlglot import transpile as t\nprint(t(\"SELECT STRPTIME('2016-1-1 3:4:5', '%Y-%m-%d %H:%M:%S')\",read=\"duckdb\",write=\"spark\"))\nprint(t(\"SELECT STR_TO_DATE('04/05/2013 01:02:03', '%m/%d/%Y %H:%i:%s')\",read=\"mysql\",write=\"databricks\"))\nprint(t(\"SELECT STR_TO_TIME(x, '%Y%m%d%H%M%S')\",write=\"spark\"))\nprint(t(\"SELECT TO_TIMESTAMP(x, 'yyyy-MM-dd HH:mm:ss')\",read=\"spark\",write=\"spark\"))\nprint(t(\"SELECT TO_TIMESTAMP(x, 'yyyy-MM-dd HH:mm:ss')\",read=\"spark\",write=\"duckdb\"))\nprint(t(\"SELECT STR_TO_TIME(x, '%Y-%m-%d %H:%M:%S')\",write=\"spark2\"))\nE\npython -m unittest discover -s tests -q 2>&1 | tail -30",
-   "python - <<'E'\np='sqlglot/dialects/spark.py'\ns=open(p).read()\ns=s.replace('from sqlglot.dialects.spark2 import Spark2\\n','from sqlglot.dialects.hive import Hive\\nfrom sqlglot.dialects.spark2 import Spark2\\n')\ns=s.replace('{**Spark2.TIME_MAPPING, \"MM\": \"%mstrict\", \"dd\": \"%dstrict\"}','Hive.TIME_MAPPING')\ns=s.replace('unlike Spark 2 (SimpleDateFormat)','unlike Spark 2 (SimpleDateFormat); same as Hive')\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import transpile as t\nprint(t(\"SELECT TO_TIMESTAMP(x, 'yyyy-MM-dd HH:mm:ss')\",read=\"spark\",write=\"spark\"))\nprint(t(\"SELECT TO_TIMESTAMP(x, 'yyyy-MM-dd HH:mm:ss')\",read=\"spark\",write=\"duckdb\"))\nprint(t(\"SELECT STR_TO_TIME(x, '%Y-%m-%d %H:%M:%S')\",write=\"databricks\"))\nE\npython -m unittest tests.test_transpile tests.test_time tests.dialects.test_dialect tests.dialects.test_hive tests.dialects.test_spark tests.dialects.test_databricks tests.dialects.test_duckdb tests.dialects.test_mysql tests.dialects.test_presto tests.dialects.test_snowflake tests.dialects.test_bigquery 2>&1 | tail -40",
-   "python -m unittest tests.test_transpile tests.test_time tests.dialects.test_dialect tests.dialects.test_hive tests.dialects.test_spark tests.dialects.test_databricks tests.dialects.test_duckdb tests.dialects.test_mysql tests.dialects.test_presto tests.dialects.test_snowflake tests.dialects.test_bigquery 2>&1 | grep -E \"^(FAIL|ERROR|AssertionError|\\w*Error)\" "
+   "python -m unittest discover -s tests -q 2>&1 | tail -40",
+   "python -m unittest 2>&1 | tail -60",
+   "sed -n 1,30p tests/test_time.py; python -m unittest 2>&1 | grep -E \"^(FAIL|ERROR)\" | sort | uniq -c"
   ]
  },
  {
   "task": "66316e335f-fix-hive-parse-single-digit-hour-minute",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 15,
-  "test_cmds": 9,
-  "broad_test_cmds": 6,
+  "bash_cmds": 16,
+  "test_cmds": 7,
+  "broad_test_cmds": 4,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\nimport re\np='sqlglot/dialects/hive.py'\ns=open(p).read()\nfor a,b in [('\"HH\": \"%H\"','\"HH\": \"%Hstrict\"'),('\"hh\": \"%I\"','\"hh\": \"%Istrict\"'),('\"mm\": \"%M\"','\"mm\": \"%Mstrict\"'),('\"ss\": \"%S\"','\"ss\": \"%Sstrict\"')]:\n    assert a in s; s=s.replace(a,b)\ns=s.replace(\"# Hive 4.0+ parses MM/dd strictly\",\"# Hive 4.0+ parses MM/dd/HH/hh/mm/ss strictly\")\nopen(p,'w').write(s)\np='sqlglot/dialects/spark2.py'\ns=open(p).read()\ns=s.replace('TIME_MAPPING = {**Hive.TIME_MAPPING, \"MM\": \"%m\", \"dd\": \"%d\"}','''TIME_MAPPING = {\n        **Hive.TIME_MAPPING,\n        \"MM\": \"%m\",\n        \"dd\": \"%d\",\n        \"HH\": \"%H\",\n        \"hh\": \"%I\",\n        \"mm\": \"%M\",\n        \"ss\": \"%S\",\n    }''')\nopen(p,'w').write(s)\np='sqlglot/dialects/spark.py'\ns=open(p).read()\ns=s.replace('TIME_MAPPING = {**Spark2.TIME_MAPPING, \"MM\": \"%mstrict\", \"dd\": \"%dstrict\"}','''TIME_MAPPING = {\n        **Spark2.TIME_MAPPING,\n        \"MM\": \"%mstrict\",\n        \"dd\": \"%dstrict\",\n        \"HH\": \"%Hstrict\",\n        \"hh\": \"%Istrict\",\n        \"mm\": \"%Mstrict\",\n        \"ss\": \"%Sstrict\",\n    }''')\nopen(p,'w').write(s)\np='sqlglot/dialects/dialect.py'\ns=open(p).read()\ns=s.replace('STRICT_TIME_FORMATS = {\"%mstrict\": \"%m\", \"%dstrict\": \"%d\"}','''STRICT_TIME_FORMATS = {\n    \"%mstrict\": \"%m\",\n    \"%dstrict\": \"%d\",\n    \"%Hstrict\": \"%H\",\n    \"%Istrict\": \"%I\",\n    \"%Mstrict\": \"%M\",\n    \"%Sstrict\": \"%S\",\n}''')\ns=s.replace(\"zero-padded MM/dd to\",\"zero-padded MM/dd/HH/hh/mm/ss to\").replace(\"lax %m/%d renders\",\"lax %m/%d/%H/%I/%M/%S renders\")\nopen(p,'w').write(s)\np='sqlglot/generators/hive.py'\ns=open(p).read()\ns=s.replace('r\"%(?:mstrict|dstrict|[-:].|.)\"','r\"%(?:[mdHIMS]strict|[-:].|.)\"')\ns=s.replace('{\"%m\": \"%-m\", \"%d\": \"%-d\"}','{\\n    \"%m\": \"%-m\",\\n    \"%d\": \"%-d\",\\n    \"%H\": \"%-H\",\\n    \"%I\": \"%-I\",\\n    \"%M\": \"%-M\",\\n    \"%S\": \"%-S\",\\n}')\ns=s.replace(\"lax %m/%d in\",\"lax %m/%d/%H/%I/%M/%S in\").replace(\"non-padded %-m/%-d,\",\"non-padded %-m/%-d/etc,\").replace(\"a %m/%d is changed\",\"a field is changed\")\nopen(p,'w').write(s)\nE\ngrep -n \"strict\" sqlglot/dialects/spark.py sqlglot/dialects/databricks.py | head\npython - <<'E'\nfrom sqlglot import transpile\nfor q,r in [(\"SELECT STRPTIME('2016-1-1 3:4:5', '%Y-%m-%d %H:%M:%S')\",\"duckdb\"),(\"SELECT STR_TO_DATE('04/05/2013 01:02:03', '%m/%d/%Y %H:%i:%s')\",\"mysql\"),(\"SELECT STR_TO_TIME(x, '%Y-%m-%d %H:%M:%S')\",None),(\"SELECT STR_TO_TIME(x, '%Y%m%d%H%M%S')\",None)]:\n    for w in(\"spark\",\"hive\",\"databricks\"): print(transpile(q,read=r,write=w)[0])\nprint(transpile(\"SELECT TO_TIMESTAMP(x, 'yyyy-MM-dd HH:mm:ss')\",read=\"spark\",write=\"duckdb\")[0])\nprint(transpile(\"SELECT TO_TIMESTAMP(x, 'yyyy-MM-dd HH:mm:ss')\",read=\"spark\",write=\"spark\")[0])\nE\npython -m unittest discover -s tests -q 2>&1 | tail -30",
-   "python -m unittest discover -s tests -t . -q 2>&1 | tail -40",
-   "grep -n \"KNOWN_CANONICAL_ATOM\" -B2 -A3 tests/test_time.py | head -20; python -m unittest discover -s tests -t . -q 2>&1 | grep -E \"^(FAIL|ERROR)\""
+   "cd /home/agentrun/proviso-work/agent/runs/66316e335f-fix-hive-parse-single-digit-hour-minute/baseline/2/repo/sqlglot; python - <<'E'\nimport re\np='dialects/dialect.py'; s=open(p).read()\ns=s.replace('STRICT_TIME_FORMATS = {\"%mstrict\": \"%m\", \"%dstrict\": \"%d\"}','''STRICT_TIME_FORMATS = {\n    \"%mstrict\": \"%m\",\n    \"%dstrict\": \"%d\",\n    \"%Hstrict\": \"%H\",\n    \"%Istrict\": \"%I\",\n    \"%Mstrict\": \"%M\",\n    \"%Sstrict\": \"%S\",\n}''')\ns=s.replace(\"their zero-padded MM/dd to\",\"their zero-padded MM/dd/HH/hh/mm/ss to\")\nopen(p,'w').write(s)\np='dialects/hive.py'; s=open(p).read()\ns=s.replace('\"HH\": \"%H\",','\"HH\": \"%Hstrict\",').replace('\"hh\": \"%I\",','\"hh\": \"%Istrict\",').replace('\"mm\": \"%M\",','\"mm\": \"%Mstrict\",').replace('\"ss\": \"%S\",','\"ss\": \"%Sstrict\",')\nopen(p,'w').write(s)\np='dialects/spark2.py'; s=open(p).read()\ns=s.replace('{**Hive.TIME_MAPPING, \"MM\": \"%m\", \"dd\": \"%d\"}','''{\n        **Hive.TIME_MAPPING,\n        \"MM\": \"%m\",\n        \"dd\": \"%d\",\n        \"HH\": \"%H\",\n        \"hh\": \"%I\",\n        \"mm\": \"%M\",\n        \"ss\": \"%S\",\n    }''')\nopen(p,'w').write(s)\np='dialects/spark.py'; s=open(p).read()\ns=s.replace('''TIME_MAPPING = {**Spark2.TIME_MAPPING, \"MM\": \"%mstrict\", \"dd\": \"%dstrict\"}''','''TIME_MAPPING = {\n        **Spark2.TIME_MAPPING,\n        \"MM\": \"%mstrict\",\n        \"dd\": \"%dstrict\",\n        \"HH\": \"%Hstrict\",\n        \"hh\": \"%Istrict\",\n        \"mm\": \"%Mstrict\",\n        \"ss\": \"%Sstrict\",\n    }''')\ns=s.replace(\"parses MM/dd strictly\",\"parses MM/dd/HH/hh/mm/ss strictly\")\nopen(p,'w').write(s)\np='generators/hive.py'; s=open(p).read()\ns=s.replace('r\"%(?:mstrict|dstrict|[-:].|.)\"','r\"%(?:[mdHIMS]strict|[-:].|.)\"')\ns=s.replace('{\"%m\": \"%-m\", \"%d\": \"%-d\"}','{\"%m\": \"%-m\", \"%d\": \"%-d\", \"%H\": \"%-H\", \"%I\": \"%-I\", \"%M\": \"%-M\", \"%S\": \"%-S\"}')\ns=s.replace(\"\"\"(\"'yyyy-M-d HH:mm:ss'\", \"'yyyy-M-d'\")\"\"\",\"\"\"(\"'yyyy-M-d H:m:s'\", \"'yyyy-M-d'\")\"\"\")\ns=s.replace(\"non-padded month/day\",\"non-padded fields\").replace(\"lax %m/%d in\",\"lax %m/%d/%H/%I/%M/%S in\").replace(\"%-m/%-d, which\",\"%-m/%-d/etc., which\")\nopen(p,'w').write(s)\nE\nsed -n 165,185p generators/hive.py; cd ..; python -m unittest discover tests 2>&1 | tail -40",
+   "python -m unittest tests.dialects.test_dialect tests.dialects.test_hive tests.dialects.test_spark tests.dialects.test_databricks tests.dialects.test_duckdb tests.dialects.test_mysql tests.test_transpile 2>&1 | grep -E \"^(FAIL|ERROR|AssertionError|- |\\+ |\\?|Ran)\" | head -60\npython -c \"\nfrom sqlglot import transpile\nfor q,r in [(\\\"SELECT STRPTIME('2016-1-1 3:4:5', '%Y-%m-%d %H:%M:%S')\\\",'duckdb'),(\\\"SELECT STR_TO_DATE('04/05/2013 01:02:03', '%m/%d/%Y %H:%i:%s')\\\",'mysql'),(\\\"SELECT STR_TO_TIME(x, '%Y%m%d%H%M%S')\\\",None)]:\n  print(transpile(q,read=r,write='spark')[0])\nprint(transpile(\\\"SELECT TO_TIMESTAMP(x, 'HH:mm:ss')\\\",read='spark',write='duckdb')[0], transpile(\\\"SELECT TO_TIMESTAMP(x, 'HH:mm:ss')\\\",read='spark',write='spark')[0])\"",
+   "python - <<'E'\nimport re\ndef sub(p, pairs):\n    s=open(p).read()\n    for a,b in pairs:\n        assert a in s,(a)\n        s=s.replace(a,b)\n    open(p,'w').write(s)\nsub('tests/dialects/test_hive.py',[\n(\"FORMAT_DATE('%Y-%m-%d %T', CAST('2020-01-01' AS DATETIME))\",\"FORMAT_DATE('%Y-%m-%d %H:%M:%S', CAST('2020-01-01' AS DATETIME))\"),\n(\"DATE_FORMAT(CAST('2020-01-01' AS TIMESTAMP), '%Y-%m-%d %T')\",\"DATE_FORMAT(CAST('2020-01-01' AS TIMESTAMP), '%Y-%m-%d %H:%i:%s')\"),\n(\"DATE_PARSE(CAST(x AS VARCHAR), '%Y-%m-%d %T')), PARSE_DATETIME(DATE_FORMAT(x, '%Y-%m-%d %T')\",\"DATE_PARSE(CAST(x AS VARCHAR), '%Y-%m-%d %H:%i:%s')), PARSE_DATETIME(DATE_FORMAT(x, '%Y-%m-%d %H:%i:%s')\"),\n(\"%mstrict-%dstrict %H:%M:%S\",\"%mstrict-%dstrict %Hstrict:%Mstrict:%Sstrict\"),\n])\nsub('tests/dialects/test_dialect.py',[(\"dTHH:mm:ss\",\"dTH:m:s\")])\nsub('tests/dialects/test_duckdb.py',[(\"M/d/yy h:mm a\",\"M/d/yy h:m a\")])\nE\npython -m unittest tests.dialects.test_dialect tests.dialects.test_hive tests.dialects.test_spark tests.dialects.test_databricks tests.dialects.test_duckdb 2>&1 | grep -E \"^(FAIL|ERROR|AssertionError|- |\\+ |Ran)\""
   ]
  },
  {
@@ -802,24 +799,24 @@
   "task": "7f1cf60c88-feat-parser-make-alter-actions-optional",
   "arm": "baseline",
   "rep": "1",
-  "bash_cmds": 18,
-  "test_cmds": 8,
-  "broad_test_cmds": 5,
+  "bash_cmds": 22,
+  "test_cmds": 4,
+  "broad_test_cmds": 1,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\np='sqlglot/parsers/mysql.py'\ns=open(p).read()\ns=s.replace('''        \"AUTO_INCREMENT\": lambda self: self._parse_property_assignment(exp.AutoIncrementProperty),\n        \"COMMENT\": lambda self: self._parse_property_assignment(exp.SchemaCommentProperty),\n        \"FORCE\"''','''        \"FORCE\"''',1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import parse_one\nfor s in ['ALTER TABLE t COMMENT=\\'hi\\', ADD COLUMN c INT','ALTER TABLE t AUTO_INCREMENT=5, COMMENT \\'x\\'','ALTER TABLE t ENGINE=InnoDB PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1))','ALTER TABLE t PARTITION BY HASH(a) PARTITIONS 4']:\n    e=parse_one(s,read='mysql');print(type(e).__name__,e.sql('mysql'))\nE\npython -m unittest discover -s tests 2>&1 | tail -30",
-   "python - <<'E'\np='sqlglot/parser.py'\ns=open(p).read()\ns=s.replace('''            if leading_options and self._prev.token_type == TokenType.COMMA:\n                self._retreat(self._index - 1)\n                self._advance()\n''','')\ns=s.replace(\"        if actions or self._curr:\\n\",\"        if actions or leading_options or self._curr:\\n\",1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import parse_one\nfor s in ['ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8','ALTER TABLE t ENGINE=InnoDB PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1))','ALTER TABLE t COMMENT=\\'hi\\', ADD COLUMN c INT, FORCE']:\n    e=parse_one(s,read='mysql');print(type(e).__name__,e.sql('mysql'))\nE\npython -m unittest discover -s tests -t . 2>&1 | tail -30",
-   "sed -i 's/        if not self._match_texts(self.ALTER_PARSERS, advance=False):/        if this and not self._match_texts(self.ALTER_PARSERS, advance=False):/' sqlglot/parser.py\npython -m unittest discover -s tests -t . 2>&1 | grep -E \"^(FAIL|ERROR)|^Ran\"; git stash -q; python -m unittest discover -s tests -t . 2>&1 | grep -E \"^(FAIL|ERROR)|^Ran\"; git stash pop -q"
+   "cd /home/agentrun/proviso-work/agent/runs/7f1cf60c88-feat-parser-make-alter-actions-optional/baseline/1/repo; sed -i '403s/True/False/' sqlglot/expressions/ddl.py\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"ALTER TABLE t FORCE\",\"ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8\",\"ALTER TABLE t COMMENT='hi', ADD COLUMN c INT\",\"ALTER TABLE t ENGINE=InnoDB PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1))\",\"ALTER TABLE t ADD COLUMN c INT, COMMENT='hi'\",\"ALTER TABLE t ENGINE=InnoDB, ROW_FORMAT=DYNAMIC\",\"ALTER TABLE t PARTITION BY HASH(a) PARTITIONS 4\",\"ALTER TABLE t REMOVE PARTITIONING\",\"ALTER TABLE t\"]:\n    e=parse_one(q,read=\"mysql\"); print(type(e).__name__, e.sql(\"mysql\"), \"|\", e.sql(\"mysql\",pretty=True).replace(\"\\n\",\"\\\\n\"))\nE\npython -m unittest discover -s tests 2>&1 | tail -15",
+   "cd /home/agentrun/proviso-work/agent/runs/7f1cf60c88-feat-parser-make-alter-actions-optional/baseline/1/repo; python - <<'E'\np='tests/dialects/test_mysql.py'\ns=open(p).read()\ns=s.replace(\"    def test_ddl(self):\\n\",\"\"\"    def test_ddl(self):\n        self.validate_identity(\"ALTER TABLE t FORCE\")\n        self.validate_identity(\"ALTER TABLE t ENGINE=InnoDB, ROW_FORMAT=DYNAMIC\")\n        self.validate_identity(\"ALTER TABLE t ADD COLUMN c INT, COMMENT='hi'\")\n        self.validate_identity(\n            \"ALTER TABLE t ENGINE=InnoDB PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1))\"\n        )\n        self.validate_identity(\n            \"ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8\",\n            \"ALTER TABLE t ROW_FORMAT=COMPRESSED, KEY_BLOCK_SIZE=8\",\n        )\n        self.validate_identity(\n            \"ALTER TABLE t COMMENT='hi', ADD COLUMN c INT\",\n            \"ALTER TABLE t ADD COLUMN c INT, COMMENT='hi'\",\n        )\n\"\"\",1)\nopen(p,'w').write(s)\nE\npython -m unittest tests.dialects.test_mysql 2>&1 | tail -4",
+   "cd /home/agentrun/proviso-work/agent/runs/7f1cf60c88-feat-parser-make-alter-actions-optional/baseline/1/repo; python -m unittest tests.dialects.test_mysql 2>&1 | grep -B5 -A12 Error | head -40"
   ]
  },
  {
   "task": "7f1cf60c88-feat-parser-make-alter-actions-optional",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 17,
+  "bash_cmds": 13,
   "test_cmds": 8,
   "broad_test_cmds": 1,
   "intercepts": 0,
@@ -827,9 +824,9 @@
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\np='sqlglot/generator.py'\ns=open(p).read()\ns=s.replace('''        actions = expression.args.get(\"actions\") or []\n\n        if not self.dialect.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN and (\n            actions and isinstance(actions[0], exp.ColumnDef)\n        ):\n            actions_sql = self.expressions(expression, key=\"actions\", flat=True)\n            actions_sql = f\"ADD {actions_sql}\"\n        else:''','''        actions = expression.args.get(\"actions\") or []\n        options = self.expressions(expression, key=\"options\", flat=True)\n\n        if not self.dialect.ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN and (\n            actions and isinstance(actions[0], exp.ColumnDef)\n        ):\n            actions_sql = self.expressions(expression, key=\"actions\", flat=True)\n            actions_sql = f\"ADD {actions_sql}\"\n            options = f\", {options}\" if options else \"\"\n        else:''')\ns=s.replace('''            actions_sql = self.format_args(*actions_list).lstrip(\"\\\\n\")\n''','''            actions_list.extend(self.sql(option) for option in expression.args.get(\"options\") or [])\n            options = \"\"\n            actions_sql = self.format_args(*actions_list).lstrip(\"\\\\n\")\n''')\ns=s.replace('''        options = self.expressions(expression, key=\"options\")\n        options = f\"{', ' if actions_sql else ''}{options}\" if options else \"\"\n''','')\nopen(p,'w').write(s)\nE\npython -c \"\nfrom sqlglot import parse_one\nfor s in ['ALTER TABLE t FORCE','ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8','ALTER TABLE t ENGINE=InnoDB PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1))','ALTER TABLE t COMMENT=\\'hi\\', ADD COLUMN c INT','ALTER TABLE t ADD COLUMN c INT, AUTO_INCREMENT=5','ALTER TABLE t ENGINE=InnoDB, FORCE','ALTER TABLE t FORCE, ENGINE=InnoDB','ALTER TABLE t ENGINE=InnoDB','ALTER TABLE t PARTITION BY HASH (a)']:\n    e=parse_one(s,read='mysql');print(type(e).__name__, e.sql('mysql'));print(e.sql('mysql',pretty=True))\n\"; python -m unittest discover -s tests 2>&1 | tail -30",
+   "python - <<'E'\np='sqlglot/generator.py'\ns=open(p).read()\ns=s.replace('''            if options and isinstance(option, exp.PartitionedByProperty.__mro__[1:2] + (exp.PartitionByListProperty,)):\n                sep = \" \"''','''            if options and isinstance(option, (exp.PartitionByRangeProperty, exp.PartitionByListProperty)):\n                sep = \" \"''')\nopen(p,'w').write(s)\nE\nruff format sqlglot >/dev/null 2>&1\npython -c \"\nfrom sqlglot import parse_one\nfor s in ['ALTER TABLE t FORCE','ALTER TABLE t ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8','ALTER TABLE t ENGINE=InnoDB PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1))','ALTER TABLE t COMMENT=\\'hi\\', ADD COLUMN c INT','ALTER TABLE t ADD COLUMN c INT, AUTO_INCREMENT=5','ALTER TABLE t ENGINE=InnoDB, FORCE','ALTER TABLE t PARTITION BY HASH(a) PARTITIONS 4','ALTER TABLE t']:\n    e=parse_one(s,read='mysql');print(type(e).__name__, e.sql('mysql'))\n\"; python -m unittest discover -s tests 2>&1 | tail -30",
    "python -m unittest 2>&1 | tail -30",
-   "python -m unittest 2>&1 | grep -E \"^(FAIL|ERROR)\"; python -c \"\nfrom sqlglot import parse_one\nprint(repr(parse_one(\\\"ALTER SESSION SET a = 1, b = 2\\\",read='snowflake')))\""
+   "python -m unittest 2>&1 | grep -E \"^(FAIL|ERROR)\"; git stash -q; python -m unittest 2>&1 | tail -2; git stash pop -q"
   ]
  },
  {
@@ -904,7 +901,7 @@
   "task": "9114355463-feat-mysql-allow-constraints-without-nam",
   "arm": "baseline",
   "rep": "1",
-  "bash_cmds": 7,
+  "bash_cmds": 4,
   "test_cmds": 3,
   "broad_test_cmds": 2,
   "intercepts": 0,
@@ -912,25 +909,26 @@
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\np='sqlglot/parser.py'\ns=open(p).read()\ns=s.replace(\"and self._curr.text.upper() in self.SCHEMA_UNNAMED_CONSTRAINTS\\n        )\",\"and self._curr.text.upper() in self.UNNAMED_CONSTRAINT_STARTS\\n        )\")\ns=s.replace(\"    ALTER_TABLE_REQUIRES_ACTION: t.ClassVar = True\\n\",\"    ALTER_TABLE_REQUIRES_ACTION: t.ClassVar = True\\n\\n    CONSTRAINT_NAME_OPTIONAL: t.ClassVar = False\\n    UNNAMED_CONSTRAINT_STARTS: t.ClassVar = {\\\"CHECK\\\", \\\"FOREIGN\\\", \\\"PRIMARY\\\", \\\"UNIQUE\\\"}\\n\",1)\nopen(p,'w').write(s)\np='sqlglot/parsers/mysql.py'\ns=open(p).read()\ns=s.replace(\"    ALTER_TABLE_REQUIRES_ACTION = False\\n\",\"    ALTER_TABLE_REQUIRES_ACTION = False\\n    CONSTRAINT_NAME_OPTIONAL = True\\n\",1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"ALTER TABLE t ADD CONSTRAINT UNIQUE uq_a (a)\",\"CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))\",\"CREATE TABLE t (a INT CONSTRAINT CHECK (a > 0))\",\"CREATE TABLE t (a INT, b INT, CONSTRAINT FOREIGN KEY (a) REFERENCES u (b), CONSTRAINT CHECK (a>1), CONSTRAINT UNIQUE KEY k (a))\",\"ALTER TABLE t ADD CONSTRAINT FOREIGN KEY (a) REFERENCES u (b)\",\"ALTER TABLE t ADD CONSTRAINT PRIMARY KEY (a)\",\"ALTER TABLE t ADD CONSTRAINT CHECK (a>0)\",\"CREATE TABLE t (a INT CONSTRAINT PRIMARY KEY, b INT CONSTRAINT UNIQUE, c INT CONSTRAINT c1 CHECK (c>0))\",\"ALTER TABLE t ADD CONSTRAINT c1 UNIQUE (a)\"]:\n    print(parse_one(q,read=\"mysql\").sql(\"mysql\"))\nE\npython -m unittest discover -s tests -t . 2>&1 | tail -4",
-   "sed -i 's/{\"CHECK\", \"FOREIGN\", \"PRIMARY\", \"UNIQUE\"}/{\"CHECK\", \"FOREIGN KEY\", \"PRIMARY KEY\", \"UNIQUE\"}/' sqlglot/parser.py\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))\",\"CREATE TABLE t (a INT CONSTRAINT CHECK (a > 0))\",\"CREATE TABLE t (a INT, b INT, CONSTRAINT FOREIGN KEY (a) REFERENCES u (b), CONSTRAINT CHECK (a>1), CONSTRAINT UNIQUE KEY k (a))\",\"ALTER TABLE t ADD CONSTRAINT FOREIGN KEY (a) REFERENCES u (b)\",\"ALTER TABLE t ADD CONSTRAINT PRIMARY KEY (a)\",\"ALTER TABLE t ADD CONSTRAINT CHECK (a>0)\",\"CREATE TABLE t (a INT CONSTRAINT PRIMARY KEY, b INT CONSTRAINT UNIQUE, c INT CONSTRAINT c1 CHECK (c>0))\",\"ALTER TABLE t ADD CONSTRAINT c1 UNIQUE (a)\"]:\n    print(parse_one(q,read=\"mysql\").sql(\"mysql\"))\nE\npython -m unittest discover -s tests -t . 2>&1 | grep -E \"^(ERROR|FAIL)|Ran\"",
-   "python - <<'E'\np='tests/dialects/test_mysql.py'\ns=open(p).read()\ns=s.replace(\"    def test_ddl(self):\\n\",\"\"\"    def test_ddl(self):\n        self.validate_identity(\n            \"ALTER TABLE t ADD CONSTRAINT UNIQUE uq_a (a)\", \"ALTER TABLE t ADD UNIQUE uq_a (a)\"\n        )\n        self.validate_identity(\n            \"ALTER TABLE t ADD CONSTRAINT FOREIGN KEY (a) REFERENCES u (b)\",\n            \"ALTER TABLE t ADD FOREIGN KEY (a) REFERENCES u (b)\",\n        )\n        self.validate_identity(\n            \"CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))\",\n            \"CREATE TABLE t (a INT, PRIMARY KEY (a))\",\n        )\n        self.validate_identity(\n            \"CREATE TABLE t (a INT CONSTRAINT CHECK (a > 0))\",\n            \"CREATE TABLE t (a INT CHECK (a > 0))\",\n        )\n\"\"\",1)\nopen(p,'w').write(s)\nE\npython -m unittest tests.dialects.test_mysql 2>&1 | tail -3"
+   "python - <<'E'\nimport re\np='sqlglot/parser.py'\ns=open(p).read()\ns=s.replace(\"\"\"        return self.expression(\n            exp.Constraint(this=self._parse_id_var(), expressions=self._parse_unnamed_constraints())\n        )\n\"\"\",\"\"\"        if unnamed := self._parse_unnamed_constraint(constraints=self.SCHEMA_UNNAMED_CONSTRAINTS):\n            return unnamed\n\n        return self.expression(\n            exp.Constraint(this=self._parse_id_var(), expressions=self._parse_unnamed_constraints())\n        )\n\"\"\")\ns=s.replace(\"\"\"        this = self._parse_id_var() if self._match(TokenType.CONSTRAINT) else None\n\n        procedure\"\"\",\"\"\"        this = None\n        if self._match(TokenType.CONSTRAINT) and not self._match_texts(\n            self.SCHEMA_UNNAMED_CONSTRAINTS, advance=False\n        ):\n            this = self._parse_id_var()\n\n        procedure\"\"\")\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"ALTER TABLE t ADD CONSTRAINT UNIQUE uq_a (a)\",\"CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))\",\"CREATE TABLE t (a INT CONSTRAINT CHECK (a > 0))\",\"CREATE TABLE t (a INT, CONSTRAINT FOREIGN KEY (a) REFERENCES u (b))\",\"ALTER TABLE t ADD CONSTRAINT PRIMARY KEY (a), ADD CONSTRAINT CHECK (a>1)\",\"ALTER TABLE t ADD CONSTRAINT c UNIQUE (a)\",\"CREATE TABLE t (a INT CONSTRAINT c CHECK (a > 0), CONSTRAINT UNIQUE (a))\"]:\n    print(parse_one(q,read=\"mysql\").sql(\"mysql\"))\nE\npython -m unittest discover -s tests -q 2>&1 | tail -5",
+   "cat >> /tmp/t.py <<'E'\nE\npython - <<'E'\np='tests/dialects/test_mysql.py'\ns=open(p).read()\ni=s.index(\"    def test_\")\ns=s[:i]+'''    def test_nameless_constraint(self):\n        self.validate_identity(\n            \"ALTER TABLE t ADD CONSTRAINT UNIQUE uq_a (a)\", \"ALTER TABLE t ADD UNIQUE uq_a (a)\"\n        )\n        self.validate_identity(\n            \"CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))\",\n            \"CREATE TABLE t (a INT, PRIMARY KEY (a))\",\n        )\n        self.validate_identity(\n            \"CREATE TABLE t (a INT CONSTRAINT CHECK (a > 0))\",\n            \"CREATE TABLE t (a INT CHECK (a > 0))\",\n        )\n        self.validate_identity(\n            \"ALTER TABLE t ADD CONSTRAINT FOREIGN KEY (a) REFERENCES u (b)\",\n            \"ALTER TABLE t ADD FOREIGN KEY (a) REFERENCES u (b)\",\n        )\n\n'''+s[i:]\nopen(p,'w').write(s)\nE\npython -m unittest tests.test_parser tests.test_transpile tests.test_optimizer tests.dialects.test_mysql 2>&1 | tail -4; python -m unittest discover -s tests/dialects -t . 2>&1 | tail -4",
+   "python -m unittest tests.test_parser tests.test_transpile tests.test_optimizer tests.dialects.test_mysql 2>&1 | grep -B3 -A12 ERROR | head -30; git stash -q; python -m unittest tests.test_optimizer 2>&1 | tail -3; git stash pop"
   ]
  },
  {
   "task": "9114355463-feat-mysql-allow-constraints-without-nam",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 5,
-  "test_cmds": 2,
-  "broad_test_cmds": 0,
+  "bash_cmds": 9,
+  "test_cmds": 4,
+  "broad_test_cmds": 3,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python -c \"\nfrom sqlglot import parse_one\nfor s in ['CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))','CREATE TABLE t (a INT CONSTRAINT CHECK (a > 0))','CREATE TABLE t (a INT CONSTRAINT UNIQUE, b INT, CONSTRAINT FOREIGN KEY (b) REFERENCES u (id), CONSTRAINT CHECK (b>1), CONSTRAINT UNIQUE KEY k (a), CONSTRAINT c PRIMARY KEY (a))','ALTER TABLE t ADD CONSTRAINT FOREIGN KEY fk (a) REFERENCES u (id), ADD CONSTRAINT CHECK (a>1), ADD CONSTRAINT PRIMARY KEY (a)','CREATE TABLE t (a INT CONSTRAINT PRIMARY KEY, b INT CONSTRAINT REFERENCES u (id))']:\n  print(parse_one(s,read='mysql').sql('mysql'))\n\"; python -m unittest tests.dialects.test_mysql 2>&1 | tail -3",
-   "cd /home/agentrun/proviso-work/agent/runs/9114355463-feat-mysql-allow-constraints-without-nam/baseline/2/repo && python -m unittest tests.dialects.test_mysql 2>&1 | tail -3"
+   "python - <<'E'\np='sqlglot/parsers/mysql.py'\ns=open(p).read()\ns=s.replace(\"\"\"    def _parse_index_constraint_part(\"\"\",\"\"\"    def _parse_constraint_name(self) -> exp.Expr | None:\n        if self._curr and (\n            self._curr.token_type != TokenType.IDENTIFIER\n            and self._curr.text.upper() in self.UNNAMED_CONSTRAINT_KEYWORDS\n        ):\n            return None\n        return super()._parse_constraint_name()\n\n    def _parse_index_constraint_part(\"\"\",1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"ALTER TABLE t ADD CONSTRAINT UNIQUE uq_a (a)\",\"CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))\",\"CREATE TABLE t (a INT CONSTRAINT CHECK (a > 0))\",\"CREATE TABLE t (a INT, b INT, CONSTRAINT FOREIGN KEY (a) REFERENCES u (b), CONSTRAINT UNIQUE KEY k (b), CONSTRAINT CHECK (a>1), CONSTRAINT c PRIMARY KEY (a))\",\"ALTER TABLE t ADD CONSTRAINT FOREIGN KEY (a) REFERENCES u (b)\",\"ALTER TABLE t ADD CONSTRAINT PRIMARY KEY (a)\",\"ALTER TABLE t ADD CONSTRAINT CHECK (a>1)\",\"CREATE TABLE t (a INT CONSTRAINT UNIQUE, b INT CONSTRAINT PRIMARY KEY)\"]:\n    print(parse_one(q,read=\"mysql\").sql(\"mysql\"))\nE\npython -m unittest discover -s tests -t . 2>&1 | tail -4",
+   "sed -i 's/(constraint := self._parse_unnamed_constraint()):/(\\n            constraint := self._parse_unnamed_constraint(constraints=self.SCHEMA_UNNAMED_CONSTRAINTS)\\n        ):/' sqlglot/parser.py\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))\",\"CREATE TABLE t (a INT CONSTRAINT CHECK (a > 0))\",\"CREATE TABLE t (a INT, b INT, CONSTRAINT FOREIGN KEY (a) REFERENCES u (b), CONSTRAINT UNIQUE KEY k (b), CONSTRAINT CHECK (a>1), CONSTRAINT c PRIMARY KEY (a))\",\"ALTER TABLE t ADD CONSTRAINT FOREIGN KEY (a) REFERENCES u (b)\",\"ALTER TABLE t ADD CONSTRAINT PRIMARY KEY (a)\",\"ALTER TABLE t ADD CONSTRAINT CHECK (a>1)\",\"CREATE TABLE t (a INT CONSTRAINT UNIQUE, b INT CONSTRAINT PRIMARY KEY)\"]:\n    print(parse_one(q,read=\"mysql\").sql(\"mysql\"))\nE\npython -m unittest discover -s tests -t . 2>&1 | grep -E \"^(ERROR|FAIL)|Ran|OK\"",
+   "sed -i 's/{\"UNIQUE\", \"PRIMARY\", \"CHECK\", \"FOREIGN\"}/{\"UNIQUE\", \"PRIMARY KEY\", \"CHECK\", \"FOREIGN KEY\"}/' sqlglot/parsers/mysql.py\npython - <<'E'\nfrom sqlglot import parse_one\nfor q in [\"CREATE TABLE t (a INT, CONSTRAINT PRIMARY KEY (a))\",\"CREATE TABLE t (a INT CONSTRAINT CHECK (a > 0))\",\"CREATE TABLE t (a INT, b INT, CONSTRAINT FOREIGN KEY (a) REFERENCES u (b), CONSTRAINT UNIQUE KEY k (b), CONSTRAINT CHECK (a>1), CONSTRAINT c PRIMARY KEY (a))\",\"ALTER TABLE t ADD CONSTRAINT FOREIGN KEY (a) REFERENCES u (b)\",\"ALTER TABLE t ADD CONSTRAINT PRIMARY KEY (a)\",\"ALTER TABLE t ADD CONSTRAINT CHECK (a>1)\",\"CREATE TABLE t (a INT CONSTRAINT UNIQUE, b INT CONSTRAINT PRIMARY KEY)\"]:\n    print(parse_one(q,read=\"mysql\").sql(\"mysql\"))\nE\ngit stash -q; python -m unittest discover -s tests -t . 2>&1 | grep -E \"^(ERROR|FAIL)|Ran\"; git stash pop -q; python -m unittest discover -s tests -t . 2>&1 | grep -E \"^(ERROR|FAIL)|Ran\""
   ]
  },
  {
@@ -999,23 +997,22 @@
   "task": "930f1a32f7-fix-postgres-duckdb-preserve-json-extrac",
   "arm": "baseline",
   "rep": "1",
-  "bash_cmds": 4,
-  "test_cmds": 2,
-  "broad_test_cmds": 2,
+  "bash_cmds": 1,
+  "test_cmds": 1,
+  "broad_test_cmds": 0,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "cd /home/agentrun/proviso-work/agent/runs/930f1a32f7-fix-postgres-duckdb-preserve-json-extrac/baseline/1/repo; python - <<'E'\np='sqlglot/dialects/dialect.py'\ns=open(p).read()\ns=s.replace('''        this.replace(exp.cast(this, exp.DType.JSON))\n\n    return self.binary(''','''        this.replace(exp.cast(this, exp.DType.JSON))\n\n    path = expression.expression\n    if isinstance(path, (exp.Binary, exp.Not)):\n        expression.set(\"expression\", exp.paren(path.copy(), copy=False))\n\n    return self.binary(''')\nopen(p,'w').write(s)\np='sqlglot/generators/postgres.py'\ns=open(p).read()\ns=s.replace('''        ):\n            return self.binary(expression, op)\n''','''        ):\n            if isinstance(path, (exp.Binary, exp.Not)):\n                expression.set(\"expression\", exp.paren(path.copy(), copy=False))\n            return self.binary(expression, op)\n''',1)\nopen(p,'w').write(s)\nE\npython -c \"\nfrom sqlglot import transpile\nfor q,r,w in [(\\\"SELECT JSON_EXTRACT(a, 'x' || 'y')\\\",'duckdb','postgres'),('SELECT JSON_EXTRACT(a, 1 + 2)','postgres','postgres'),(\\\"SELECT JSON_EXTRACT_STRING(a, 'x' || 'y')\\\",'duckdb','postgres'),(\\\"SELECT JSON_EXTRACT(a, 'x' || 'y')\\\",'duckdb','duckdb'),('SELECT a -> (1+2) ->> (3+4)','postgres','postgres')]: print(transpile(q,read=r,write=w))\"\npython -m unittest discover -s tests -t . 2>&1 | tail -5",
-   "cd /home/agentrun/proviso-work/agent/runs/930f1a32f7-fix-postgres-duckdb-preserve-json-extrac/baseline/1/repo; python -m unittest discover -s tests -t . 2>&1 | grep -E \"^(ERROR|FAIL|\\w*Error)\" | head; git stash -q; python -m unittest discover -s tests -t . 2>&1 | tail -2; git stash pop -q"
+   "python -c \"\nfrom sqlglot import transpile\nfor s,r,w in [(\\\"SELECT JSON_EXTRACT(a, 'x' || 'y')\\\",'duckdb','postgres'),('SELECT JSON_EXTRACT(a, 1 + 2)','postgres','postgres'),(\\\"SELECT a -> ('x' || 'y')\\\",'duckdb','duckdb'),(\\\"SELECT a ->> ('x' || 'y')\\\",'postgres','postgres')]: print(transpile(s,read=r,write=w))\n\" ; python -m unittest tests.test_transpile tests.dialects.test_postgres tests.dialects.test_duckdb tests.dialects.test_mysql tests.dialects.test_sqlite 2>&1 | tail -5"
   ]
  },
  {
   "task": "930f1a32f7-fix-postgres-duckdb-preserve-json-extrac",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 9,
+  "bash_cmds": 5,
   "test_cmds": 5,
   "broad_test_cmds": 1,
   "intercepts": 0,
@@ -1023,9 +1020,9 @@
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\np='sqlglot/dialects/dialect.py'\ns=open(p).read()\ns=s.replace('''    return self.binary(expression, \"->\" if isinstance(expression, exp.JSONExtract) else \"->>\")\n''','''    path = expression.expression\n    if isinstance(path, (exp.Binary, exp.Not)):\n        expression = expression.copy()\n        expression.set(\"expression\", exp.paren(path.copy(), copy=False))\n\n    return self.binary(expression, \"->\" if isinstance(expression, exp.JSONExtract) else \"->>\")\n''',1)\nopen(p,'w').write(s)\nE\npython -c \"\nfrom sqlglot import transpile as t\nprint(t(\\\"SELECT JSON_EXTRACT(a, 'x' || 'y')\\\",read='duckdb',write='postgres'))\nprint(t('SELECT JSON_EXTRACT(a, 1 + 2), a->>(1+2), a->(1+2)',read='postgres',write='postgres'))\nprint(t('SELECT a->(1+2)',read='postgres',write='duckdb'))\"\npython -m unittest tests.test_transpile tests.dialects 2>&1 | tail -4",
-   "python - <<'E'\np='sqlglot/generators/postgres.py'\ns=open(p).read()\ns=s.replace('''            return self.binary(expression, op)\n\n        # JSON_EXTRACT_PATH requires''','''            if isinstance(path, (exp.Binary, exp.Not)):\n                expression = expression.copy()\n                expression.set(\"expression\", exp.paren(path.copy(), copy=False))\n            return self.binary(expression, op)\n\n        # JSON_EXTRACT_PATH requires''',1)\nopen(p,'w').write(s)\nE\npython -c \"\nfrom sqlglot import transpile as t\nprint(t(\\\"SELECT JSON_EXTRACT(a, 'x' || 'y')\\\",read='duckdb',write='postgres'))\nprint(t('SELECT JSON_EXTRACT(a, 1 + 2), a->>(1+2), a->(1+2)',read='postgres',write='postgres'))\nprint(t(\\\"SELECT JSON_EXTRACT(a, 'x' || 'y')\\\",read='duckdb',write='duckdb'))\"\npython -m unittest discover -s tests 2>&1 | tail -4",
-   "python -m unittest 2>&1 | tail -4"
+   "python - <<'E'\nimport re\np='sqlglot/dialects/dialect.py'\ns=open(p).read()\ns=s.replace('''    return self.binary(expression, \"->\" if isinstance(expression, exp.JSONExtract) else \"->>\")\n''','''    return arrow_binary_sql(\n        self, expression, \"->\" if isinstance(expression, exp.JSONExtract) else \"->>\"\n    )\n''')\ns=s.replace('''def arrow_json_extract_sql(''','''def arrow_binary_sql(self: Generator, expression: exp.Binary, op: str) -> str:\n    def _operand(node: exp.Expr) -> str:\n        sql = self.sql(node)\n        return f\"({sql})\" if isinstance(node, (exp.Binary, exp.Unary)) else sql\n\n    return f\"{_operand(expression.this)} {op} {_operand(expression.expression)}\"\n\n\ndef arrow_json_extract_sql(''',1)\nopen(p,'w').write(s)\np='sqlglot/generators/postgres.py'\ns=open(p).read()\ns=s.replace(\"return self.binary(expression, op)\\n\\n        # JSON_EXTRACT_PATH requires\",\"return arrow_binary_sql(self, expression, op)\\n\\n        # JSON_EXTRACT_PATH requires\")\ns=s.replace(\"    json_extract_segments,\",\"    arrow_binary_sql,\\n    json_extract_segments,\",1)\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import transpile\nfor q,r,w in [(\"SELECT JSON_EXTRACT(a, 'x' || 'y')\",\"duckdb\",\"postgres\"),(\"SELECT JSON_EXTRACT(a, 1 + 2)\",\"postgres\",\"postgres\"),(\"SELECT a -> ('x' || 'y')\",\"postgres\",\"duckdb\"),(\"SELECT a ->> ('x' || 'y')\",\"postgres\",\"postgres\")]:\n    print(transpile(q,read=r,write=w)[0])\nE\npython -m unittest discover -s tests -q 2>&1 | tail -15",
+   "sed -i 's/isinstance(node, (exp.Binary, exp.Unary))/isinstance(node, (exp.Binary, exp.Unary)) and not isinstance(node, exp.Paren)/' sqlglot/dialects/dialect.py\npython - <<'E'\nfrom sqlglot import transpile\nprint(transpile(\"SELECT a -> ('x' || 'y')\",read=\"postgres\",write=\"duckdb\")[0])\nE\npython -m unittest tests.test_executor tests.dialects.test_postgres tests.dialects.test_duckdb tests.dialects.test_mysql tests.dialects.test_sqlite tests.dialects.test_starrocks tests.dialects.test_dialect 2>&1 | tail -8",
+   "python - <<'E'\np='sqlglot/dialects/dialect.py'\ns=open(p).read()\na=s.index(\"def arrow_binary_sql\"); b=s.index(\"def arrow_json_extract_sql\")\ns=s[:a]+'''def arrow_binary_sql(self: Generator, expression: exp.Binary, op: str) -> str:\n    path = expression.expression\n    path_sql = self.sql(path)\n    if isinstance(path, (exp.Binary, exp.Unary)) and not isinstance(path, exp.Paren):\n        path_sql = f\"({path_sql})\"\n\n    return f\"{self.sql(expression, 'this')} {op} {path_sql}\"\n\n\n'''+s[b:]\nopen(p,'w').write(s)\nE\npython -m unittest tests.test_executor tests.dialects.test_postgres tests.dialects.test_duckdb tests.dialects.test_mysql tests.dialects.test_sqlite tests.dialects.test_starrocks tests.dialects.test_dialect 2>&1 | tail -20"
   ]
  },
  {
@@ -1098,33 +1095,33 @@
   "arm": "baseline",
   "rep": "1",
   "bash_cmds": 9,
-  "test_cmds": 6,
+  "test_cmds": 3,
   "broad_test_cmds": 1,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "python - <<'E'\np='sqlglot/generator.py'\ns=open(p).read()\ns=s.replace('return exp.select(\"*\").from_(exp.subquery(node.copy(), alias, copy=False), copy=False)','return exp.subquery(node.copy(), alias, copy=False).select(\"*\", copy=False)')\nopen(p,'w').write(s)\nE\npython -c \"\nfrom sqlglot import transpile\nfor d in ['sqlite','tsql']:\n    print(transpile('SELECT 1 AS x ORDER BY x NULLS FIRST FETCH FIRST 1 ROWS ONLY UNION ALL SELECT 2 AS x',write=d)[0])\n\"; python -m unittest discover -s tests 2>&1 | tail -30",
+   "python - <<'E'\np='sqlglot/generator.py'\ns=open(p).read()\na=\"\"\"                        node = exp.select(\"*\").from_(\n                            exp.subquery(node.copy(), f\"_l_{scope_count}\", copy=False), copy=False\n                        )\n\"\"\"\nb=\"\"\"                        node = exp.subquery(node.copy(), f\"_l_{scope_count}\", copy=False).select(\n                            \"*\", copy=False\n                        )\n\"\"\"\nassert a in s\nopen(p,'w').write(s.replace(a,b))\nE\npython -c \"\nfrom sqlglot import transpile\nfor q in ['SELECT 1 AS x ORDER BY x NULLS FIRST FETCH FIRST 1 ROWS ONLY UNION ALL SELECT 2 AS x','SELECT 1 ORDER BY 1 LIMIT 1 UNION SELECT 2 UNION SELECT 3 LIMIT 1']:\n  for d in ['sqlite','tsql']:\n    print(d, transpile(q,write=d)[0])\n\"; python -m unittest discover -s tests 2>&1 | tail -30",
    "python -m unittest 2>&1 | tail -30",
-   "python - <<'E'\np='sqlglot/generator.py'\ns=open(p).read()\ns=s.replace('''            return node\n\n        if mode == \"paren\":''','''            return node\n\n        if (\n            mode == \"aliased_subquery\"\n            and isinstance(node.args.get(\"limit\"), exp.Limit)\n            and not node.args.get(\"order\")\n            and not node.args.get(\"offset\")\n        ):\n            # Rendered as TOP, which already binds to the branch\n            return node\n\n        if mode == \"paren\":''',1)\nopen(p,'w').write(s)\nE\npython -m unittest 2>&1 | grep -E \"^(FAIL|ERROR|Ran)\""
+   "cat >> tests/dialects/test_dialect.py <<'E'\nE\npython - <<'E'\np='tests/test_transpile.py'\ns=open(p).read()\ns=s.rstrip('\\n')+'''\n\n    def test_set_operation_branch_pagination_scope(self):\n        sql = \"SELECT 1 AS x ORDER BY x NULLS FIRST FETCH FIRST 1 ROWS ONLY UNION ALL SELECT 2 AS x\"\n        for dialect, expected in {\n            \"duckdb\": \"(SELECT 1 AS x ORDER BY x NULLS FIRST LIMIT 1) UNION ALL SELECT 2 AS x\",\n            \"postgres\": \"(SELECT 1 AS x ORDER BY x NULLS FIRST FETCH FIRST 1 ROWS ONLY) UNION ALL SELECT 2 AS x\",\n            \"sqlite\": \"SELECT * FROM (SELECT 1 AS x ORDER BY x LIMIT 1) AS _l_0 UNION ALL SELECT 2 AS x\",\n            \"tsql\": \"SELECT * FROM (SELECT 1 AS x ORDER BY x OFFSET 0 ROWS FETCH FIRST 1 ROWS ONLY) AS _l_0 UNION ALL SELECT 2 AS x\",\n            \"clickhouse\": \"SELECT 1 AS x ORDER BY x NULLS FIRST FETCH FIRST 1 ROWS ONLY UNION ALL SELECT 2 AS x\",\n        }.items():\n            with self.subTest(dialect):\n                self.assertEqual(transpile(sql, write=dialect)[0], expected)\n\n        self.assertEqual(\n            transpile(\"SELECT * FROM a UNION SELECT * FROM b OFFSET 1\", write=\"clickhouse\")[0],\n            \"SELECT * FROM (SELECT * FROM a UNION DISTINCT SELECT * FROM b) AS _l_0 OFFSET 1\",\n        )\n'''\nopen(p,'w').write(s)\nE\npython -m unittest 2>&1 | tail -8; git status --short"
   ]
  },
  {
   "task": "eeece5a564-fix-preserve-pagination-scope-in-set-ope",
   "arm": "baseline",
   "rep": "2",
-  "bash_cmds": 7,
-  "test_cmds": 4,
+  "bash_cmds": 9,
+  "test_cmds": 5,
   "broad_test_cmds": 1,
   "intercepts": 0,
   "impact_runs": 0,
   "proviso_outputs_seen": 0,
   "reports_seen": 0,
   "test_cmd_examples": [
-   "cd /home/agentrun/proviso-work/agent/runs/eeece5a564-fix-preserve-pagination-scope-in-set-ope/baseline/2/repo && python - <<'E'\ndef ins(p, anchor, code):\n    s=open(p).read()\n    assert anchor in s\n    s=s.replace(anchor, code+anchor,1)\n    open(p,'w').write(s)\nins('sqlglot/generators/sqlite.py','class SQLiteGenerator(generator.Generator):\\n','')\ns=open('sqlglot/generators/sqlite.py').read()\ni=s.index('class SQLiteGenerator')\nj=s.index('\\n    def ',i)\ns=s[:j]+'''\n    def scope_set_op_branch(self, expression: exp.Select, index: int) -> exp.Expr:\n        if any(expression.args.get(arg) for arg in (\"order\", \"limit\", \"offset\")):\n            return exp.subquery(expression.copy(), copy=False).select(\"*\", copy=False)\n        return expression\n'''+s[j:]\nopen('sqlglot/generators/sqlite.py','w').write(s)\n\ns=open('sqlglot/generators/tsql.py').read()\ns=s.replace('    def select_sql(self, expression: exp.Select) -> str:','''    def scope_set_op_branch(self, expression: exp.Select, index: int) -> exp.Expr:\n        if any(expression.args.get(arg) for arg in (\"order\", \"limit\", \"offset\")):\n            return exp.subquery(expression.copy(), f\"_l_{index}\", copy=False).select(\n                \"*\", copy=False\n            )\n        return expression\n\n    def select_sql(self, expression: exp.Select) -> str:''',1)\nopen('sqlglot/generators/tsql.py','w').write(s)\n\ns=open('sqlglot/generators/clickhouse.py').read()\ns=s.replace('    def offset_sql(self, expression: exp.Offset) -> str:','''    def scope_set_op_branch(self, expression: exp.Select, index: int) -> exp.Expr:\n        return expression\n\n    def offset_sql(self, expression: exp.Offset) -> str:''',1)\nopen('sqlglot/generators/clickhouse.py','w').write(s)\nE\npython -c \"\nfrom sqlglot import transpile\nfor q in ['SELECT 1 AS x ORDER BY x NULLS FIRST FETCH FIRST 1 ROWS ONLY UNION ALL SELECT 2 AS x','SELECT * FROM a UNION SELECT * FROM b OFFSET 1']:\n  for d in ['duckdb','postgres','sqlite','tsql','clickhouse']: print(d, transpile(q,write=d)[0])\n\"; python -m unittest discover -s tests 2>&1 | tail -40",
-   "python -m unittest 2>&1 | tail -40",
-   "python - <<'E'\np='sqlglot/generators/tsql.py'\ns=open(p).read()\ns=s.replace('''        if any(expression.args.get(arg) for arg in (\"order\", \"limit\", \"offset\")):\n            return exp.subquery(expression.copy(), f\"_l_''','''        if expression.args.get(\"order\") or expression.args.get(\"offset\"):\n            return exp.subquery(expression.copy(), f\"_l_''')\nopen(p,'w').write(s)\nE\npython -m unittest 2>&1 | grep -E \"^(FAIL|ERROR|Ran)\""
+   "cd /home/agentrun/proviso-work/agent/runs/eeece5a564-fix-preserve-pagination-scope-in-set-ope/baseline/2/repo; python - <<'E'\nimport re\np='sqlglot/generator.py'\ns=open(p).read()\ns=s.replace(\"    SET_OP_MODIFIERS = True\\n\",\"\"\"    SET_OP_MODIFIERS = True\n\n    # How a set operation branch with its own ORDER BY / pagination is scoped:\n    # \"paren\" -> (SELECT ...), \"select\" -> SELECT * FROM (...), \"select_alias\" -> same with alias,\n    # None -> leave as is\n    SET_OP_BRANCH_WRAP: str | None = \"paren\"\n\"\"\",1)\ns=s.replace(\"\"\"            limit = expression.args.get(\"limit\")\n            order = expression.args.get(\"order\")\n\n            if limit or order:\n                select = self._move_ctes_to_top_level(\n                    exp.subquery(expression, \"_l_0\", copy=False).select(\"*\", copy=False)\n                )\n\n                if limit:\n                    select = select.limit(limit.pop(), copy=False)\n                if order:\n                    select = select.order_by(order.pop(), copy=False)\n                return self.sql(select)\n\"\"\",\"\"\"            modifiers = {k: expression.args.get(k) for k in (\"limit\", \"offset\", \"order\")}\n\n            if any(modifiers.values()):\n                select = self._move_ctes_to_top_level(\n                    exp.subquery(expression, \"_l_0\", copy=False).select(\"*\", copy=False)\n                )\n\n                for key, value in modifiers.items():\n                    if value:\n                        select.set(key, value.pop())\n                return self.sql(select)\n\"\"\",1)\ns=s.replace(\"\"\"            else:\n                sqls.append(self.sql(node))\n\n        this = self.sep().join(sqls)\"\"\",\"\"\"            else:\n                sqls.append(self.sql(self._scope_set_op_branch(node)))\n\n        this = self.sep().join(sqls)\"\"\",1)\ns=s.replace(\"\"\"    def fetch_sql(self, expression: exp.Fetch)\"\"\",\"\"\"    def _scope_set_op_branch(self, node: exp.Expr) -> exp.Expr:\n        wrap = self.SET_OP_BRANCH_WRAP\n        if (\n            wrap\n            and isinstance(node, exp.Select)\n            and any(node.args.get(k) for k in (\"order\", \"limit\", \"offset\"))\n        ):\n            if wrap == \"paren\":\n                return exp.paren(node, copy=False) if False else exp.Subquery(this=node)\n            subquery = exp.subquery(node, \"_l_0\" if wrap == \"select_alias\" else None, copy=False)\n            return exp.select(\"*\", copy=False).from_(subquery, copy=False)\n        return node\n\n    def fetch_sql(self, expression: exp.Fetch)\"\"\",1)\ns=s.replace('return exp.paren(node, copy=False) if False else exp.Subquery(this=node)','return exp.Subquery(this=node)')\nopen(p,'w').write(s)\nfor f,v in (('tsql','\"select_alias\"'),('sqlite','\"select\"'),('clickhouse','None')):\n    p=f'sqlglot/generators/{f}.py'\n    s=open(p).read()\n    if f=='sqlite':\n        s=s.replace(\"class SQLiteGenerator(generator.Generator):\\n\",\"class SQLiteGenerator(generator.Generator):\\n    SET_OP_BRANCH_WRAP = \\\"select\\\"\\n\",1)\n    else:\n        s=s.replace(\"    SET_OP_MODIFIERS = False\\n\",f\"    SET_OP_MODIFIERS = False\\n    SET_OP_BRANCH_WRAP = {v}\\n\",1)\n    open(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import transpile\nfor q in [\"SELECT 1 AS x ORDER BY x NULLS FIRST FETCH FIRST 1 ROWS ONLY UNION ALL SELECT 2 AS x\",\"SELECT * FROM a UNION SELECT * FROM b OFFSET 1\",\"SELECT * FROM a UNION SELECT * FROM b ORDER BY 1 LIMIT 2\"]:\n  for w in [\"duckdb\",\"postgres\",\"tsql\",\"sqlite\",\"clickhouse\"]: print(w,transpile(q,write=w)[0])\nE\npython -m unittest discover -s tests 2>&1 | tail -30",
+   "cd /home/agentrun/proviso-work/agent/runs/eeece5a564-fix-preserve-pagination-scope-in-set-ope/baseline/2/repo; python - <<'E'\np='sqlglot/generator.py'\ns=open(p).read()\ns=s.replace(\"\"\"            subquery = exp.subquery(node, \"_l_0\" if wrap == \"select_alias\" else None, copy=False)\n            return exp.select(\"*\", copy=False).from_(subquery, copy=False)\"\"\",\"\"\"            alias = \"_l_0\" if wrap == \"select_alias\" else None\n            return exp.subquery(node, alias, copy=False).select(\"*\", copy=False)\"\"\")\nopen(p,'w').write(s)\nE\npython - <<'E'\nfrom sqlglot import transpile\nq=\"SELECT 1 AS x ORDER BY x NULLS FIRST FETCH FIRST 1 ROWS ONLY UNION ALL SELECT 2 AS x\"\nfor w in [\"tsql\",\"sqlite\"]: print(transpile(q,write=w)[0])\nE\npython -m unittest 2>&1 | tail -40",
+   "cd /home/agentrun/proviso-work/agent/runs/eeece5a564-fix-preserve-pagination-scope-in-set-ope/baseline/2/repo; python -m unittest 2>&1 | grep -E \"^(FAIL|ERROR)\"; python -m unittest 2>&1 | grep -B3 -A12 \"^ERROR\" | head -60"
   ]
  },
  {

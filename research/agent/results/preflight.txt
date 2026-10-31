@@ -1,0 +1,14 @@
+03744a2a83-fix-hive-spark-parse-alter-ta selects   956 of 1137 (84%)
+1e6c6c58e1-fix-tsql-stop-json-query-json selects   131 of 1046 (13%)
+2aae7f7605-feat-postgres-preserve-x-is-n selects   all of 981 (100%)  reason: your edited functions run in 98% of the test time
+47b94d424a-feat-parser-mysql-accepts-non selects   164 of 1094 (15%)
+5e6887adc8-fix-tsql-parse-bare-table-hin selects   103 of 1088 (9%)
+646295528c-fix-postgres-transpile-day-mo selects   858 of 986 (87%)
+6581f8c38b-fix-hive-parse-month-day-with selects   845 of 971 (87%)
+66316e335f-fix-hive-parse-single-digit-h selects   856 of 980 (87%)
+7f1cf60c88-feat-parser-make-alter-action selects    50 of 1104 (5%)
+9114355463-feat-mysql-allow-constraints- selects   181 of 1120 (16%)
+930f1a32f7-fix-postgres-duckdb-preserve- selects   187 of 1039 (18%)
+eeece5a564-fix-preserve-pagination-scope selects   all of 1056 (100%)  reason: your edited functions run in 98% of the test time
+
+median share selected: 51% (limit 85%)

@@ -6,16 +6,13 @@ Runs grouped by dc-engine commit:
 
 | commit | dirty | path | runs |
 |---|---|---|---:|
-| 4276c9edc71d | e3b0c44298fc | /home/agentrun/Proviso/src/dc_engine | 24 |
-| 5b92940350cf | e3b0c44298fc | /home/agentrun/Proviso/src/dc_engine | 48 |
-
-**Warning:** this comparison mixes dc-engine versions (commits: 4276c9edc71d2ebad9fa2c3e8f22208abe65f87d, 5b92940350cf8bbcc520d0f76541f390dbcb6585). Do not treat arm differences as an ablation of one engine.
+| 5b92940350cf | e3b0c44298fc | /home/agentrun/Proviso/src/dc_engine | 72 |
 
 ## Per-arm summary
 
 | arm | runs | resolved | hidden checks | requests | tokens | tokens/request | time | read calls | dc-engine calls | contracts created | contract retries |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| baseline | 24 | 2 | 93% | 26.208 | 14439268 | 22053.916 | 3306.8 | 128 | 0 | 0 | 0 |
+| baseline | 24 | 3 | 93% | 24.875 | 13888215 | 22338.620 | 2852.6 | 122 | 0 | 0 | 0 |
 | impact | 24 | 4 | 93% | 24.500 | 12520158 | 20747.051 | 2113.4 | 146 | 0 | 0 | 0 |
 | impact-noreport | 24 | 6 | 94% | 20.958 | 10826215 | 21220.175 | 1887.9 | 109 | 0 | 0 | 0 |
 
@@ -25,14 +22,14 @@ Size of the result text returned to the agent for each completed tool call (char
 
 ### baseline
 
-Total returned chars: **645818** (~161455 tokens).
+Total returned chars: **647702** (~161926 tokens).
 
 | tool | chars | ~tokens |
 |---|---:|---:|
-| Bash | 390115 | 97529 |
-| Read | 167583 | 41896 |
-| Grep | 85962 | 21491 |
-| Edit | 2039 | 510 |
+| Bash | 376165 | 94042 |
+| Read | 157460 | 39365 |
+| Grep | 111364 | 27841 |
+| Edit | 2594 | 649 |
 | bash | 119 | 30 |
 
 ### impact
@@ -69,30 +66,6 @@ A request is a distinct `model_call_id` when the stream has one, otherwise an as
 
 | task | arm | rep | requests | tokens | tokens/request |
 |---|---|---:|---:|---:|---:|
-| 03744a2a83-fix-hive-spark-parse-alter-table-replace | baseline | 1 | 19 | 355460 | 18708.421 |
-| 1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub | baseline | 1 | 25 | 585005 | 23400.200 |
-| 1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub | baseline | 2 | 22 | 454858 | 20675.364 |
-| 2aae7f7605-feat-postgres-preserve-x-is-not-null-ins | baseline | 1 | 32 | 675603 | 21112.594 |
-| 2aae7f7605-feat-postgres-preserve-x-is-not-null-ins | baseline | 2 | 47 | 1125999.000 | 23957.426 |
-| 03744a2a83-fix-hive-spark-parse-alter-table-replace | baseline | 2 | 25 | 413721 | 16548.840 |
-| 47b94d424a-feat-parser-mysql-accepts-non-csv-table | baseline | 1 | 23 | 434173 | 18877.087 |
-| 47b94d424a-feat-parser-mysql-accepts-non-csv-table | baseline | 2 | 21 | 412885 | 19661.190 |
-| 5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1 | baseline | 1 | 30 | 643929 | 21464.300 |
-| 5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1 | baseline | 2 | 23 | 450259 | 19576.478 |
-| 646295528c-fix-postgres-transpile-day-month-year-to | baseline | 1 | 8 | 207610 | 25951.250 |
-| 646295528c-fix-postgres-transpile-day-month-year-to | baseline | 2 | 9 | 178105 | 19789.444 |
-| 6581f8c38b-fix-hive-parse-month-day-without-leading | baseline | 1 | 40 | 1100271.000 | 27506.775 |
-| 6581f8c38b-fix-hive-parse-month-day-without-leading | baseline | 2 | 41 | 1175823.000 | 28678.610 |
-| 66316e335f-fix-hive-parse-single-digit-hour-minute | baseline | 1 | 39 | 1027360.000 | 26342.564 |
-| 66316e335f-fix-hive-parse-single-digit-hour-minute | baseline | 2 | 43 | 1322247.000 | 30749.930 |
-| 7f1cf60c88-feat-parser-make-alter-actions-optional | baseline | 1 | 38 | 895442 | 23564.263 |
-| 7f1cf60c88-feat-parser-make-alter-actions-optional | baseline | 2 | 37 | 877418 | 23714 |
-| 9114355463-feat-mysql-allow-constraints-without-nam | baseline | 1 | 16 | 345598 | 21599.875 |
-| 9114355463-feat-mysql-allow-constraints-without-nam | baseline | 2 | 25 | 419157 | 16766.280 |
-| 930f1a32f7-fix-postgres-duckdb-preserve-json-extrac | baseline | 1 | 9 | 174090 | 19343.333 |
-| 930f1a32f7-fix-postgres-duckdb-preserve-json-extrac | baseline | 2 | 19 | 369126 | 19427.684 |
-| eeece5a564-fix-preserve-pagination-scope-in-set-ope | baseline | 1 | 21 | 436809 | 20800.429 |
-| eeece5a564-fix-preserve-pagination-scope-in-set-ope | baseline | 2 | 17 | 358320 | 21077.647 |
 | 03744a2a83-fix-hive-spark-parse-alter-table-replace | impact | 1 | 23 | 409187 | 17790.739 |
 | 03744a2a83-fix-hive-spark-parse-alter-table-replace | impact-noreport | 1 | 16 | 309593 | 19349.562 |
 | 03744a2a83-fix-hive-spark-parse-alter-table-replace | impact | 2 | 15 | 271780 | 18118.667 |
@@ -141,10 +114,34 @@ A request is a distinct `model_call_id` when the stream has one, otherwise an as
 | eeece5a564-fix-preserve-pagination-scope-in-set-ope | impact-noreport | 1 | 20 | 448278 | 22413.900 |
 | eeece5a564-fix-preserve-pagination-scope-in-set-ope | impact-noreport | 2 | 18 | 424262 | 23570.111 |
 | eeece5a564-fix-preserve-pagination-scope-in-set-ope | impact | 2 | 19 | 428921 | 22574.789 |
+| 03744a2a83-fix-hive-spark-parse-alter-table-replace | baseline | 1 | 20 | 278567 | 13928.350 |
+| 03744a2a83-fix-hive-spark-parse-alter-table-replace | baseline | 2 | 20 | 411098 | 20554.900 |
+| 1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub | baseline | 1 | 14 | 349031 | 24930.786 |
+| 1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub | baseline | 2 | 26 | 682285 | 26241.731 |
+| 2aae7f7605-feat-postgres-preserve-x-is-not-null-ins | baseline | 1 | 30 | 698672 | 23289.067 |
+| 2aae7f7605-feat-postgres-preserve-x-is-not-null-ins | baseline | 2 | 28 | 690368 | 24656 |
+| 47b94d424a-feat-parser-mysql-accepts-non-csv-table | baseline | 1 | 21 | 424749 | 20226.143 |
+| 47b94d424a-feat-parser-mysql-accepts-non-csv-table | baseline | 2 | 18 | 369360 | 20520 |
+| 5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1 | baseline | 1 | 37 | 764666 | 20666.649 |
+| 5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1 | baseline | 2 | 29 | 551459 | 19015.828 |
+| 646295528c-fix-postgres-transpile-day-month-year-to | baseline | 1 | 17 | 391502 | 23029.529 |
+| 646295528c-fix-postgres-transpile-day-month-year-to | baseline | 2 | 11 | 215339 | 19576.273 |
+| 6581f8c38b-fix-hive-parse-month-day-without-leading | baseline | 1 | 42 | 1186777.000 | 28256.595 |
+| 6581f8c38b-fix-hive-parse-month-day-without-leading | baseline | 2 | 40 | 1017781.000 | 25444.525 |
+| 66316e335f-fix-hive-parse-single-digit-hour-minute | baseline | 1 | 40 | 1215446.000 | 30386.150 |
+| 66316e335f-fix-hive-parse-single-digit-hour-minute | baseline | 2 | 28 | 822041 | 29358.607 |
+| 7f1cf60c88-feat-parser-make-alter-actions-optional | baseline | 1 | 43 | 1041637.000 | 24224.116 |
+| 7f1cf60c88-feat-parser-make-alter-actions-optional | baseline | 2 | 31 | 713510 | 23016.452 |
+| 9114355463-feat-mysql-allow-constraints-without-nam | baseline | 1 | 11 | 221256 | 20114.182 |
+| 9114355463-feat-mysql-allow-constraints-without-nam | baseline | 2 | 20 | 443511 | 22175.550 |
+| 930f1a32f7-fix-postgres-duckdb-preserve-json-extrac | baseline | 1 | 13 | 206859 | 15912.231 |
+| 930f1a32f7-fix-postgres-duckdb-preserve-json-extrac | baseline | 2 | 14 | 245833 | 17559.500 |
+| eeece5a564-fix-preserve-pagination-scope-in-set-ope | baseline | 1 | 23 | 489326 | 21275.043 |
+| eeece5a564-fix-preserve-pagination-scope-in-set-ope | baseline | 2 | 21 | 457142 | 21768.667 |
 
 | arm | mean requests | mean tokens | mean tokens/request |
 |---|---:|---:|---:|
-| baseline | 26.208 | 601636.167 | 22053.916 |
+| baseline | 24.875 | 578675.625 | 22338.620 |
 | impact | 24.500 | 521673.250 | 20747.051 |
 | impact-noreport | 20.958 | 451092.292 | 21220.175 |
 
@@ -504,18 +501,18 @@ Resolved rate is the fraction of runs where every hidden test passed. Other per-
 
 | task | resolved B | resolved L | regr B | regr L | tokens B | tokens L | cost B | cost L | time B | time L |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 03744a2a83-fix-hive-spark-parse-alter-table-replace | 0 | — | 0 | — | 384590.500 | — | $0.1561 | — | 78.587 | — |
-| 1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub | 0 | — | 0 | — | 519931.500 | — | $0.1889 | — | 58.426 | — |
-| 2aae7f7605-feat-postgres-preserve-x-is-not-null-ins | 0 | — | 0 | — | 900801 | — | $0.2751 | — | 265.968 | — |
-| 47b94d424a-feat-parser-mysql-accepts-non-csv-table | 0 | — | 0 | — | 423529 | — | $0.1646 | — | 65.520 | — |
-| 5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1 | 0 | — | 0 | — | 547094 | — | $0.2027 | — | 125.823 | — |
-| 646295528c-fix-postgres-transpile-day-month-year-to | 0 | — | 0 | — | 192857.500 | — | $0.0942 | — | 30.075 | — |
-| 6581f8c38b-fix-hive-parse-month-day-without-leading | 0 | — | 0 | — | 1138047.000 | — | $0.3969 | — | 276.717 | — |
-| 66316e335f-fix-hive-parse-single-digit-hour-minute | 0 | — | 0 | — | 1174803.500 | — | $0.3666 | — | 226.806 | — |
-| 7f1cf60c88-feat-parser-make-alter-actions-optional | 0 | — | 1 | — | 886430 | — | $0.3176 | — | 220.308 | — |
-| 9114355463-feat-mysql-allow-constraints-without-nam | 1 | — | 0 | — | 382377.500 | — | $0.1719 | — | 71.822 | — |
-| 930f1a32f7-fix-postgres-duckdb-preserve-json-extrac | 0 | — | 0 | — | 271608 | — | $0.1033 | — | 104.944 | — |
-| eeece5a564-fix-preserve-pagination-scope-in-set-ope | 0 | — | 0 | — | 397564.500 | — | $0.1831 | — | 128.409 | — |
+| 03744a2a83-fix-hive-spark-parse-alter-table-replace | 0 | — | 0 | — | 344832.500 | — | $0.1629 | — | 51.701 | — |
+| 1e6c6c58e1-fix-tsql-stop-json-query-json-value-doub | 0 | — | 0 | — | 515658 | — | $0.1777 | — | 99.456 | — |
+| 2aae7f7605-feat-postgres-preserve-x-is-not-null-ins | 0 | — | 0 | — | 694520 | — | $0.2342 | — | 147.077 | — |
+| 47b94d424a-feat-parser-mysql-accepts-non-csv-table | 0 | — | 0 | — | 397054.500 | — | $0.1651 | — | 85.918 | — |
+| 5e6887adc8-fix-tsql-parse-bare-table-hints-gpt-6-1 | 0 | — | 0 | — | 658062.500 | — | $0.2355 | — | 122.239 | — |
+| 646295528c-fix-postgres-transpile-day-month-year-to | 0 | — | 0 | — | 303420.500 | — | $0.1284 | — | 49.488 | — |
+| 6581f8c38b-fix-hive-parse-month-day-without-leading | 0 | — | 0 | — | 1102279.000 | — | $0.4193 | — | 183.383 | — |
+| 66316e335f-fix-hive-parse-single-digit-hour-minute | 0.500 | — | 0 | — | 1018743.500 | — | $0.3203 | — | 185.935 | — |
+| 7f1cf60c88-feat-parser-make-alter-actions-optional | 0 | — | 0 | — | 877573.500 | — | $0.3073 | — | 230.372 | — |
+| 9114355463-feat-mysql-allow-constraints-without-nam | 1 | — | 0 | — | 332383.500 | — | $0.1439 | — | 104.712 | — |
+| 930f1a32f7-fix-postgres-duckdb-preserve-json-extrac | 0 | — | 0 | — | 226346 | — | $0.1043 | — | 31.525 | — |
+| eeece5a564-fix-preserve-pagination-scope-in-set-ope | 0 | — | 0 | — | 473234 | — | $0.2201 | — | 134.469 | — |
 
 ## Paired difference (impact − baseline) with 95% bootstrap CI
 
@@ -523,20 +520,20 @@ Resamples: 10000 with `random.choices`, seed 0. Each observation is one task (me
 
 | metric | n | mean(L−B) | 95% CI low | 95% CI high |
 |---|---:|---:|---:|---:|
-| resolved rate | 12 | 0.0833 | 0.0000 | 0.2500 |
-| hidden checks passed | 12 | 0.0019 | -0.0002 | 0.0059 |
-| regressions | 12 | -0.0833 | -0.2500 | 0.0000 |
-| tokens (all-in, incl. cache) | 12 | -79962.9167 | -194327.2083 | 597.9167 |
-| requests | 12 | -1.7083 | -5.2917 | 1.2917 |
-| tokens/request | 12 | -1306.8652 | -2731.8560 | 19.5017 |
-| cost (USD) | 12 | -0.0114 | -0.0418 | 0.0106 |
-| wall time (s) | 12 | -49.7240 | -79.0887 | -22.4239 |
-| read chars | 12 | -467.6667 | -2748.3333 | 1423.4583 |
-| read calls | 12 | 0.7500 | -0.6250 | 2.0417 |
+| resolved rate | 12 | 0.0417 | 0.0000 | 0.1250 |
+| hidden checks passed | 12 | -0.0037 | -0.0112 | 0.0011 |
+| regressions | 12 | 0.0000 | 0.0000 | 0.0000 |
+| tokens (all-in, incl. cache) | 12 | -57002.3750 | -146293.4167 | 6030.5417 |
+| requests | 12 | -0.3750 | -2.8333 | 2.0000 |
+| tokens/request | 12 | -1591.5689 | -3030.7593 | -280.2411 |
+| cost (USD) | 12 | -0.0113 | -0.0346 | 0.0067 |
+| wall time (s) | 12 | -30.7965 | -55.5800 | -7.1828 |
+| read chars | 12 | -45.8750 | -2322.9167 | 1813.3333 |
+| read calls | 12 | 1.0000 | -0.3333 | 2.3750 |
 | dc-engine calls | 12 | 0.0000 | 0.0000 | 0.0000 |
 | contracts created | 12 | 0.0000 | 0.0000 | 0.0000 |
 | contract retries | 12 | 0.0000 | 0.0000 | 0.0000 |
-| turns | 12 | -0.6667 | -2.9583 | 1.3750 |
+| turns | 12 | -0.1667 | -1.8333 | 1.7083 |
 
 ## Paired difference (impact-noreport − baseline) with 95% bootstrap CI
 
@@ -544,17 +541,17 @@ Resamples: 10000 with `random.choices`, seed 0. Each observation is one task (me
 
 | metric | n | mean(L−B) | 95% CI low | 95% CI high |
 |---|---:|---:|---:|---:|
-| resolved rate | 12 | 0.1667 | 0.0417 | 0.2917 |
-| hidden checks passed | 12 | 0.0151 | 0.0002 | 0.0368 |
-| regressions | 12 | -0.0833 | -0.2500 | 0.0000 |
-| tokens (all-in, incl. cache) | 12 | -150543.8750 | -277762.3333 | -37624.5000 |
-| requests | 12 | -5.2500 | -8.7500 | -1.9583 |
-| tokens/request | 12 | -833.7409 | -2447.3018 | 702.0363 |
-| cost (USD) | 12 | -0.0360 | -0.0695 | -0.0068 |
-| wall time (s) | 12 | -59.1194 | -92.1144 | -27.4985 |
-| read chars | 12 | -1944.9583 | -5270.9583 | 891.1250 |
-| read calls | 12 | -0.7917 | -2.0417 | 0.4167 |
+| resolved rate | 12 | 0.1250 | 0.0000 | 0.2500 |
+| hidden checks passed | 12 | 0.0094 | 0.0009 | 0.0235 |
+| regressions | 12 | 0.0000 | 0.0000 | 0.0000 |
+| tokens (all-in, incl. cache) | 12 | -127583.3333 | -231947.6250 | -30825.8750 |
+| requests | 12 | -3.9167 | -6.6250 | -1.3333 |
+| tokens/request | 12 | -1118.4446 | -2658.7969 | 436.2906 |
+| cost (USD) | 12 | -0.0358 | -0.0658 | -0.0109 |
+| wall time (s) | 12 | -40.1919 | -65.1441 | -16.7336 |
+| read chars | 12 | -1523.1667 | -4124.9583 | 671.0000 |
+| read calls | 12 | -0.5417 | -1.5833 | 0.5417 |
 | dc-engine calls | 12 | 0.0000 | 0.0000 | 0.0000 |
 | contracts created | 12 | 0.0000 | 0.0000 | 0.0000 |
 | contract retries | 12 | 0.0000 | 0.0000 | 0.0000 |
-| turns | 12 | -3.2500 | -5.2083 | -1.4167 |
+| turns | 12 | -2.7500 | -4.4583 | -1.0833 |
