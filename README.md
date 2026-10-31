@@ -92,6 +92,7 @@ src/dc_engine/     the tool: recorder (covplugin.py, record.py), import-time sna
                    selection and agent hook (impact.py, proviso.py, hooks.py); the rest is the symbol index and
                    MCP server the hook builds on
 research/v2/       evaluation pipeline, baselines and results
+research/agent/    agent study: tasks, scripts and results (harness in src/dc_eval/)
 paper/             Kaggle paper, literature review, NameRTS analysis
 tests/             unit tests (python -m pytest tests)
 ```
